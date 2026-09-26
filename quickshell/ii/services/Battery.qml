@@ -1,0 +1,125 @@
+pragma Singleton
+
+import qs.services
+import qs.modules.common
+import Quickshell
+import Quickshell.Services.UPower
+import QtQuick
+import Quickshell.Io
+
+Singleton {
+    id: root
+    // Test mode lets desktop users (no laptop battery) preview the bar
+    // indicator with configurable synthetic values. See Config.options.battery.
+    readonly property bool testMode: Config.options.battery.testMode
+    property bool available: testMode || UPower.displayDevice.isLaptopBattery
+    property var chargeState: testMode
+        ? (Config.options.battery.testCharging ? UPowerDeviceState.Charging : UPowerDeviceState.Discharging)
+        : UPower.displayDevice.state
+    property bool isCharging: chargeState == UPowerDeviceState.Charging
+    property bool isPluggedIn: isCharging || chargeState == UPowerDeviceState.PendingCharge
+    property real percentage: testMode
+        ? (Config.options.battery.testPercentage / 100)
+        : (UPower.displayDevice?.percentage ?? 1)
+    readonly property bool allowAutomaticSuspend: Config.options.battery.automaticSuspend
+    readonly property bool soundEnabled: Config.options.sounds.battery
+
+    property bool isLow: available && (percentage <= Config.options.battery.low / 100)
+    property bool isCritical: available && (percentage <= Config.options.battery.critical / 100)
+    property bool isSuspending: available && (percentage <= Config.options.battery.suspend / 100)
+    property bool isFull: available && (percentage >= Config.options.battery.full / 100)
+
+    property bool isLowAndNotCharging: isLow && !isCharging
+    property bool isCriticalAndNotCharging: isCritical && !isCharging
+    // Never on a made-up reading: test mode exists so a desktop with no battery
+    // can see what the indicator looks like, and putting the machine to sleep
+    // over a number someone typed to preview the low state is not a preview.
+    property bool isSuspendingAndNotCharging: !testMode && allowAutomaticSuspend && isSuspending && !isCharging
+    property bool isFullAndCharging: isFull && isCharging
+
+    property real energyRate: testMode
+        ? Config.options.battery.testPowerWatts
+        : UPower.displayDevice.changeRate
+    // UPower reports times in seconds; testTimeMinutes is human-friendly, convert.
+    property real timeToEmpty: testMode
+        ? (isCharging ? 0 : Config.options.battery.testTimeMinutes * 60)
+        : UPower.displayDevice.timeToEmpty
+    property real timeToFull: testMode
+        ? (isCharging ? Config.options.battery.testTimeMinutes * 60 : 0)
+        : UPower.displayDevice.timeToFull
+
+    property real health: testMode ? Config.options.battery.testHealthPercentage : (function() {
+        const devList = UPower.devices.values;
+        for (let i = 0; i < devList.length; ++i) {
+            const dev = devList[i];
+            if (dev.isLaptopBattery && dev.healthSupported) {
+                const health = dev.healthPercentage;
+                if (health === 0) {
+                    return 0.01;
+                } else if (health < 1) {
+                    return health * 100;
+                } else {
+                    return health;
+                }
+            }
+        }
+        return 0;
+    })()
+
+
+    onIsLowAndNotChargingChanged: {
+        if (!root.available || !isLowAndNotCharging) return;
+        Quickshell.execDetached([
+            "notify-send", 
+            Translation.tr("Low battery"), 
+            Translation.tr("Consider plugging in your device"), 
+            "-u", "critical",
+            "-a", "Shell",
+            "--hint=int:transient:1",
+        ])
+
+        if (root.soundEnabled) Audio.playSystemSound("dialog-warning");
+    }
+
+    onIsCriticalAndNotChargingChanged: {
+        if (!root.available || !isCriticalAndNotCharging) return;
+        Quickshell.execDetached([
+            "notify-send", 
+            Translation.tr("Critically low battery"), 
+            Translation.tr("Please charge!\nAutomatic suspend triggers at %1%").arg(Config.options.battery.suspend), 
+            "-u", "critical",
+            "-a", "Shell",
+            "--hint=int:transient:1",
+        ]);
+
+        if (root.soundEnabled) Audio.playSystemSound("suspend-error");
+    }
+
+    onIsSuspendingAndNotChargingChanged: {
+        if (root.available && isSuspendingAndNotCharging) {
+            Quickshell.execDetached(["bash", "-c", `systemctl suspend || loginctl suspend`]);
+        }
+    }
+
+    onIsFullAndChargingChanged: {
+        if (!root.available || !isFullAndCharging) return;
+        Quickshell.execDetached([
+            "notify-send",
+            Translation.tr("Battery full"),
+            Translation.tr("Please unplug the charger"),
+            "-a", "Shell",
+            "--hint=int:transient:1",
+        ]);
+
+        if (root.soundEnabled) Audio.playSystemSound("complete");
+    }
+
+    onIsPluggedInChanged: {
+        if (!root.available || !root.soundEnabled) return;
+        if (isPluggedIn) {
+            Audio.playSystemSound("power-plug")
+        } else {
+            Audio.playSystemSound("power-unplug")
+        }
+    }
+}

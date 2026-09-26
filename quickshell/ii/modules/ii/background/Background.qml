@@ -1,0 +1,821 @@
+pragma ComponentBehavior: Bound
+
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.widgets.widgetCanvas
+import qs.modules.common.functions as CF
+import QtQuick
+import QtQuick.Layouts
+import Qt5Compat.GraphicalEffects
+import QtMultimedia
+import Quickshell
+import Quickshell.Io
+import Quickshell.Wayland
+import Quickshell.Hyprland
+import Quickshell.Services.Mpris
+
+import qs.modules.ii.background.widgets
+import qs.modules.ii.background.widgets.clock
+import qs.modules.ii.background.widgets.weather
+import qs.modules.ii.background.widgets.media
+import qs.modules.ii.background.widgets.images
+import qs.modules.ii.background.widgets.resources
+import qs.modules.ii.background.widgets.visualizer
+import qs.modules.ii.background.widgets.calendar
+import qs.modules.ii.background.widgets.worldclock
+import qs.modules.ii.background.widgets.notes
+import qs.modules.ii.background.widgets.todo
+import qs.modules.ii.background.widgets.timers
+
+Variants {
+    id: root
+    model: Quickshell.screens
+
+    PanelWindow {
+        id: bgRoot
+
+        required property var modelData
+
+        // Hide when fullscreen
+        property list<HyprlandWorkspace> workspacesForMonitor: Hyprland.workspaces.values.filter(workspace => workspace.monitor && workspace.monitor.name == monitor.name)
+        property var activeWorkspaceWithFullscreen: workspacesForMonitor.filter(workspace => ((workspace.toplevels.values.filter(window => window.wayland?.fullscreen)[0] != undefined) && workspace.active))[0]
+        visible: GlobalStates.screenLocked || (!(activeWorkspaceWithFullscreen != undefined)) || !Config?.options.background.hideWhenFullscreen
+
+        // Workspaces
+        property HyprlandMonitor monitor: Hyprland.monitorFor(modelData)
+        property list<var> relevantWindows: HyprlandData.windowList.filter(win => win.monitor == monitor?.id && win.workspace.id >= 0).sort((a, b) => a.workspace.id - b.workspace.id)
+        property int firstWorkspaceId: relevantWindows[0]?.workspace.id || 1
+        // Take the max of: last workspace containing a window, any visited
+        // workspace on this monitor, and the active workspace. Using only
+        // window-bearing workspaces caps lastWorkspaceId at 10 when workspaces
+        // 11+ are empty, which then pins parallax fraction to 1 past workspace 10.
+        property int lastWorkspaceId: Math.max(
+            relevantWindows[relevantWindows.length - 1]?.workspace.id || 1,
+            workspacesForMonitor.reduce((m, w) => Math.max(m, w.id), 1),
+            monitor?.activeWorkspace?.id ?? 1
+        )
+        property int workspaceChunkSize: Config?.options.bar.workspaces.shown ?? 10
+        property int totalWorkspaces: Math.ceil(lastWorkspaceId / workspaceChunkSize) * workspaceChunkSize
+        // Wallpaper
+        property bool wallpaperIsVideo: Wallpapers.isVideoFile(Config.options.background.wallpaperPath)
+        property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath
+        property bool wallpaperSafetyTriggered: {
+            const enabled = Config.options.workSafety.enable.wallpaper;
+            const sensitiveWallpaper = (CF.StringUtils.stringListContainsSubstring(wallpaperPath.toLowerCase(), Config.options.workSafety.triggerCondition.fileKeywords));
+            const sensitiveNetwork = (CF.StringUtils.stringListContainsSubstring(Network.networkName.toLowerCase(), Config.options.workSafety.triggerCondition.networkNameKeywords));
+            return enabled && sensitiveWallpaper && sensitiveNetwork;
+        }
+        // Preserve a minimum 10% headroom so parallax has range to move through even when
+        // workspaceZoom is 1. Matches pre-refactor behavior which had a hardcoded 1.1 baseline.
+        readonly property real parallaxRation: Math.max(1.1, Config.options.background.parallax.workspaceZoom)
+        property int wallpaperWidth: modelData.width // Some reasonable init value, to be updated
+        property int wallpaperHeight: modelData.height // Some reasonable init value, to be updated
+        // monitor.width/height are the monitor's physical mode and monitor.scale is the Hyprland
+        // scale factor, so dividing gives the two logical edge lengths. Hyprland states a mode in
+        // the panel's own orientation, which makes that pair right as a set of magnitudes and
+        // wrong as an assignment to horizontal and vertical the moment an output is turned;
+        // HyprlandMonitor carries no transform, so it cannot tell them apart on its own.
+        // ShellScreen has the rotation applied and decides which magnitude is which. Only the
+        // orientation is taken from it, because a scale change cannot turn a monitor, so the axis
+        // choice stays good between ShellScreen notifications, which a PanelWindow does not emit
+        // reliably on live reconfigure. The magnitudes stay with monitor.scale, the property that
+        // does fire on a live scale change, so the new size is right on the first pass.
+        readonly property bool screenIsPortrait: {
+            // Read for its change signal alone. HyprlandData.monitors is reassigned on every
+            // Hyprland event, so a rotation that alters neither the mode nor the scale still
+            // re-runs this and re-reads the geometry below.
+            const _ = HyprlandData.monitors;
+            return bgRoot.modelData.height > bgRoot.modelData.width;
+        }
+        readonly property real logicalMonitorEdgeA: bgRoot.monitor && bgRoot.monitor.scale > 0 ? bgRoot.monitor.width / bgRoot.monitor.scale : 0
+        readonly property real logicalMonitorEdgeB: bgRoot.monitor && bgRoot.monitor.scale > 0 ? bgRoot.monitor.height / bgRoot.monitor.scale : 0
+        readonly property real logicalScreenWidth: (logicalMonitorEdgeA > 0 && logicalMonitorEdgeB > 0) ? (bgRoot.screenIsPortrait ? Math.min(logicalMonitorEdgeA, logicalMonitorEdgeB) : Math.max(logicalMonitorEdgeA, logicalMonitorEdgeB)) : bgRoot.width
+        readonly property real logicalScreenHeight: (logicalMonitorEdgeA > 0 && logicalMonitorEdgeB > 0) ? (bgRoot.screenIsPortrait ? Math.max(logicalMonitorEdgeA, logicalMonitorEdgeB) : Math.min(logicalMonitorEdgeA, logicalMonitorEdgeB)) : bgRoot.height
+        readonly property real minSuitableScale: (wallpaperWidth > 0 && wallpaperHeight > 0 && logicalScreenWidth > 0 && logicalScreenHeight > 0)
+            ? Math.max(logicalScreenWidth / wallpaperWidth, logicalScreenHeight / wallpaperHeight)
+            : 1
+        readonly property real effectiveWallpaperScale: minSuitableScale * parallaxRation
+        property real scaledWallpaperWidth: wallpaperWidth * effectiveWallpaperScale
+        property real scaledWallpaperHeight: wallpaperHeight * effectiveWallpaperScale
+        property real parallaxTotalPixelsX: Math.max(0, scaledWallpaperWidth - logicalScreenWidth)
+        property real parallaxTotalPixelsY: Math.max(0, scaledWallpaperHeight - logicalScreenHeight)
+        // Which axis the cover fit actually left room on. Comparing the picture against itself
+        // answers that on a landscape screen and inverts it on a portrait one, where a wide
+        // picture is the one with spare width, so the pan would crawl along the axis holding
+        // only the parallax headroom. Kept as it was where it already agrees, so no ordinary
+        // screen changes how it moves.
+        readonly property bool verticalParallax: (Config.options.background.parallax.autoVertical && (bgRoot.screenIsPortrait ? (parallaxTotalPixelsY > parallaxTotalPixelsX) : (wallpaperHeight > wallpaperWidth))) || Config.options.background.parallax.vertical
+        // Position
+        property real clockX: (modelData.width / 2)
+        property real clockY: (modelData.height / 2)
+        property var textHorizontalAlignment: {
+            if ((Config.options.lock.centerClock && GlobalStates.screenLocked) || wallpaperSafetyTriggered)
+                return Text.AlignHCenter;
+            if (clockX < screen.width / 3)
+                return Text.AlignLeft;
+            if (clockX > screen.width * 2 / 3)
+                return Text.AlignRight;
+            return Text.AlignHCenter;
+        }
+        // Colors
+        property bool shouldBlur: (GlobalStates.screenLocked && Config.options.lock.blur.enable)
+        property color dominantColor: Appearance.colors.colPrimary // Default, to be changed
+        property bool dominantColorIsDark: dominantColor.hslLightness < 0.5
+        property color colText: {
+            if (wallpaperSafetyTriggered)
+                return CF.ColorUtils.mix(Appearance.colors.colOnLayer0, Appearance.colors.colPrimary, 0.75);
+            return (GlobalStates.screenLocked && shouldBlur) ? Appearance.colors.colOnLayer0 : CF.ColorUtils.colorWithLightness(Appearance.colors.colPrimary, (dominantColorIsDark ? 0.8 : 0.12));
+        }
+        Behavior on colText {
+            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+        }
+
+        // Layer props
+        screen: modelData
+        exclusionMode: ExclusionMode.Ignore
+        WlrLayershell.layer: (GlobalStates.screenLocked && !scaleAnim.running) ? WlrLayer.Overlay : WlrLayer.Bottom
+        // WlrLayershell.layer: WlrLayer.Bottom
+        WlrLayershell.namespace: "quickshell:background"
+        WlrLayershell.keyboardFocus: GlobalStates.desktopWidgetKeyboardFocus ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.None
+        anchors {
+            top: true
+            bottom: true
+            left: true
+            right: true
+        }
+        color: {
+            if (!bgRoot.wallpaperSafetyTriggered || bgRoot.wallpaperIsVideo)
+                return "transparent";
+            return CF.ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colPrimary, 0.75);
+        }
+        Behavior on color {
+            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+        }
+
+        onWallpaperPathChanged: {
+            bgRoot.updateZoomScale();
+            // Clock position gets updated after zoom scale is updated
+        }
+
+        // The picture on screen, remembered so the next one can be brought
+        // in over it. It is set only once a picture has loaded, so a path
+        // that never loads is never the one being carried off.
+        property url shownWallpaper: ""
+        property bool wallpaperSwapPending: false
+        property string swapEffect: "fade"
+        // The knobs the effects turn. Every one is animated on every run
+        // and the effects differ only in where each ends, so switching the
+        // effect between two changes cannot leave a knob stranded.
+        property real incomingShift: 0    // px the new picture still sits to the right
+        property real incomingZoom: 1     // scale the new picture settles down from
+        property real outgoingShift: 0    // px the old picture has moved left
+        property real outgoingRevealed: 0 // px of the old picture uncovered from the left
+
+        // Slide has to carry a picture its own width, not the screen's. The
+        // parallax leaves both pictures wider than the screen and sitting at a
+        // negative x, so a screen's worth of travel stops with a column of the
+        // old one still on show, and clearing it at the end of the run swaps
+        // that column for the new picture in a single frame. Both pictures use
+        // the one distance so they stay a pair, and the leaving one only has
+        // to reach the left edge for the arriving one to be clear of the right.
+        readonly property real slideDistance: Math.max(
+            outgoing.x + outgoing.width,
+            bgRoot.logicalScreenWidth - wallpaper.x)
+
+        function resetSwapKnobs() {
+            incomingShift = 0;
+            incomingZoom = 1;
+            outgoingShift = 0;
+            outgoingRevealed = 0;
+        }
+
+        // Runs once both pictures are decoded: the new one underneath is
+        // complete before the old one starts to leave, so no frame shows
+        // the bare background.
+        function maybeStartSwap() {
+            if (!wallpaperSwapPending) return;
+            if (wallpaper.status !== Image.Ready || outgoing.status !== Image.Ready) return;
+            wallpaperSwapPending = false;
+            swapEffect = TransitionEffects.resolve(Config.options.background.wallpaperTransition);
+            swapAnimation.restart();
+        }
+
+        function finishSwap() {
+            shaderRunning = false;
+            shaderProgress = 0;
+            shaderTime = 0;
+            outgoing.source = "";
+            outgoing.opacity = 0;
+            resetSwapKnobs();
+        }
+
+        // A shader run keeps the native knobs at rest and drives these
+        // two instead; the shader draws both pictures while it is on.
+        property bool shaderRunning: false
+        property real shaderProgress: 0
+        property real shaderTime: 0
+        readonly property bool swapIsShader: TransitionEffects.isShader(swapEffect)
+        readonly property int swapRunDuration: TransitionEffects.durationFor(swapEffect)
+
+        SequentialAnimation {
+            id: swapAnimation
+            ScriptAction {
+                script: {
+                    bgRoot.incomingShift = bgRoot.swapEffect === "slide" ? bgRoot.slideDistance : 0;
+                    bgRoot.incomingZoom = bgRoot.swapEffect === "zoom" ? 1.08 : 1;
+                    bgRoot.outgoingShift = 0;
+                    bgRoot.outgoingRevealed = 0;
+                    bgRoot.shaderProgress = 0;
+                    bgRoot.shaderTime = 0;
+                    outgoing.opacity = 1;
+                    bgRoot.shaderRunning = bgRoot.swapIsShader;
+                }
+            }
+            ParallelAnimation {
+                NumberAnimation {
+                    target: outgoing
+                    property: "opacity"
+                    to: (bgRoot.swapEffect === "fade" || bgRoot.swapEffect === "zoom") ? 0 : 1
+                    duration: bgRoot.swapRunDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                }
+                NumberAnimation {
+                    target: bgRoot
+                    property: "outgoingShift"
+                    to: bgRoot.swapEffect === "slide" ? -bgRoot.slideDistance : 0
+                    duration: bgRoot.swapRunDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                }
+                NumberAnimation {
+                    target: bgRoot
+                    property: "incomingShift"
+                    to: 0
+                    duration: bgRoot.swapRunDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                }
+                NumberAnimation {
+                    target: bgRoot
+                    property: "incomingZoom"
+                    to: 1
+                    duration: bgRoot.swapRunDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                }
+                NumberAnimation {
+                    target: bgRoot
+                    property: "outgoingRevealed"
+                    to: bgRoot.swapEffect === "wipe" ? bgRoot.logicalScreenWidth : 0
+                    duration: bgRoot.swapRunDuration
+                    easing.type: Easing.BezierSpline
+                    easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                }
+                // A shader's progress is its timeline: the ring, peel or glitch
+                // sweeps the whole screen at one speed, so an easing that settles
+                // early would park the effect at the corners for the rest of the run.
+                NumberAnimation {
+                    target: bgRoot
+                    property: "shaderProgress"
+                    to: bgRoot.swapIsShader ? 1 : 0
+                    duration: bgRoot.swapRunDuration
+                    easing.type: Easing.Linear
+                }
+                NumberAnimation {
+                    target: bgRoot
+                    property: "shaderTime"
+                    to: bgRoot.swapIsShader ? bgRoot.swapRunDuration / 1000 : 0
+                    duration: bgRoot.swapRunDuration
+                }
+            }
+            ScriptAction { script: bgRoot.finishSwap() }
+        }
+
+        // Wallpaper zoom scale
+        function updateZoomScale() {
+            getWallpaperSizeProc.path = bgRoot.wallpaperPath;
+            getWallpaperSizeProc.running = true;
+        }
+        Process {
+            id: getWallpaperSizeProc
+            property string path: bgRoot.wallpaperPath
+            command: ["magick", "identify", "-format", "%w %h", path]
+            stdout: StdioCollector {
+                id: wallpaperSizeOutputCollector
+                onStreamFinished: {
+                    const output = wallpaperSizeOutputCollector.text;
+                    const [width, height] = output.split(" ").map(Number);
+                    bgRoot.wallpaperWidth = width;
+                    bgRoot.wallpaperHeight = height;
+                    // minSuitableScale is a reactive binding; no manual assignment needed.
+                }
+            }
+        }
+
+        // Wallpaper
+        Item {
+            anchors.fill: parent
+
+            // Lowest in the stack, so a widget that takes right clicks of its
+            // own still gets them and only bare desktop opens the menu.
+            MouseArea {
+                anchors.fill: parent
+                acceptedButtons: Qt.RightButton
+                onClicked: event => {
+                    if (GlobalStates.screenLocked) return;
+                    GlobalStates.desktopMenuScreen = bgRoot.screen;
+                    GlobalStates.desktopMenuX = event.x;
+                    GlobalStates.desktopMenuY = event.y;
+                    GlobalStates.desktopMenuOpen = true;
+                }
+            }
+
+            // Wallpaper
+            StyledImage {
+                id: wallpaper
+                visible: opacity > 0 && !blurLoader.active
+                // Once a picture has shown, the layer stays opaque through
+                // every later load: the last frame is retained while the next
+                // decodes, and the transition above needs a complete picture
+                // underneath from its first frame.
+                opacity: bgRoot.wallpaperIsVideo ? 0 : ((status === Image.Ready || bgRoot.shownWallpaper != "") ? 1 : 0)
+                cache: false
+                // Slide brings the new picture in from the right and zoom
+                // settles it down from slightly larger; both leave x and y,
+                // which the parallax owns, untouched.
+                transform: [
+                    Translate { x: bgRoot.incomingShift },
+                    Scale {
+                        origin.x: wallpaper.width / 2
+                        origin.y: wallpaper.height / 2
+                        xScale: bgRoot.incomingZoom
+                        yScale: bgRoot.incomingZoom
+                    }
+                ]
+                onSourceChanged: {
+                    const effect = Config.options.background.wallpaperTransition;
+                    if (bgRoot.shownWallpaper == "" || effect === "none" || bgRoot.wallpaperIsVideo
+                            || bgRoot.wallpaperSafetyTriggered || source == bgRoot.shownWallpaper) {
+                        swapAnimation.stop();
+                        bgRoot.finishSwap();
+                        bgRoot.wallpaperSwapPending = false;
+                        return;
+                    }
+                    // A change during a run starts over from the picture that
+                    // had finished loading, at its place on screen right now.
+                    swapAnimation.stop();
+                    bgRoot.resetSwapKnobs();
+                    outgoing.x = wallpaper.x;
+                    outgoing.y = wallpaper.y;
+                    outgoing.width = wallpaper.width;
+                    outgoing.height = wallpaper.height;
+                    outgoing.opacity = 1;
+                    outgoing.source = bgRoot.shownWallpaper;
+                    bgRoot.wallpaperSwapPending = true;
+                }
+                onStatusChanged: {
+                    if (status === Image.Ready) {
+                        bgRoot.shownWallpaper = source;
+                        bgRoot.maybeStartSwap();
+                    } else if (status === Image.Error) {
+                        swapAnimation.stop();
+                        bgRoot.finishSwap();
+                        bgRoot.wallpaperSwapPending = false;
+                    }
+                }
+                // Bilinear filtering + mipmap chain. The wallpaper is
+                // continuously resampled by parallax animation and per-monitor
+                // scaling, so nearest-neighbor sampling (smooth: false) with
+                // no mip chain produced the visible "diminished quality" look
+                // even on 4K source images. mipmap costs ~33% extra VRAM on
+                // the wallpaper texture only, which is trivial on any current
+                // GPU and gives correct trilinear downscale during parallax.
+                smooth: true
+                mipmap: true
+
+                property int effectiveWorkspaceId: GlobalStates.screenLocked ? 1 : (bgRoot.monitor.activeWorkspace?.id ?? 1)
+                property int workspaceIndex: effectiveWorkspaceId - 1
+                property real middleFraction: 0.5
+                property real fraction: {
+                    // middleFraction (0.5) - centered
+                    // 1 - end of the picture
+                    // Cycle every `workspaceChunkSize` (the visible group size,
+                    // typically 10) so that ws 1, 1+N, 1+2N, ... all start
+                    // centered, then pan rightward across the remaining
+                    // (1 - middleFraction) range until the end of the chunk,
+                    // at which point the next chunk re-centers. We deliberately
+                    // anchor on chunkSize rather than totalWorkspaces because
+                    // totalWorkspaces grows with the highest used workspace id.
+                    let cycleSize = bgRoot.workspaceChunkSize;
+                    if (cycleSize <= 1) {
+                        return middleFraction;
+                    }
+                    let cycleIdx = ((workspaceIndex % cycleSize) + cycleSize) % cycleSize;
+                    return Math.max(0, Math.min(1,
+                        middleFraction + (1 - middleFraction) * cycleIdx / (cycleSize - 1)));
+                }
+
+                property real usedFractionX: {
+                    let usedFraction = middleFraction;
+                    if (Config.options.background.parallax.enableWorkspace && !bgRoot.verticalParallax) {
+                        usedFraction = fraction;
+                    }
+                    if (!GlobalStates.screenLocked && Config.options.background.parallax.enableSidebar) {
+                        let sidebarFraction = bgRoot.parallaxRation / bgRoot.workspaceChunkSize / 2;
+                        // Which way the wallpaper leans follows the edge a panel
+                        // occupies rather than its name: a vertical bar can put
+                        // both on one side, where they must not cancel out.
+                        let openOnRight = (Appearance.sizes.sidebarRightEdge === "right" && GlobalStates.sidebarRightOpen)
+                            || (Appearance.sizes.sidebarLeftEdge === "right" && GlobalStates.sidebarLeftOpen);
+                        let openOnLeft = (Appearance.sizes.sidebarRightEdge === "left" && GlobalStates.sidebarRightOpen)
+                            || (Appearance.sizes.sidebarLeftEdge === "left" && GlobalStates.sidebarLeftOpen);
+                        usedFraction += sidebarFraction * (openOnRight - openOnLeft);
+                    }
+                    return Math.max(0, Math.min(1, usedFraction));
+                }
+                property real usedFractionY: {
+                    let usedFraction = middleFraction;
+                    if (Config.options.background.parallax.enableWorkspace && bgRoot.verticalParallax) {
+                        usedFraction = fraction;
+                    }
+                    return Math.max(0, Math.min(1, usedFraction));
+                }
+
+                x: {
+                    if (bgRoot.logicalScreenWidth > width) {
+                        // Center the picture
+                        return (bgRoot.logicalScreenWidth - width) / 2;
+                    }
+                    return - bgRoot.parallaxTotalPixelsX * usedFractionX;
+                }
+                y: {
+                    if (bgRoot.logicalScreenHeight > height) {
+                        // Center the picture
+                        return (bgRoot.logicalScreenHeight - height) / 2;
+                    }
+                    return - bgRoot.parallaxTotalPixelsY * usedFractionY;
+                }
+
+                // Fall back to the bundled default wallpaper when no path is set
+                // (e.g. a fresh install before a wallpaper has been chosen), so the
+                // background is never blank.
+                source: bgRoot.wallpaperSafetyTriggered ? "" : (bgRoot.wallpaperPath || Quickshell.shellPath("assets/images/default_wallpaper.webp"))
+                fillMode: Image.PreserveAspectCrop
+                Behavior on x {
+                    NumberAnimation {
+                        duration: 600
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                Behavior on y {
+                    NumberAnimation {
+                        duration: 600
+                        easing.type: Easing.OutCubic
+                    }
+                }
+                sourceSize {
+                    // Decode at physical pixels on HiDPI displays. The Image's
+                    // width/height (logical px) and all parallax math stay
+                    // unchanged — only the pixel buffer gets denser, which
+                    // costs proportional VRAM but keeps detail when the GPU
+                    // resamples during pan.
+                    width: Math.min(bgRoot.wallpaperWidth, bgRoot.scaledWallpaperWidth * Math.max(1, bgRoot.monitor?.scale ?? 1))
+                    height: Math.min(bgRoot.wallpaperHeight, bgRoot.scaledWallpaperHeight * Math.max(1, bgRoot.monitor?.scale ?? 1))
+                }
+                width: bgRoot.scaledWallpaperWidth
+                height: bgRoot.scaledWallpaperHeight
+            }
+
+            // mpvpaper draws a video wallpaper on its own surface, which this
+            // panel cannot sample and which the compositor hides once a session
+            // lock is up, leaving the lock nothing live to blur.
+            Loader {
+                id: lockVideo
+                anchors.fill: wallpaper
+                active: bgRoot.wallpaperIsVideo && !bgRoot.wallpaperSafetyTriggered
+                    && (GlobalStates.screenLocked || scaleAnim.running)
+                visible: !blurLoader.active
+                sourceComponent: VideoOutput {
+                    // Named rather than reached through `parent`: the player
+                    // still drives a VideoOutput found that way, but the frames
+                    // never reach an effect reading the same item, which is why
+                    // the lock blurred a still of the video instead of the video.
+                    id: lockVideoOutput
+                    readonly property bool showing: lockVideoPlayer.playbackState === MediaPlayer.PlayingState
+                    fillMode: VideoOutput.PreserveAspectCrop
+                    MediaPlayer {
+                        id: lockVideoPlayer
+                        videoOutput: lockVideoOutput
+                        source: Config.options.background.wallpaperPath
+                        loops: MediaPlayer.Infinite
+                        Component.onCompleted: play()
+                        // A wallpaper swapped while the screen is locked arrives
+                        // after construction, so it needs starting the same way
+                        // the first one did.
+                        onSourceChanged: if (source != "") play()
+                        onErrorOccurred: stop()
+                    }
+                }
+            }
+
+            // The picture being replaced, over the new one until the effect
+            // has carried it off, and empty the rest of the time. It keeps
+            // the place the old picture had when the change came, so nothing
+            // shifts under the effect. The window it sits in is what the wipe
+            // narrows from the left; the picture inside holds still so the
+            // new one shows through the uncovered part.
+            Item {
+                id: outgoingClip
+                visible: outgoing.source != "" && !blurLoader.active
+                clip: true
+                x: bgRoot.outgoingRevealed
+                y: 0
+                width: Math.max(0, parent.width - bgRoot.outgoingRevealed)
+                height: parent.height
+
+                Image {
+                    id: outgoing
+                    asynchronous: true
+                    cache: false
+                    smooth: true
+                    mipmap: true
+                    fillMode: Image.PreserveAspectCrop
+                    opacity: 0
+                    sourceSize: {
+                        const dpr = Math.max(1, bgRoot.monitor?.scale ?? 1);
+                        return Qt.size(width * dpr, height * dpr);
+                    }
+                    transform: Translate { x: bgRoot.outgoingShift - bgRoot.outgoingRevealed }
+                    // An old picture that no longer decodes (a slideshow can
+                    // delete it) is simply not shown leaving; the new one is
+                    // already underneath.
+                    onStatusChanged: {
+                        if (status === Image.Ready) bgRoot.maybeStartSwap();
+                        else if (status === Image.Error) {
+                            bgRoot.wallpaperSwapPending = false;
+                            bgRoot.finishSwap();
+                        }
+                    }
+                }
+            }
+
+            Loader {
+                active: bgRoot.shaderRunning
+                anchors.fill: parent
+                sourceComponent: TransitionShader {
+                    fromItem: outgoing
+                    toItem: wallpaper
+                    fromRect: Qt.rect(-outgoing.x, -outgoing.y, bgRoot.logicalScreenWidth, bgRoot.logicalScreenHeight)
+                    toRect: Qt.rect(-wallpaper.x, -wallpaper.y, bgRoot.logicalScreenWidth, bgRoot.logicalScreenHeight)
+                    effect: bgRoot.swapEffect
+                    progress: bgRoot.shaderProgress
+                    time: bgRoot.shaderTime
+                }
+            }
+
+            Loader {
+                id: blurLoader
+                active: Config.options.lock.blur.enable && (GlobalStates.screenLocked || scaleAnim.running || GlobalStates.overviewOpen)
+                anchors.fill: wallpaper
+                // extraZoom only applies to the lock screen, not the overview
+                scale: GlobalStates.screenLocked ? Config.options.lock.blur.extraZoom : 1
+                Behavior on scale {
+                    NumberAnimation {
+                        id: scaleAnim
+                        duration: 400
+                        easing.type: Easing.BezierSpline
+                        easing.bezierCurve: Appearance.animationCurves.expressiveEffects
+                    }
+                }
+                sourceComponent: GaussianBlur {
+                    id: lockBlur
+                    // The still until the video is really running, so a file
+                    // the decoder cannot open leaves the blur something to read.
+                    readonly property Item liveSource: (lockVideo.item?.showing ?? false) ? lockVideo.item : wallpaper
+                    readonly property bool capped: (lockVideo.item?.showing ?? false)
+                        && Config.options.background.videoFrameRate > 0
+                    // A still only changes when it is replaced, so the blur costs
+                    // nothing between wallpapers. A video would have it redrawing
+                    // on every frame, which is the whole bill on a locked machine,
+                    // so a capped one is read through a copy taken on a timer.
+                    ShaderEffectSource {
+                        id: lockBlurThrottle
+                        anchors.fill: parent
+                        visible: false
+                        sourceItem: lockBlur.liveSource
+                        hideSource: false
+                        live: false
+                    }
+                    Timer {
+                        running: lockBlur.capped
+                        interval: Math.max(16, Math.round(1000 / Config.options.background.videoFrameRate))
+                        repeat: true
+                        triggeredOnStart: true
+                        onTriggered: lockBlurThrottle.scheduleUpdate()
+                    }
+                    source: lockBlur.capped ? lockBlurThrottle : lockBlur.liveSource
+                    // Full lock radius when locked; slightly lighter blur for overview
+                    radius: GlobalStates.screenLocked
+                        ? Config.options.lock.blur.radius
+                        : (GlobalStates.overviewOpen ? Config.options.lock.blur.radius : 0)
+                    samples: Config.options.lock.blur.radius * 2 + 1
+                    Behavior on radius {
+                        NumberAnimation {
+                            duration: Appearance.animation.elementMoveFast.duration
+                            easing.type: Appearance.animation.elementMoveFast.type
+                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.fill: parent
+                        // Lock screen: full dim; overview: lighter dim
+                        opacity: GlobalStates.screenLocked ? 1 : (GlobalStates.overviewOpen ? 0.85 : 0)
+                        color: CF.ColorUtils.transparentize(Appearance.colors.colLayer0, 0.7)
+                        Behavior on opacity {
+                            NumberAnimation {
+                                duration: Appearance.animation.elementMoveFast.duration
+                                easing.type: Appearance.animation.elementMoveFast.type
+                                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                            }
+                        }
+                    }
+                }
+            }
+
+            WidgetCanvas {
+                id: widgetCanvas
+                width: parent.width
+                height: parent.height
+                readonly property real parallaxFactor: {
+                    var f = Config.options.background.parallax.widgetsFactor;
+                    return f / bgRoot.parallaxRation;
+
+                }
+
+                // Music
+                property bool hasActiveMusic: GlobalStates.screenLocked && MprisController.activePlayer && MprisController.activePlayer.isPlaying
+                property real musicOffset: hasActiveMusic ? -80 : 0
+
+                readonly property real baseWallpaperOffsetX: (bgRoot.logicalScreenWidth - wallpaper.width) / 2
+                readonly property real baseWallpaperOffsetY: (bgRoot.logicalScreenHeight - wallpaper.height) / 2
+                readonly property real wallpaperTotalOffsetX: wallpaper.x - baseWallpaperOffsetX
+                readonly property real wallpaperTotalOffsetY: wallpaper.y - baseWallpaperOffsetY
+                readonly property bool locked: GlobalStates.screenLocked
+                x: wallpaperTotalOffsetX * parallaxFactor * !locked
+                y: wallpaperTotalOffsetY * parallaxFactor * !locked
+
+                transitions: Transition {
+                    PropertyAnimation {
+                        properties: "width,height"
+                        duration: Appearance.animation.elementMove.duration
+                        easing.type: Appearance.animation.elementMove.type
+                        easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+                    }
+                    AnchorAnimation {
+                        duration: Appearance.animation.elementMove.duration
+                        easing.type: Appearance.animation.elementMove.type
+                        easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.visualizer.enable
+                    sourceComponent: VisualizerWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.customImage.enable
+                    sourceComponent: CustomImage {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.calendar.enable
+                    sourceComponent: CalendarWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.weather.enable
+                    sourceComponent: WeatherWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.clock.enable
+                    sourceComponent: ClockWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                        wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
+                        hasActiveMusic: widgetCanvas.hasActiveMusic
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.notes.enable
+                    sourceComponent: NotesWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.media.enable
+                    sourceComponent: MediaWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.resources.enable
+                    sourceComponent: ResourcesWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.worldClock.enable
+                    sourceComponent: WorldClockWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.todo.enable
+                    sourceComponent: TodoWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+
+                FadeLoader {
+                    shown: Config.options.background.widgets.timers.enable
+                    sourceComponent: TimerWidget {
+                        screenWidth: bgRoot.screen.width
+                        screenHeight: bgRoot.screen.height
+                        scaledScreenWidth: bgRoot.screen.width
+                        scaledScreenHeight: bgRoot.screen.height
+                        wallpaperScale: 1
+                        wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
+                    }
+                }
+            }
+        }
+    }
+}

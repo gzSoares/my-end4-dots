@@ -1,0 +1,83 @@
+import qs
+import qs.modules.common
+import QtQuick
+import Quickshell
+import Quickshell.Wayland
+import Quickshell.Hyprland
+
+Scope {
+    // One dim per screen: surfaces are torn down and rebuilt with their
+    // output, so a DP re-train across suspend/DPMS can't orphan the window.
+    Variants {
+        model: Quickshell.screens
+
+    PanelWindow {
+        id: dimWindow
+        required property ShellScreen modelData
+        screen: modelData
+        readonly property HyprlandMonitor monitor: Hyprland.monitorFor(dimWindow.screen)
+        property bool monitorIsFocused: ((Hyprland.focusedMonitor?.id ?? monitor?.id) === monitor?.id)
+
+        WlrLayershell.namespace: "quickshell:overviewDim"
+        // Use Overlay layer (not Top) so the dim stays visible during fullscreen
+        // apps. See the matching comment in Overview.qml for the full reasoning.
+        WlrLayershell.layer: WlrLayer.Overlay
+        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+        exclusionMode: ExclusionMode.Ignore
+        color: Qt.rgba(0, 0, 0, 0.01)
+        // Surface lifecycle — see Overview.qml for the full reasoning. The dim
+        // layer is click-through by design (empty mask), so keeping it visible
+        // permanently has no input-side effect; contentFade.opacity already
+        // makes it visually invisible while the overview is closed.
+        // The compositor blurs a mapped surface over its whole extent on
+        // every damaged frame, closed or not, so closed it is kept to one
+        // pixel, and only the screen that shows it spans. It stays full for
+        // a moment after the fade ends: a reopen inside that moment needs
+        // no configure at all, and a reopen can no longer land on the
+        // shrink itself, where the fade would start, drop as the one-pixel
+        // size arrived, and start again.
+        readonly property bool spanning: (GlobalStates.overviewOpen && dimWindow.monitorIsFocused) || contentFade.opacity > 0 || shrinkHold.running
+        Timer {
+            id: shrinkHold
+            interval: 500
+        }
+        visible: (Config.options.overview.keepSurfaceAlive ?? true)
+            || spanning
+
+        anchors {
+            top: dimWindow.spanning
+            bottom: dimWindow.spanning
+            left: dimWindow.spanning
+            right: dimWindow.spanning
+        }
+        implicitWidth: 1
+        implicitHeight: 1
+
+        // Purely visual — all input passes through
+        mask: Region {}
+
+        Item {
+            id: contentFade
+            anchors.fill: parent
+            // The surface grows before it fades in, so a slow configure from a
+            // busy compositor lands as a late fade rather than a pop partway.
+            opacity: (GlobalStates.overviewOpen && dimWindow.monitorIsFocused && dimWindow.width > 1) ? 1 : 0
+            onOpacityChanged: if (opacity === 0) shrinkHold.restart()
+            Behavior on opacity {
+                NumberAnimation {
+                    duration: Appearance.animation.elementMoveFast.duration
+                    easing.type: Appearance.animation.elementMoveFast.type
+                    easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
+                }
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                color: Appearance.colors.colLayer0Base
+                opacity: 0.90
+            }
+        }
+    }
+
+    }   // end Variants
+}

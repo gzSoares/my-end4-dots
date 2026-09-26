@@ -1,0 +1,176 @@
+import qs
+import qs.services
+import Quickshell
+import qs.modules.common
+import qs.modules.common.widgets
+import "calendar_layout.js" as CalendarLayout
+import QtQuick
+import QtQuick.Layouts
+
+Item {
+    // Layout.topMargin: 10
+    anchors.topMargin: 10
+    property int monthShift: 0
+    property var viewingDate: CalendarLayout.getDateInXMonthsTime(monthShift)
+    property var calendarLayout: CalendarLayout.getCalendarLayout(viewingDate, monthShift === 0)
+    width: calendarColumn.width
+    implicitHeight: calendarColumn.height + 10 * 2
+
+    // Snap the view back to the current month each time the right sidebar
+    // closes, so reopening it always lands on today rather than wherever
+    // the user scrolled to last time. Cheap (just resets an int).
+    Connections {
+        target: GlobalStates
+        function onSidebarRightOpenChanged() {
+            if (!GlobalStates.sidebarRightOpen) monthShift = 0;
+        }
+    }
+
+    Keys.onPressed: (event) => {
+        if ((event.key === Qt.Key_PageDown || event.key === Qt.Key_PageUp)
+            && event.modifiers === Qt.NoModifier) {
+            if (event.key === Qt.Key_PageDown) {
+                monthShift++;
+            } else if (event.key === Qt.Key_PageUp) {
+                monthShift--;
+            }
+            event.accepted = true;
+        }
+    }
+    MouseArea {
+        anchors.fill: parent
+        onWheel: (event) => {
+            if (event.angleDelta.y > 0) {
+                monthShift--;
+            } else if (event.angleDelta.y < 0) {
+                monthShift++;
+            }
+        }
+    }
+
+    ColumnLayout {
+        id: calendarColumn
+        anchors.centerIn: parent
+        spacing: 5
+
+        // Calendar header
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 5
+            CalendarHeaderButton {
+                clip: true
+                buttonText: `${monthShift != 0 ? "• " : ""}${viewingDate.toLocaleDateString(Qt.locale(), "MMMM yyyy")}`
+                tooltipText: (monthShift === 0) ? "" : Translation.tr("Jump to current month")
+                downAction: () => {
+                    monthShift = 0;
+                }
+            }
+            Item {
+                Layout.fillWidth: true
+                Layout.fillHeight: false
+            }
+            CalendarHeaderButton {
+                forceCircle: true
+                visible: CalendarEvents.accountsAppAvailable
+                tooltipText: Translation.tr("Online Accounts")
+                downAction: () => {
+                    Quickshell.execDetached(["gnome-online-accounts-gtk"]);
+                }
+                contentItem: MaterialSymbol {
+                    text: "person_add"
+                    iconSize: Appearance.font.pixelSize.larger
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Appearance.colors.colOnLayer1
+                }
+            }
+            CalendarHeaderButton {
+                forceCircle: true
+                tooltipText: Translation.tr("Sync calendars")
+                downAction: () => {
+                    CalendarEvents.sync();
+                }
+                contentItem: MaterialSymbol {
+                    id: syncSymbol
+                    text: "sync"
+                    iconSize: Appearance.font.pixelSize.larger
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Appearance.colors.colOnLayer1
+                    RotationAnimator {
+                        target: syncSymbol
+                        from: 0
+                        to: 360
+                        duration: 1000
+                        loops: Animation.Infinite
+                        running: CalendarEvents.syncing
+                        onRunningChanged: if (!running) syncSymbol.rotation = 0
+                    }
+                }
+            }
+            CalendarHeaderButton {
+                forceCircle: true
+                downAction: () => {
+                    monthShift--;
+                }
+                contentItem: MaterialSymbol {
+                    text: "chevron_left"
+                    iconSize: Appearance.font.pixelSize.larger
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Appearance.colors.colOnLayer1
+                }
+            }
+            CalendarHeaderButton {
+                forceCircle: true
+                downAction: () => {
+                    monthShift++;
+                }
+                contentItem: MaterialSymbol {
+                    text: "chevron_right"
+                    iconSize: Appearance.font.pixelSize.larger
+                    horizontalAlignment: Text.AlignHCenter
+                    color: Appearance.colors.colOnLayer1
+                }
+            }
+        }
+
+        // Week days row
+        RowLayout {
+            id: weekDaysRow
+            Layout.alignment: Qt.AlignHCenter
+            Layout.fillHeight: false
+            spacing: 5
+            Repeater {
+                model: CalendarLayout.weekDays
+                delegate: CalendarDayButton {
+                    day: Translation.tr(modelData.day)
+                    isToday: modelData.today
+                    bold: true
+                    enabled: false
+                }
+            }
+        }
+
+        // Real week rows
+        Repeater {
+            id: calendarRows
+            // model: calendarLayout
+            model: 6
+            delegate: RowLayout {
+                Layout.alignment: Qt.AlignHCenter
+                Layout.fillHeight: false
+                spacing: 5
+                Repeater {
+                    model: Array(7).fill(modelData)
+                    delegate: CalendarDayButton {
+                        property var cellData: calendarLayout[modelData][index]
+                        day: cellData.day
+                        isToday: cellData.today
+                        hasTasks: Todo.list.length >= 0 && cellData.year !== undefined && Todo.hasTasksForDate(cellData.year, cellData.month, cellData.monthDay)
+                        tasksForDay: Todo.list.length >= 0 && cellData.year !== undefined ? Todo.getTasksForDate(cellData.year, cellData.month, cellData.monthDay) : []
+                        hasEvents: CalendarEvents.eventsByDate && cellData.year !== undefined && CalendarEvents.hasEventsForDate(cellData.year, cellData.month, cellData.monthDay)
+                        eventsForDay: CalendarEvents.eventsByDate && cellData.year !== undefined ? CalendarEvents.getEventsForDate(cellData.year, cellData.month, cellData.monthDay) : []
+                    }
+                }
+            }
+        }
+    }
+}

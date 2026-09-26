@@ -1,0 +1,277 @@
+import qs.modules.common
+import qs.services
+import QtQuick
+import Quickshell
+import Quickshell.Hyprland
+import Quickshell.Io
+pragma Singleton
+pragma ComponentBehavior: Bound
+
+Singleton {
+    id: root
+    property bool hdrActive: false
+    property bool barOpen: true
+    // The narrowest a floating strip can be set to without its widgets running
+    // together, as a percentage, published by the bar itself because only it
+    // knows how wide the widgets on show actually are. With more than one
+    // monitor the last strip to settle wins, which only costs the slider a
+    // little precision: each strip clamps its own drawing regardless.
+    property real barFloatMinPercent: 40
+    property bool crosshairOpen: false
+    property bool sidebarLeftOpen: false
+    property bool sidebarRightOpen: false
+    property bool mediaControlsOpen: false
+    property bool mediaTransferActive: false
+    // The bar's media widget, set by whichever one opens the popup, so the
+    // popup can place itself under it wherever the layout put it. An Item
+    // rather than a coordinate: the popup measures at the moment it opens,
+    // against the bar window the widget actually lives in.
+    property Item mediaWidgetItem: null
+    // Written by the dock; a pinned dock reserves an exclusive zone, an
+    // unpinned one reveals over other surfaces.
+    property bool dockPinned: false
+    property var mediaTransferUrls: []
+    property bool mediaReceiveActive: false
+    property bool osdBrightnessOpen: false
+    property bool osdVolumeOpen: false
+    property bool oskOpen: false
+    property bool overlayOpen: false
+    property bool overviewOpen: false
+    // True while the scrolloverview Hyprland plugin's overview is open (synced
+    // from its scrolloverview>>open/close IPC events below). The hot corner's
+    // "already open, don't re-fire" guards check this so a focus-grab-synthesized
+    // corner re-entry (e.g. the workspaceNumber overlay on a Super press) doesn't
+    // re-ripple / re-dispatch while the plugin overview is already up.
+    property bool scrollOverviewOpen: false
+    // Where the right click on the desktop landed, and whether its menu is up.
+    property bool desktopMenuOpen: false
+    property var desktopMenuScreen: null
+    property real desktopMenuX: 0
+    property real desktopMenuY: 0
+    // A desktop widget with a text field asks for the keyboard through this;
+    // the background layer takes focus on demand only while it is set.
+    property bool desktopWidgetKeyboardFocus: false
+    // Screen rounding as the corners should actually draw it. While the
+    // scroll-overview is up this reports 0 so the workspace cards don't show
+    // rounded-corner artifacts where rounded windows and rounded screen
+    // corners disagree. It is derived rather than written back into
+    // Config.options because Config flushes to config.json a few ms after any
+    // change: an override parked there becomes the user's saved setting the
+    // moment the shell is reloaded or crashes with the overview open.
+    readonly property int effectiveFakeScreenRounding: root.scrollOverviewOpen ? 0 : Config.options.appearance.fakeScreenRounding
+    // When true alongside overviewOpen, the overview shows only the
+    // workspace previews — search bar and app drawer chrome are hidden.
+    // Set by Bar.qml's hot corner when its trigger is configured for
+    // "default overview" so that path opens a clean workspace switcher.
+    // Auto-resets to false whenever overviewOpen flips to false.
+    property bool overviewWorkspacesOnly: false
+    onOverviewOpenChanged: {
+        // Refuse to open the Quickshell overview / app launcher while the
+        // scrolloverview Hyprland plugin's overview is up. The launcher
+        // animating on top of the plugin's full-zoom overview is sluggish (the
+        // plugin re-renders every live workspace preview each frame and there's
+        // no plugin-API way to cache that with blur), so we suppress it
+        // entirely there rather than ship a janky animation. Reverting the
+        // property synchronously here means it never actually renders open.
+        if (overviewOpen && scrollOverviewOpen) {
+            overviewOpen = false;
+            return;
+        }
+        if (!overviewOpen) overviewWorkspacesOnly = false;
+    }
+    property bool regionSelectorOpen: false
+    property bool searchOpen: false
+    property bool screenLocked: false
+    property bool screenLockContainsCharacters: false
+    property bool screenUnlockFailed: false
+    property bool screenTranslatorOpen: false
+    property bool sessionOpen: false
+    property bool superDown: false
+    property bool superReleaseMightTrigger: true
+    property bool wallpaperSelectorOpen: false
+    property bool workspaceShowNumbers: false
+    property string openFolderId: ""  // Set by dock to open a folder in the app drawer
+    // Whether the hyprland-scroll-overview plugin is currently loaded into
+    // Hyprland. Bar.qml's top-left hot corner (dwell timer + ripple + dispatch
+    // to `scrolloverview:overview on`) gates on this so neither the ripple
+    // animation nor the dispatcher fires when the user has turned the plugin
+    // off via Settings → Hot Corners → Scrolling Overview. Initial value is
+    // taken from `hyprctl plugin list` at startup; the InterfaceConfig toggle
+    // updates it directly when it loads/unloads the plugin.
+    property bool scrollOverviewEnabled: false
+
+    // Fired by Bar.qml's top-left hot corner once its dwell timer elapses
+    // and the dispatch to scroll-overview goes out. HotCornerRipple listens
+    // to this and plays a GNOME-style expanding-circle animation. Decoupling
+    // via GlobalStates means the ripple's lifetime / visibility is
+    // independent of the bar's per-monitor LazyLoader.
+    signal hotCornerTriggered()
+
+    // A vertical bar brings both panels to its own edge, where one would cover
+    // the other with no way to reach underneath. Showing either puts the other
+    // away; side by side on a horizontal bar they stay independent.
+    onSidebarLeftOpenChanged: {
+        if (GlobalStates.sidebarLeftOpen && Appearance.sizes.sidebarsShareEdge) {
+            GlobalStates.sidebarRightOpen = false;
+        }
+    }
+
+    onSidebarRightOpenChanged: {
+        if (GlobalStates.sidebarRightOpen) {
+            Notifications.timeoutAll();
+            Notifications.markAllRead();
+            if (Appearance.sizes.sidebarsShareEdge) {
+                GlobalStates.sidebarLeftOpen = false;
+            }
+        }
+    }
+
+    // Right-click on the bar media widget (and the localsend IPC) lands
+    // here. First use arms the receiver and opens its panel; once armed it
+    // only toggles the panel's visibility — the receiver itself (and any
+    // in-flight transfer) is stopped exclusively by the panel's Turn off
+    // button, so hiding the panel can never end a receive.
+    function toggleReceiveView() {
+        if (!LocalSend.receiveActive) {
+            LocalSend.startReceive();
+            GlobalStates.mediaReceiveActive = true;
+            GlobalStates.mediaControlsOpen = true;
+            return;
+        }
+        const showing = GlobalStates.mediaControlsOpen && GlobalStates.mediaReceiveActive;
+        if (showing) {
+            GlobalStates.mediaControlsOpen = false;
+        } else {
+            GlobalStates.mediaReceiveActive = true;
+            GlobalStates.mediaControlsOpen = true;
+        }
+    }
+
+    onMediaControlsOpenChanged: {
+        if (!GlobalStates.mediaControlsOpen) {
+            // Keep transfer state while a send is in flight so the user can
+            // reopen the popup to check progress. Other states (idle / sent /
+            // error) clear so the next bar click goes back to the player and
+            // a stale Error doesn't bleed into the next session.
+            if (LocalSend.state !== LocalSend.stateSending) {
+                GlobalStates.mediaTransferActive = false;
+                GlobalStates.mediaTransferUrls = [];
+                LocalSend.reset();
+            }
+            // The receive VIEW resets on close, but the receiver itself stays
+            // armed — closing the popup must not stop accepting files. An
+            // in-flight incoming session keeps the view so reopening the
+            // popup (or the next auto-open) lands back on live progress.
+            if (!LocalSend.receiveSessionActive) {
+                GlobalStates.mediaReceiveActive = false;
+                LocalSend.receiveClearDone();
+            }
+        }
+    }
+
+    // ── HDR detection: poll hyprctl for active HDR color management ──
+    Process {
+        id: hdrCheckProc
+        command: ["hyprctl", "monitors", "-j"]
+        property string output: ""
+        stdout: SplitParser {
+            onRead: data => hdrCheckProc.output += data
+        }
+        onExited: {
+            try {
+                let monitors = JSON.parse(hdrCheckProc.output);
+                root.hdrActive = monitors.some(m =>
+                    m.colorManagementPreset === "hdr" || m.colorManagementPreset === "hdredid"
+                );
+            } catch(e) {
+                root.hdrActive = false;
+            }
+            hdrCheckProc.output = "";
+        }
+    }
+
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "configreloaded" || event.name === "monitoraddedv2" || event.name === "monitorremoved")
+                hdrCheckProc.running = true;
+
+            // Refresh scrolloverview load state whenever Hyprland reloads
+            // configs — covers the InterfaceConfig toggle path (which runs
+            // `hyprctl plugin load|unload` followed by `hyprctl reload`) as
+            // well as any external plugin lifecycle changes.
+            if (event.name === "configreloaded")
+                scrollOverviewCheckProc.running = true;
+
+            // Scroll-overview (Hyprland plugin) emits these on open/close via
+            // g_pEventManager->postEvent. effectiveFakeScreenRounding follows
+            // this flag, so the screen corners hide for the overview's lifetime
+            // without anything having to be saved and put back.
+            if (event.name === "scrolloverview") {
+                if (event.data === "open") {
+                    root.scrollOverviewOpen = true;
+                } else if (event.data === "close") {
+                    root.scrollOverviewOpen = false;
+                }
+            }
+        }
+    }
+
+    // Determine whether scrolloverview is loaded right now. Re-run after every
+    // configreload (which happens both for normal `hyprctl reload` and right
+    // after `hyprctl plugin load|unload`) so the state stays accurate without
+    // the InterfaceConfig toggle having to push a value here directly.
+    // `hyprctl -i 0 …` selects the first (and almost always only) live
+    // Hyprland instance from `hyprctl instances` rather than relying on
+    // the inherited HYPRLAND_INSTANCE_SIGNATURE env var. The env var
+    // can go stale across Hyprland restarts (Quickshell keeps the value
+    // it was launched with, even if Hyprland respawns), in which case
+    // bare `hyprctl plugin list` connects to a dead socket and returns
+    // nothing — leaving scrollOverviewEnabled false and the hot corner
+    // disabled even with the plugin actually loaded.
+    Process {
+        id: scrollOverviewCheckProc
+        command: ["hyprctl", "-i", "0", "plugin", "list"]
+        property string output: ""
+        stdout: SplitParser {
+            onRead: data => scrollOverviewCheckProc.output += data
+        }
+        onExited: {
+            root.scrollOverviewEnabled = /^Plugin\s+scrolloverview\b/m.test(scrollOverviewCheckProc.output);
+            scrollOverviewCheckProc.output = "";
+        }
+    }
+
+    Component.onCompleted: {
+        hdrCheckProc.running = true;
+        scrollOverviewCheckProc.running = true;
+        // Hyprland's IPC socket isn't always ready at the exact moment
+        // Quickshell's Component.onCompleted fires (visible as a brief
+        // "ConnectionRefusedError" in the log on startup). The first
+        // scrollOverviewCheckProc run can therefore return empty,
+        // leaving scrollOverviewEnabled stuck at false until the next
+        // configreloaded event. Retry after a short delay so the hot
+        // corner becomes responsive without the user having to run
+        // `hyprctl reload`.
+        scrollOverviewStartupRetry.start();
+    }
+
+    Timer {
+        id: scrollOverviewStartupRetry
+        interval: 1500
+        repeat: false
+        onTriggered: scrollOverviewCheckProc.running = true
+    }
+
+    GlobalShortcut {
+        name: "workspaceNumber"
+        description: "Hold to show workspace numbers, release to show icons"
+
+        onPressed: {
+            root.superDown = true
+        }
+        onReleased: {
+            root.superDown = false
+        }
+    }
+}

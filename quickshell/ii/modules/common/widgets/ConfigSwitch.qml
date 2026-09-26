@@ -1,0 +1,58 @@
+import qs.modules.common.widgets
+import qs.modules.common
+import QtQuick
+import QtQuick.Layouts
+import QtQuick.Controls
+
+RippleButton {
+    id: root
+    property string buttonIcon
+    property alias iconSize: iconWidget.iconSize
+    // Forwarded to the inner StyledSwitch — pages that load their initial
+    // `checked` state from a file (e.g. InterfaceConfig.qml reading
+    // general.lua) can hold this false through that read so the restored
+    // toggle position snaps in place instead of sliding in on every menu
+    // reopen. Default true keeps user-click changes animated.
+    property alias animateChanges: switchWidget.animateChanges
+    // Optional hover tooltip. Leave empty (default) to suppress the
+    // tooltip entirely; set to any non-empty string to show a tooltip
+    // when the user hovers the switch row.
+    property string tooltipText: ""
+
+    Layout.fillWidth: true
+    implicitHeight: contentItem.implicitHeight + 8 * 2
+    font.pixelSize: Appearance.font.pixelSize.small
+
+    onClicked: checked = !checked
+
+    contentItem: RowLayout {
+        spacing: 10
+        OptionalMaterialSymbol {
+            id: iconWidget
+            icon: root.buttonIcon
+            opacity: root.enabled ? 1 : 0.4
+            iconSize: Appearance.font.pixelSize.larger
+        }
+        StyledText {
+            id: labelWidget
+            Layout.fillWidth: true
+            text: root.text
+            font.pixelSize: root.font.pixelSize
+            color: Appearance.colors.colOnSecondaryContainer
+            opacity: root.enabled ? 1 : 0.4
+        }
+        StyledSwitch {
+            id: switchWidget
+            down: root.down
+            Layout.fillWidth: false
+            checked: root.checked
+            onClicked: root.clicked()
+        }
+    }
+
+    StyledToolTip {
+        text: root.tooltipText
+        extraVisibleCondition: root.tooltipText.length > 0
+    }
+}
+

@@ -1,0 +1,144 @@
+pragma Singleton
+pragma ComponentBehavior: Bound
+
+import qs.modules.common
+import QtQuick
+import Quickshell
+import Quickshell.Io
+import Quickshell.Hyprland
+
+/**
+ * Automatically reloads generated material colors.
+ * It is necessary to run reapplyTheme() on startup because Singletons are lazily loaded.
+ */
+Singleton {
+    id: root
+    property string filePath: Directories.generatedMaterialThemePath
+
+    function reapplyTheme() {
+        themeFileView.reload()
+    }
+
+    function applyColors(fileContent) {
+        const json = JSON.parse(fileContent)
+        for (const key in json) {
+            if (json.hasOwnProperty(key)) {
+                // Convert snake_case to CamelCase
+                const camelCaseKey = key.replace(/_([a-z])/g, (g) => g[1].toUpperCase())
+                const m3Key = `m3${camelCaseKey}`
+                Appearance.m3colors[m3Key] = json[key]
+            }
+        }
+        
+        Appearance.m3colors.darkmode = (Appearance.m3colors.m3background.hslLightness < 0.5)
+        Appearance.themeRevision += 1
+    }
+
+    function resetFilePathNextTime() {
+        resetFilePathNextWallpaperChange.enabled = true
+    }
+
+    // Colours are regenerated partway through a theme apply, while the rest of
+    // the desktop is still being rewritten. Painting them the moment they land
+    // shows an intermediate state that is replaced again a moment later, so
+    // hold them back and repaint with everything else once the run reports
+    // itself finished.
+    property bool colorsHeld: false
+
+    function applyColorsWhenSettled(fileContent) {
+        if (Config.themeApplyInProgress) {
+            root.colorsHeld = true
+            return
+        }
+        root.applyColors(fileContent)
+    }
+
+    Connections {
+        target: Config
+        function onThemeApplyInProgressChanged() {
+            if (Config.themeApplyInProgress || !root.colorsHeld) return
+            root.colorsHeld = false
+            root.applyColors(themeFileView.text())
+        }
+    }
+
+    Connections {
+        id: resetFilePathNextWallpaperChange
+        enabled: false
+        target: Config.options.background
+        function onWallpaperPathChanged() {
+            root.filePath = ""
+            root.filePath = Directories.generatedMaterialThemePath
+            resetFilePathNextWallpaperChange.enabled = false
+        }
+    }
+
+    Timer {
+        id: delayedFileRead
+        interval: Config.options?.hacks?.arbitraryRaceConditionDelay ?? 100
+        repeat: false
+        running: false
+        onTriggered: {
+            root.applyColorsWhenSettled(themeFileView.text())
+        }
+    }
+
+	FileView { 
+        id: themeFileView
+        path: Qt.resolvedUrl(root.filePath)
+        watchChanges: true
+        onFileChanged: {
+            this.reload()
+            delayedFileRead.start()
+        }
+        onLoadedChanged: {
+            const fileContent = themeFileView.text()
+            root.applyColorsWhenSettled(fileContent)
+        }
+        onLoadFailed: root.resetFilePathNextTime();
+    }
+
+    // Re-entrancy guard: upstream's execDetached double-fires on rapid
+    // presses and races applycolor.sh. Drop presses while a run is in
+    // flight; refresh the theme on exit. Matches QuickConfig.qml's path.
+    Process {
+        id: toggleLightDarkProc
+        onExited: root.reapplyTheme()
+    }
+
+    function toggleLightDark() {
+        if (toggleLightDarkProc.running) return;
+        const currentlyDark = Appearance.m3colors.darkmode;
+        toggleLightDarkProc.command = [
+            Directories.wallpaperSwitchScriptPath,
+            "--mode", currentlyDark ? "light" : "dark",
+            "--noswitch",
+        ];
+        toggleLightDarkProc.running = true;
+    }
+
+    GlobalShortcut {
+        name: "toggleLightDark"
+        description: "Toggles between dark theme and light theme"
+
+        onPressed: {
+            root.toggleLightDark();
+        }
+    }
+
+    IpcHandler {
+        target: "theme"
+
+        // Fork-side: reapply theme on demand (used by external triggers
+        // that need to refresh after a colors regen).
+        function reload(): void {
+            root.reapplyTheme()
+        }
+
+        // Upstream addition: hooked up to CTRL+SUPER+SHIFT+D via the
+        // GlobalShortcut above. Also callable over IPC for symmetry.
+        function toggleLightDark(): void {
+            root.toggleLightDark();
+        }
+    }
+}

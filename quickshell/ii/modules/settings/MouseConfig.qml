@@ -1,0 +1,1898 @@
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import Quickshell
+import Quickshell.Io
+import qs.modules.common
+import qs.modules.common.functions as CF
+import qs.modules.common.widgets
+import qs.services
+
+ContentPage {
+    // 2 cards * 150px + 16px gap
+    // Mesmo comportamento de CTRL+SUPER+Right/Left: "r+1" / "r-1"
+    // percorrem as workspaces abertas do monitor atual.
+
+    id: root
+
+    property bool ready: false
+    property bool leftHanded: false
+    property bool accelEnabled: true
+    property bool naturalScroll: false
+    property bool naturalScrollTP: true
+    property bool touchpadEnabled: true
+    property string touchpadDeviceName: ""
+    property real sensitivity: 0
+    // Targets the Lua-config tree introduced in Hyprland 0.55.
+    readonly property string envConf: Quickshell.env("HOME") + "/.config/hypr/custom/env.lua"
+    readonly property string hyprGeneralConf: Quickshell.env("HOME") + "/.config/hypr/hyprland/general.lua"
+
+    // ── Touchpad gestures ─────────────────────────────────────────────────────
+    // Each slot in Config.options.gestures maps to one hl.gesture() block.
+    // Hyprland rejects re-defining a fingers+direction pair ("overshadowed"),
+    // so changes rewrite the whole marker-fenced block in hyprland/general.lua
+    // and take effect via a full hyprctl reload.
+    function gestureBlock() {
+        const g = Config.options.gestures;
+        const lua = {
+            "swipe3": {
+                "move": '{\n    fingers = 3,\n    direction = "swipe",\n    action = "move"\n}',
+                "workspace": '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "workspace"\n}',
+                "resize": '{\n    fingers = 3,\n    direction = "swipe",\n    action = "resize"\n}',
+                "moveColumn": '{\n    fingers = 3,\n    direction = "horizontal",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}'
+            },
+            "vertical3": {
+                "workspace": '{\n    fingers = 3,\n    direction = "vertical",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.y\n                local threshold = 80\n\n                -- dedos para BAIXO (delta positivo) -> workspace de baixo (igual CTRL+SUPER+Right)\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.focus({ workspace = "r+1" }))\n                    accum = accum - threshold\n                end\n\n                -- dedos para CIMA (delta negativo) -> workspace de cima (igual CTRL+SUPER+Left)\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.focus({ workspace = "r-1" }))\n                    accum = accum + threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+                "scrollOverviewOpen": '{\n    fingers = 3,\n    direction = "up",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}'
+            },
+            "pinch3": {
+                "float": '{\n    fingers = 3,\n    direction = "pinch",\n    action = "float"\n}',
+                "fullscreen": '{\n    fingers = 3,\n    direction = "pinch",\n    action = "fullscreen"\n}',
+                "close": '{\n    fingers = 3,\n    direction = "pinch",\n    action = "close"\n}'
+            },
+            "horizontal4": {
+                "overviewOpen": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+                "fullscreen": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "fullscreen"\n}',
+                "special": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+                "scrollOverviewOpen": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}'
+            },
+            "up4": {
+                "overviewOpen": '{\n    fingers = 4,\n    direction = "up",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+                "fullscreen": '{\n    fingers = 4,\n    direction = "up",\n    action = "fullscreen"\n}',
+                "special": '{\n    fingers = 4,\n    direction = "up",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+                "scrollOverviewOpen": '{\n    fingers = 4,\n    direction = "up",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}'
+            },
+            "down4": {
+                "overviewClose": '{\n    fingers = 4,\n    direction = "down",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesClose"))\n    end\n}',
+                "special": '{\n    fingers = 4,\n    direction = "down",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+                "close": '{\n    fingers = 4,\n    direction = "down",\n    action = "close"\n}'
+            }
+        };
+        const lines = [];
+        for (const slot of ["swipe3", "pinch3", "horizontal4", "vertical3", "up4", "down4"]) {
+            // Unknown values (hand-edited config.json) fall back to the slot's
+            // default — the first key — so the file always matches what the
+            // combo's index-0 fallback displays. The own-property guard keeps
+            // Object.prototype members ("constructor") out of the Lua.
+            let val = g[slot];
+            if (val !== "none" && !Object.prototype.hasOwnProperty.call(lua[slot], val))
+                val = Object.keys(lua[slot])[0];
+
+            const body = lua[slot][val];
+            if (body)
+                lines.push("hl.gesture(" + body + ")");
+
+        }
+        return lines.join("\n");
+    }
+
+    // Exit codes: 0 = rewritten (reload), 1 = marker block missing (surface
+    // an error), 2 = file already matches (no-op — lets Component.onCompleted
+    // run this as a cheap self-heal after dots updates reset general.lua).
+    function applyGestures() {
+        const py = "import sys, re, os\n" + "path, block = sys.argv[1], sys.argv[2]\n" + "text = open(path).read()\n" + "pat = re.compile(r'(?s)(-- BEGIN gestures[^\\n]*\\n).*?(-- END gestures)')\n" + "new, n = pat.subn(lambda m: m.group(1) + block + ('\\n' if block else '') + m.group(2), text, count=1)\n" + "if n == 0:\n" + "    sys.exit(1)\n" + "if new == text:\n" + "    sys.exit(2)\n" + "tmp = path + '.tmp'\n" + "f = open(tmp, 'w')\n" + "f.write(new)\n" + "f.close()\n" + "os.replace(tmp, path)\n";
+        gestureWriter.command = ["python3", "-c", py, root.hyprGeneralConf, gestureBlock()];
+        gestureWriter.running = false;
+        gestureWriter.running = true;
+    }
+
+    // Strip surrounding quotes and trailing comma from a Lua value token.
+    // `"flat",` → `flat`, `0.0,` → `0.0`, `true` → `true`.
+    function _luaUnwrap(val) {
+        return String(val).replace(/^["']/, "").replace(/["']?,?\s*$/, "");
+    }
+
+    // Format a QML-passed value as a Lua literal for a given key.
+    // - boolean-keyed values (0/1) become `false`/`true`
+    // - accel_profile is a string → wrap in quotes
+    // - everything else gets stringified (numbers stay bare)
+    function _luaLiteral(key, value) {
+        const boolKeys = ["left_handed", "natural_scroll"];
+        if (boolKeys.indexOf(key) !== -1) {
+            // accept 0/1/"0"/"1"/true/false
+            const truthy = value === 1 || value === "1" || value === true;
+            return truthy ? "true" : "false";
+        }
+        if (key === "accel_profile")
+            return '"' + String(value) + '"';
+
+        // numeric (sensitivity)
+        return String(value);
+    }
+
+    function applyInput(key, value) {
+        if (!root.ready)
+            return ;
+
+        // Live apply: Lua mode rejects `hyprctl keyword` ("can't work with
+        // non-legacy parsers. Use eval."), so we route through hyprctl eval +
+        // hl.config(). Booleans need real Lua keywords (`true`/`false`),
+        // numbers stay bare, strings get quoted — _luaLiteral handles all
+        // three. The leaf is just the input-table key, no nested colons.
+        const luaVal = root._luaLiteral(key, value);
+        Quickshell.execDetached(["hyprctl", "eval", 'hl.config({ input = { ["' + key + '"] = ' + luaVal + ' } })']);
+        // Persist into env.lua. Replaces the first matching key in the
+        // OUTER input table (skipping the nested touchpad block). The
+        // touchpad-detection regex anchors on `touchpad = {` so comment
+        // lines mentioning 'touchpad' (e.g. the file-top doc comment)
+        // don't falsely latch in_tp and block legitimate matches.
+        const mouseScript = "import sys, re\n" + "key, val, conf = sys.argv[1], sys.argv[2], sys.argv[3]\n" + "lines = open(conf).read().split('\\n')\n" + "in_tp = False\n" + "done = False\n" + "result = []\n" + "for line in lines:\n" + "    stripped = line.strip()\n" + "    # Only the actual `touchpad = {` opener flips in_tp;\n" + "    # comments and unrelated 'touchpad' mentions ignored.\n" + "    if re.match(r'touchpad\\s*=\\s*\\{', stripped):\n" + "        in_tp = True\n" + "    elif in_tp and re.match(r'\\},?\\s*$', stripped):\n" + "        in_tp = False\n" + "    elif not in_tp and not done and stripped.startswith(key + ' '):\n" + "        line = '        ' + key + ' = ' + val + ','\n" + "        done = True\n" + "    result.append(line)\n" + "if not done:\n" + "    # Couldn't find an existing slot — bail rather than corrupt\n" + "    # the file by appending bare assignments after the closing }).\n" + "    sys.exit(0)\n" + "open(conf, 'w').write('\\n'.join(result))\n";
+        Quickshell.execDetached(["python3", "-c", mouseScript, String(key), luaVal, root.envConf]);
+    }
+
+    // Write mouse natural_scroll - skips inside touchpad block.
+    // chr(123)='{' chr(125)='}' avoids QML brace counting.
+    function applyMouseNaturalScroll(value) {
+        if (!root.ready)
+            return ;
+
+        const luaVal = root._luaLiteral("natural_scroll", value);
+        // Live apply via hyprctl eval — Lua mode rejects `hyprctl keyword`.
+        Quickshell.execDetached(["hyprctl", "eval", 'hl.config({ input = { natural_scroll = ' + luaVal + ' } })']);
+        const py = "import sys\n" + "val, conf = sys.argv[1], sys.argv[2]\n" + "ob = chr(123)\n" + "cb = chr(125)\n" + "lines = open(conf).read().split('\\n')\n" + "in_tp = False\n" + "result = []\n" + "for line in lines:\n" + "    if 'touchpad' in line and ob in line:\n" + "        in_tp = True\n" + "    if in_tp and cb in line and ob not in line:\n" + "        in_tp = False\n" + "    if not in_tp and 'natural_scroll' in line:\n" + "        line = '        natural_scroll = ' + val + ','\n" + "    result.append(line)\n" + "open(conf, 'w').write('\\n'.join(result))\n";
+        Quickshell.execDetached(["python3", "-c", py, luaVal, root.envConf]);
+    }
+
+    // Write touchpad natural_scroll - only inside touchpad block.
+    function applyTouchpadInput(value) {
+        if (!root.ready)
+            return ;
+
+        const luaVal = root._luaLiteral("natural_scroll", value);
+        // Live apply via hyprctl eval — Lua mode rejects `hyprctl keyword`.
+        // Nested-table form so the inner natural_scroll under `touchpad` is
+        // targeted, not the outer one.
+        Quickshell.execDetached(["hyprctl", "eval", 'hl.config({ input = { touchpad = { natural_scroll = ' + luaVal + ' } } })']);
+        const py = "import sys\n" + "val, conf = sys.argv[1], sys.argv[2]\n" + "ob = chr(123)\n" + "lines = open(conf).read().split('\\n')\n" + "in_tp = False\n" + "result = []\n" + "for line in lines:\n" + "    if 'touchpad' in line and ob in line:\n" + "        in_tp = True\n" + "    if in_tp and 'natural_scroll' in line:\n" + "        line = '            natural_scroll = ' + val + ','\n" + "        in_tp = False\n" + "    result.append(line)\n" + "open(conf, 'w').write('\\n'.join(result))\n";
+        Quickshell.execDetached(["python3", "-c", py, luaVal, root.envConf]);
+    }
+
+    // `enabled` is a per-device option, unlike the settings under
+    // input.touchpad, so apply it with hl.device() and persist that statement
+    // in env.lua for future Hyprland sessions.
+    function applyTouchpadEnabled(value) {
+        if (!root.ready || !root.touchpadDeviceName)
+            return ;
+
+        // The name came from hyprctl, but this is the last stop before it sits
+        // inside a quoted Lua string — a quote or backslash in it would break
+        // out of that string, so such a name is not written at all.
+        if (/["\\]/.test(root.touchpadDeviceName))
+            return ;
+
+        const stmt = 'hl.device({ name = "' + root.touchpadDeviceName + '", enabled = ' + (value ? "true" : "false") + ' })';
+        // One statement serves both: what eval applies now is byte-for-byte
+        // what the block replays next session, so the two cannot drift.
+        Quickshell.execDetached(["hyprctl", "eval", stmt]);
+        Quickshell.execDetached(["python3", Quickshell.shellPath("scripts/hypr/managed_block.py"), root.envConf, "touchpad-enable", stmt]);
+    }
+
+    forceWidth: true
+    Component.onCompleted: {
+        mouseProc.running = false;
+        mouseProc.running = true;
+        tpProc.running = false;
+        tpProc.running = true;
+        tpNameProc.running = false;
+        tpNameProc.running = true;
+        tpEnabledProc.running = false;
+        tpEnabledProc.running = true;
+        root.applyGestures();
+    }
+
+    Process {
+        id: gestureWriter
+
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                gestureReload.running = false;
+                gestureReload.running = true;
+            } else if (exitCode === 1) {
+                Quickshell.execDetached(["notify-send", Translation.tr("Gesture settings"), Translation.tr("Couldn't update %1 — its gestures marker block is missing.").arg(root.hyprGeneralConf), "-a", "Shell"]);
+            }
+        }
+    }
+
+    Process {
+        id: gestureReload
+
+        command: ["hyprctl", "reload"]
+    }
+
+    Process {
+        id: mouseProc
+
+        // Anchor the exit pattern on the actual `touchpad = {` block opener.
+        // The previous bare `/touchpad/` matched any line containing the
+        // word "touchpad" — including the file's doc comment
+        // `-- (one key per line, touchpad as a nested table).` — and exited
+        // before reading any of the input-table values below it.
+        command: ["awk", "/^[[:space:]]*touchpad[[:space:]]*=[[:space:]]*\\{/{exit} /^[[:space:]]*(sensitivity|left_handed|accel_profile|natural_scroll)[[:space:]]*=/{print}", root.envConf]
+        onExited: root.ready = true
+
+        stdout: SplitParser {
+            onRead: (data) => {
+                const m = data.match(/^\s*(\w+)\s*=\s*(.+?)\s*$/);
+                if (!m)
+                    return ;
+
+                const key = m[1];
+                const val = root._luaUnwrap(m[2]);
+                if (key === "sensitivity")
+                    root.sensitivity = parseFloat(val) || 0;
+
+                if (key === "left_handed")
+                    root.leftHanded = val === "1" || val === "true";
+
+                if (key === "accel_profile")
+                    root.accelEnabled = val !== "flat";
+
+                if (key === "natural_scroll")
+                    root.naturalScroll = val === "1" || val === "true";
+
+            }
+        }
+
+    }
+
+    Process {
+        id: tpProc
+
+        // Anchor on the actual `touchpad = {` block opener so comments
+        // mentioning 'touchpad' don't enter the -A5 search window. The
+        // original bare `grep -A5 touchpad` happened to work because the
+        // comment's window didn't contain a natural_scroll line — but a
+        // single line of file reshuffling could trip it.
+        command: ["bash", "-c", "grep -A5 '^[[:space:]]*touchpad[[:space:]]*=' \"$1\" 2>/dev/null | grep natural_scroll || true", "--", root.envConf]
+
+        stdout: SplitParser {
+            onRead: (data) => {
+                const m = data.match(/natural_scroll\s*=\s*(\S+)/);
+                if (m) {
+                    const v = root._luaUnwrap(m[1]);
+                    root.naturalScrollTP = v === "1" || v === "true";
+                }
+            }
+        }
+
+    }
+
+    // Touchpads are listed with pointer devices by hyprctl. Keep the actual
+    // libinput name so the per-device enabled setting can be updated.
+    Process {
+        id: tpNameProc
+
+        command: ["bash", "-c", "hyprctl devices -j | python3 -c \"import sys, json; d = json.load(sys.stdin); n = [m['name'] for m in d.get('mice', []) if 'touchpad' in m['name'].lower()]; print(n[0] if n else '')\""]
+
+        stdout: SplitParser {
+            onRead: (data) => {
+                const name = data.trim();
+                if (name)
+                    root.touchpadDeviceName = name;
+
+            }
+        }
+
+    }
+
+    // If no saved device setting exists, touchpadEnabled remains true.
+    Process {
+        id: tpEnabledProc
+
+        command: ["bash", "-c", "awk '/-- BEGIN touchpad-enable/,/-- END touchpad-enable/' \"$1\" 2>/dev/null", "--", root.envConf]
+
+        stdout: SplitParser {
+            onRead: (data) => {
+                const m = data.match(/enabled\s*=\s*(true|false)/);
+                if (m)
+                    root.touchpadEnabled = m[1] === "true";
+
+            }
+        }
+
+    }
+
+    // ── General ───────────────────────────────────────────────────────────────
+    ContentSection {
+        icon: "mouse"
+        title: Translation.tr("General")
+
+        ConfigRow {
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("Primary Button")
+                font.pixelSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colOnLayer1
+            }
+
+            ConfigSelectionArray {
+                Layout.fillWidth: false
+                Layout.alignment: Qt.AlignVCenter
+                Layout.preferredWidth: 220
+                buttonWidth: 110
+                spacing: 0
+                currentValue: root.leftHanded ? "right" : "left"
+                onSelected: (val) => {
+                    root.leftHanded = val === "right";
+                    root.applyInput("left_handed", root.leftHanded ? 1 : 0);
+                }
+                options: [{
+                    "displayName": Translation.tr("Left"),
+                    "icon": "left_click",
+                    "value": "left"
+                }, {
+                    "displayName": Translation.tr("Right"),
+                    "icon": "right_click",
+                    "value": "right"
+                }]
+            }
+
+        }
+
+        ConfigRow {
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("Shake to Locate")
+                font.pixelSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colOnLayer1
+            }
+
+            StyledComboBox {
+                textRole: "displayName"
+                Layout.fillWidth: false
+                Layout.preferredWidth: 220
+                model: [{
+                    "displayName": Translation.tr("Disabled"),
+                    "value": "off"
+                }, {
+                    "displayName": Translation.tr("Magnifier Zoom"),
+                    "value": "zoom"
+                }, {
+                    "displayName": Translation.tr("Cursor Grows"),
+                    "value": "grow"
+                }]
+                currentIndex: {
+                    const idx = model.findIndex((item) => {
+                        return item.value === Config.options.cursor.shakeMode;
+                    });
+                    return idx !== -1 ? idx : 0;
+                }
+                onActivated: (index) => {
+                    Config.options.cursor.shakeMode = model[index].value;
+                }
+            }
+
+        }
+
+    }
+
+    // ── Mouse ─────────────────────────────────────────────────────────────────
+    ContentSection {
+        icon: "mouse"
+        title: Translation.tr("Mouse")
+
+        ConfigRow {
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("Pointer Speed")
+                font.pixelSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colOnLayer1
+            }
+
+            StyledComboBox {
+                textRole: "displayName"
+                Layout.fillWidth: false
+                Layout.preferredWidth: 220
+                model: [{
+                    "displayName": Translation.tr("Slowest"),
+                    "value": -1
+                }, {
+                    "displayName": Translation.tr("Slow"),
+                    "value": -0.5
+                }, {
+                    "displayName": Translation.tr("Default"),
+                    "value": 0
+                }, {
+                    "displayName": Translation.tr("Fast"),
+                    "value": 1
+                }, {
+                    "displayName": Translation.tr("Fastest"),
+                    "value": 2
+                }]
+                currentIndex: {
+                    const idx = model.findIndex((item) => {
+                        return Math.abs(item.value - root.sensitivity) < 0.26;
+                    });
+                    return idx !== -1 ? idx : 2;
+                }
+                onActivated: (index) => {
+                    root.sensitivity = model[index].value;
+                    root.applyInput("sensitivity", model[index].value.toFixed(1));
+                }
+            }
+
+        }
+
+        ConfigRow {
+            ConfigSwitch {
+                Layout.fillWidth: true
+                buttonIcon: "trending_flat"
+                text: Translation.tr("Mouse Acceleration")
+                checked: root.accelEnabled
+                onCheckedChanged: {
+                    root.accelEnabled = checked;
+                    root.applyInput("accel_profile", checked ? "adaptive" : "flat");
+                }
+            }
+
+        }
+
+        ContentSubsection {
+            title: Translation.tr("Scroll Direction")
+
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 16
+                rowSpacing: 0
+
+                MouseArea {
+                    Layout.fillWidth: true
+                    cursorShape: Qt.PointingHandCursor
+                    implicitHeight: mouseScrollTradCol.implicitHeight
+                    onClicked: {
+                        root.naturalScroll = false;
+                        root.applyMouseNaturalScroll(0);
+                    }
+
+                    ColumnLayout {
+                        id: mouseScrollTradCol
+
+                        width: parent.width
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 130
+                            radius: Appearance.rounding.normal
+                            color: !root.naturalScroll ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1) : Appearance.colors.colLayer2
+                            border.width: !root.naturalScroll ? 2 : 1
+                            border.color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                            MouseArea {
+                                anchors.fill: parent
+                                z: 1
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.naturalScroll = false;
+                                    root.applyMouseNaturalScroll(0);
+                                }
+                            }
+
+                            Item {
+                                anchors {
+                                    fill: parent
+                                    margins: 10
+                                }
+
+                                Rectangle {
+                                    x: 0
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [20, 14, 18, 10]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 4 + 1
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [16, 22, 10, 18]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 2 + 2
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [18, 10, 20, 14]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                    Rectangle {
+                                        x: parent.width - 6
+                                        y: 9
+                                        width: 4
+                                        height: parent.height - 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            width: 4
+                                            height: 14
+                                            radius: 2
+                                            y: 2
+                                            color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                            opacity: 0.7
+                                        }
+
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: Math.round(parent.height * 0.42)
+                                        text: "arrow_upward"
+                                        iconSize: 14
+                                        color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.7
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width - 42
+                                    y: 2
+                                    width: 28
+                                    height: 52
+                                    radius: 14
+                                    color: !root.naturalScroll ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        x: 13
+                                        y: 0
+                                        width: 1
+                                        height: 22
+                                        color: Appearance.colors.colOutlineVariant
+                                    }
+
+                                    Rectangle {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: 7
+                                        width: 5
+                                        height: 14
+                                        radius: 3
+                                        color: Appearance.colors.colSubtext
+                                        opacity: 0.6
+                                    }
+
+                                }
+
+                                MaterialSymbol {
+                                    x: parent.width - 36
+                                    y: 58
+                                    text: "arrow_upward"
+                                    iconSize: 16
+                                    color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                }
+
+                            }
+
+                        }
+
+                        RowLayout {
+                            spacing: 6
+                            Layout.alignment: Qt.AlignHCenter
+
+                            Rectangle {
+                                width: 16
+                                height: 16
+                                radius: 8
+                                border.width: 2
+                                border.color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                color: !root.naturalScroll ? Appearance.colors.colPrimary : "transparent"
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 6
+                                    height: 6
+                                    radius: 3
+                                    color: Appearance.colors.colOnPrimary
+                                    visible: !root.naturalScroll
+                                }
+
+                            }
+
+                            ColumnLayout {
+                                spacing: 1
+
+                                StyledText {
+                                    text: Translation.tr("Traditional")
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    color: Appearance.colors.colOnLayer1
+                                }
+
+                                StyledText {
+                                    text: Translation.tr("Scrolling moves the view")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+                MouseArea {
+                    Layout.fillWidth: true
+                    cursorShape: Qt.PointingHandCursor
+                    implicitHeight: mouseScrollNatCol.implicitHeight
+                    onClicked: {
+                        root.naturalScroll = true;
+                        root.applyMouseNaturalScroll(1);
+                    }
+
+                    ColumnLayout {
+                        id: mouseScrollNatCol
+
+                        width: parent.width
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 130
+                            radius: Appearance.rounding.normal
+                            color: root.naturalScroll ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1) : Appearance.colors.colLayer2
+                            border.width: root.naturalScroll ? 2 : 1
+                            border.color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                            MouseArea {
+                                anchors.fill: parent
+                                z: 1
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.naturalScroll = true;
+                                    root.applyMouseNaturalScroll(1);
+                                }
+                            }
+
+                            Item {
+                                anchors {
+                                    fill: parent
+                                    margins: 10
+                                }
+
+                                Rectangle {
+                                    x: 0
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [20, 14, 18, 10]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 4 + 1
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [16, 22, 10, 18]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 2 + 2
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [18, 10, 20, 14]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                    Rectangle {
+                                        x: parent.width - 6
+                                        y: 9
+                                        width: 4
+                                        height: parent.height - 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            width: 4
+                                            height: 14
+                                            radius: 2
+                                            y: 2
+                                            color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                            opacity: 0.7
+                                        }
+
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: Math.round(parent.height * 0.42)
+                                        text: "arrow_upward"
+                                        iconSize: 14
+                                        color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.7
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width - 42
+                                    y: 2
+                                    width: 28
+                                    height: 52
+                                    radius: 14
+                                    color: root.naturalScroll ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        x: 13
+                                        y: 0
+                                        width: 1
+                                        height: 22
+                                        color: Appearance.colors.colOutlineVariant
+                                    }
+
+                                    Rectangle {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: 7
+                                        width: 5
+                                        height: 14
+                                        radius: 3
+                                        color: Appearance.colors.colSubtext
+                                        opacity: 0.6
+                                    }
+
+                                }
+
+                                MaterialSymbol {
+                                    x: parent.width - 36
+                                    y: 58
+                                    text: "arrow_downward"
+                                    iconSize: 16
+                                    color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                }
+
+                            }
+
+                        }
+
+                        RowLayout {
+                            spacing: 6
+                            Layout.alignment: Qt.AlignHCenter
+
+                            Rectangle {
+                                width: 16
+                                height: 16
+                                radius: 8
+                                border.width: 2
+                                border.color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                color: root.naturalScroll ? Appearance.colors.colPrimary : "transparent"
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 6
+                                    height: 6
+                                    radius: 3
+                                    color: Appearance.colors.colOnPrimary
+                                    visible: root.naturalScroll
+                                }
+
+                            }
+
+                            ColumnLayout {
+                                spacing: 1
+
+                                StyledText {
+                                    text: Translation.tr("Natural")
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    color: Appearance.colors.colOnLayer1
+                                }
+
+                                StyledText {
+                                    text: Translation.tr("Scrolling moves the content")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+    }
+
+    // ── Touchpad ──────────────────────────────────────────────────────────────
+    ContentSection {
+        icon: "touch_app"
+        title: Translation.tr("Touchpad")
+
+        ConfigRow {
+            // A control that flips a device nothing here has is a switch wired
+            // to nothing — machines without a touchpad simply do not show it.
+            visible: root.touchpadDeviceName !== ""
+
+            StyledText {
+                Layout.fillWidth: true
+                text: Translation.tr("Touchpad")
+                font.pixelSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colOnLayer1
+            }
+
+            StyledComboBox {
+                textRole: "displayName"
+                Layout.fillWidth: false
+                Layout.preferredWidth: 220
+                model: [{
+                    "displayName": Translation.tr("Enabled"),
+                    "value": true
+                }, {
+                    "displayName": Translation.tr("Disabled"),
+                    "value": false
+                }]
+                currentIndex: {
+                    const idx = model.findIndex((item) => {
+                        return item.value === root.touchpadEnabled;
+                    });
+                    return idx !== -1 ? idx : 0;
+                }
+                onActivated: (index) => {
+                    const enabled = model[index].value;
+                    root.touchpadEnabled = enabled;
+                    root.applyTouchpadEnabled(enabled);
+                }
+            }
+
+        }
+
+        ContentSubsection {
+            title: Translation.tr("Scroll Direction")
+
+            GridLayout {
+                Layout.fillWidth: true
+                columns: 2
+                columnSpacing: 16
+                rowSpacing: 0
+
+                MouseArea {
+                    Layout.fillWidth: true
+                    cursorShape: Qt.PointingHandCursor
+                    implicitHeight: tpScrollTradCol.implicitHeight
+                    onClicked: {
+                        root.naturalScrollTP = false;
+                        root.applyTouchpadInput(0);
+                    }
+
+                    ColumnLayout {
+                        id: tpScrollTradCol
+
+                        width: parent.width
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 130
+                            radius: Appearance.rounding.normal
+                            color: !root.naturalScrollTP ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1) : Appearance.colors.colLayer2
+                            border.width: !root.naturalScrollTP ? 2 : 1
+                            border.color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                            MouseArea {
+                                anchors.fill: parent
+                                z: 1
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.naturalScrollTP = false;
+                                    root.applyTouchpadInput(0);
+                                }
+                            }
+
+                            Item {
+                                anchors {
+                                    fill: parent
+                                    margins: 10
+                                }
+
+                                Rectangle {
+                                    x: 0
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [20, 14, 18, 10]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 4 + 1
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [16, 22, 10, 18]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 2 + 2
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [18, 10, 20, 14]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                    Rectangle {
+                                        x: parent.width - 6
+                                        y: 9
+                                        width: 4
+                                        height: parent.height - 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            width: 4
+                                            height: 14
+                                            radius: 2
+                                            y: 2
+                                            color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                            opacity: 0.7
+                                        }
+
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: Math.round(parent.height * 0.42)
+                                        text: "arrow_upward"
+                                        iconSize: 14
+                                        color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.7
+                                    }
+
+                                }
+                                // Touchpad — Natural: fingers swipe UP, content follows fingers
+
+                                Rectangle {
+                                    x: parent.width - 58
+                                    y: 2
+                                    width: 52
+                                    height: 50
+                                    radius: 6
+                                    color: !root.naturalScrollTP ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        x: 0
+                                        y: parent.height - 13
+                                        width: parent.width
+                                        height: 1
+                                        opacity: 0.35
+                                        color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: 6
+                                        text: "arrow_upward"
+                                        iconSize: 12
+                                        color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.8
+                                    }
+
+                                    Rectangle {
+                                        x: 9
+                                        y: 24
+                                        width: 10
+                                        height: 13
+                                        radius: 5
+                                        color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.75
+                                    }
+
+                                    Rectangle {
+                                        x: 25
+                                        y: 24
+                                        width: 10
+                                        height: 13
+                                        radius: 5
+                                        color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.75
+                                    }
+
+                                }
+
+                            }
+
+                        }
+
+                        RowLayout {
+                            spacing: 6
+                            Layout.alignment: Qt.AlignHCenter
+
+                            Rectangle {
+                                width: 16
+                                height: 16
+                                radius: 8
+                                border.width: 2
+                                border.color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                color: !root.naturalScrollTP ? Appearance.colors.colPrimary : "transparent"
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 6
+                                    height: 6
+                                    radius: 3
+                                    color: Appearance.colors.colOnPrimary
+                                    visible: !root.naturalScrollTP
+                                }
+
+                            }
+
+                            ColumnLayout {
+                                spacing: 1
+
+                                StyledText {
+                                    text: Translation.tr("Traditional")
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    color: Appearance.colors.colOnLayer1
+                                }
+
+                                StyledText {
+                                    text: Translation.tr("Scrolling moves the view")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+                MouseArea {
+                    Layout.fillWidth: true
+                    cursorShape: Qt.PointingHandCursor
+                    implicitHeight: tpScrollNatCol.implicitHeight
+                    onClicked: {
+                        root.naturalScrollTP = true;
+                        root.applyTouchpadInput(1);
+                    }
+
+                    ColumnLayout {
+                        id: tpScrollNatCol
+
+                        width: parent.width
+                        spacing: 6
+
+                        Rectangle {
+                            Layout.fillWidth: true
+                            implicitHeight: 130
+                            radius: Appearance.rounding.normal
+                            color: root.naturalScrollTP ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1) : Appearance.colors.colLayer2
+                            border.width: root.naturalScrollTP ? 2 : 1
+                            border.color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                            MouseArea {
+                                anchors.fill: parent
+                                z: 1
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    root.naturalScrollTP = true;
+                                    root.applyTouchpadInput(1);
+                                }
+                            }
+
+                            Item {
+                                anchors {
+                                    fill: parent
+                                    margins: 10
+                                }
+
+                                Rectangle {
+                                    x: 0
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [20, 14, 18, 10]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 4 + 1
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [16, 22, 10, 18]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                                Rectangle {
+                                    x: parent.width / 2 + 2
+                                    y: 0
+                                    width: parent.width / 4 - 2
+                                    height: parent.height
+                                    radius: 3
+                                    color: Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        width: parent.width
+                                        height: 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            x: 3
+                                            anchors.verticalCenter: parent.verticalCenter
+                                            width: 4
+                                            height: 4
+                                            radius: 2
+                                            color: Appearance.colors.colSubtext
+                                            opacity: 0.35
+                                        }
+
+                                    }
+
+                                    Column {
+                                        x: 4
+                                        y: 13
+                                        spacing: 3
+
+                                        Repeater {
+                                            model: [18, 10, 20, 14]
+
+                                            Rectangle {
+                                                width: modelData
+                                                height: 4
+                                                radius: 2
+                                                color: Appearance.colors.colSubtext
+                                                opacity: 0.22
+                                            }
+
+                                        }
+
+                                    }
+
+                                    Rectangle {
+                                        x: parent.width - 6
+                                        y: 9
+                                        width: 4
+                                        height: parent.height - 9
+                                        radius: 2
+                                        color: Appearance.colors.colLayer2
+
+                                        Rectangle {
+                                            width: 4
+                                            height: 14
+                                            radius: 2
+                                            y: 2
+                                            color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                            opacity: 0.7
+                                        }
+
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: Math.round(parent.height * 0.42)
+                                        text: "arrow_upward"
+                                        iconSize: 14
+                                        color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.7
+                                    }
+
+                                }
+                                // Touchpad — Traditional: fingers swipe DOWN, view scrolls up
+
+                                Rectangle {
+                                    x: parent.width - 58
+                                    y: 2
+                                    width: 52
+                                    height: 50
+                                    radius: 6
+                                    color: root.naturalScrollTP ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
+                                    border.width: 1
+                                    border.color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+
+                                    Rectangle {
+                                        x: 0
+                                        y: parent.height - 13
+                                        width: parent.width
+                                        height: 1
+                                        opacity: 0.35
+                                        color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                    }
+
+                                    Rectangle {
+                                        x: 9
+                                        y: 8
+                                        width: 10
+                                        height: 13
+                                        radius: 5
+                                        color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.75
+                                    }
+
+                                    Rectangle {
+                                        x: 25
+                                        y: 8
+                                        width: 10
+                                        height: 13
+                                        radius: 5
+                                        color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.75
+                                    }
+
+                                    MaterialSymbol {
+                                        anchors.horizontalCenter: parent.horizontalCenter
+                                        y: 24
+                                        text: "arrow_downward"
+                                        iconSize: 12
+                                        color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
+                                        opacity: 0.8
+                                    }
+
+                                }
+
+                            }
+
+                        }
+
+                        RowLayout {
+                            spacing: 6
+                            Layout.alignment: Qt.AlignHCenter
+
+                            Rectangle {
+                                width: 16
+                                height: 16
+                                radius: 8
+                                border.width: 2
+                                border.color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+                                color: root.naturalScrollTP ? Appearance.colors.colPrimary : "transparent"
+
+                                Rectangle {
+                                    anchors.centerIn: parent
+                                    width: 6
+                                    height: 6
+                                    radius: 3
+                                    color: Appearance.colors.colOnPrimary
+                                    visible: root.naturalScrollTP
+                                }
+
+                            }
+
+                            ColumnLayout {
+                                spacing: 1
+
+                                StyledText {
+                                    text: Translation.tr("Natural")
+                                    font.pixelSize: Appearance.font.pixelSize.normal
+                                    color: Appearance.colors.colOnLayer1
+                                }
+
+                                StyledText {
+                                    text: Translation.tr("Scrolling moves the content")
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                            }
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        ContentSubsection {
+            title: Translation.tr("Gestures")
+            Layout.topMargin: 20
+
+            GestureRow {
+                icon: "swipe"
+                label: Translation.tr("3 fingers swipe")
+                slot: "swipe3"
+                options: [{
+                    "displayName": Translation.tr("Move window"),
+                    "value": "move"
+                }, {
+                    "displayName": Translation.tr("Switch workspaces"),
+                    "value": "workspace"
+                }, {
+                    "displayName": Translation.tr("Move column focus"),
+                    "value": "moveColumn"
+                }, {
+                    "displayName": Translation.tr("Resize window"),
+                    "value": "resize"
+                }, {
+                    "displayName": Translation.tr("Do Nothing"),
+                    "value": "none"
+                }]
+            }
+
+            GestureRow {
+                icon: "swipe_up"
+                label: Translation.tr("3 fingers swipe up/down")
+                slot: "vertical3"
+                options: [{
+                    "displayName": Translation.tr("Switch workspaces"),
+                    "value": "workspace"
+                }, {
+                    "displayName": Translation.tr("Open scroll overview"),
+                    "value": "scrollOverviewOpen"
+                }, {
+                    "displayName": Translation.tr("Do Nothing"),
+                    "value": "none"
+                }]
+            }
+
+            GestureRow {
+                icon: "pinch"
+                label: Translation.tr("3 fingers pinch")
+                slot: "pinch3"
+                options: [{
+                    "displayName": Translation.tr("Toggle floating"),
+                    "value": "float"
+                }, {
+                    "displayName": Translation.tr("Fullscreen"),
+                    "value": "fullscreen"
+                }, {
+                    "displayName": Translation.tr("Close window"),
+                    "value": "close"
+                }, {
+                    "displayName": Translation.tr("Do Nothing"),
+                    "value": "none"
+                }]
+            }
+
+            GestureRow {
+                icon: "swipe_right"
+                label: Translation.tr("4 fingers swipe sideways")
+                slot: "horizontal4"
+                options: [{
+                    "displayName": Translation.tr("Open overview"),
+                    "value": "overviewOpen"
+                }, {
+                    "displayName": Translation.tr("Fullscreen"),
+                    "value": "fullscreen"
+                }, {
+                    "displayName": Translation.tr("Special workspace"),
+                    "value": "special"
+                }, {
+                    "displayName": Translation.tr("Open scroll overview"),
+                    "value": "scrollOverviewOpen"
+                }, {
+                    "displayName": Translation.tr("Do Nothing"),
+                    "value": "none"
+                }]
+            }
+
+            GestureRow {
+                icon: "swipe_up"
+                label: Translation.tr("4 fingers swipe up")
+                slot: "up4"
+                options: [{
+                    "displayName": Translation.tr("Open overview"),
+                    "value": "overviewOpen"
+                }, {
+                    "displayName": Translation.tr("Fullscreen"),
+                    "value": "fullscreen"
+                }, {
+                    "displayName": Translation.tr("Special workspace"),
+                    "value": "special"
+                }, {
+                    "displayName": Translation.tr("Open scroll overview"),
+                    "value": "scrollOverviewOpen"
+                }, {
+                    "displayName": Translation.tr("Do Nothing"),
+                    "value": "none"
+                }]
+            }
+
+            GestureRow {
+                icon: "swipe_down"
+                label: Translation.tr("4 fingers swipe down")
+                slot: "down4"
+                options: [{
+                    "displayName": Translation.tr("Close overview"),
+                    "value": "overviewClose"
+                }, {
+                    "displayName": Translation.tr("Close window"),
+                    "value": "close"
+                }, {
+                    "displayName": Translation.tr("Special workspace"),
+                    "value": "special"
+                }, {
+                    "displayName": Translation.tr("Do Nothing"),
+                    "value": "none"
+                }]
+            }
+
+            component GestureRow: ConfigRow {
+                id: gestureRow
+
+                property string icon
+                property string label
+                property string slot
+                property var options: []
+
+                Layout.leftMargin: 8
+                Layout.rightMargin: 8
+
+                OptionalMaterialSymbol {
+                    icon: gestureRow.icon
+                    Layout.alignment: Qt.AlignVCenter
+                }
+
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.alignment: Qt.AlignVCenter
+                    Layout.leftMargin: 6
+                    text: gestureRow.label
+                    color: Appearance.colors.colOnSecondaryContainer
+                }
+
+                StyledComboBox {
+                    textRole: "displayName"
+                    Layout.fillWidth: false
+                    Layout.preferredWidth: 220
+                    model: gestureRow.options
+                    enabled: !Config.themeApplyInProgress
+                    currentIndex: {
+                        const idx = gestureRow.options.findIndex((o) => {
+                            return o.value === Config.options.gestures[gestureRow.slot];
+                        });
+                        return idx !== -1 ? idx : 0;
+                    }
+                    onActivated: (index) => {
+                        if (Config.themeApplyInProgress)
+                            return ;
+
+                        Config.options.gestures[gestureRow.slot] = gestureRow.options[index].value;
+                        root.applyGestures();
+                    }
+                }
+
+            }
+
+        }
+
+    }
+
+}

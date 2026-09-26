@@ -1,0 +1,120 @@
+import QtQuick
+import QtQuick.Layouts
+import Quickshell
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import QtQuick.Controls
+
+BarGroup {
+    id: root
+
+    readonly property bool pRunning: TimerService.pomodoroRunning ?? false
+    readonly property bool sRunning: TimerService.stopwatchRunning ?? false
+    readonly property bool cRunning: TimerService.countdownRunning ?? false
+    readonly property bool hasStop: TimerService.stopwatchTime > 0
+    readonly property bool hasPomo: TimerService.pomodoroSecondsLeft > 0 &&
+    (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration || pRunning)
+    readonly property bool hasCountdown: cRunning || (TimerService.countdownSecondsLeft > 0 && TimerService.countdownSecondsLeft < TimerService.countdownDuration)
+
+    property bool shouldShow: hasStop || hasPomo || hasCountdown
+
+    visible: shouldShow
+
+    implicitWidth: shouldShow ? (mainRow.implicitWidth + 20) : 0
+    Behavior on implicitWidth {
+        NumberAnimation {
+            duration: 300
+            easing.type: Easing.OutQuart
+        }
+    }
+    implicitHeight: Appearance.sizes.baseBarHeight
+    Layout.preferredWidth: implicitWidth
+    Layout.alignment: Qt.AlignVCenter
+
+    RowLayout {
+        id: mainRow
+        // The default property lands this row inside the group's GridLayout,
+        // so it has to be placed as a layout child — anchoring an item a
+        // layout manages is undefined behavior.
+        Layout.alignment: Qt.AlignHCenter | Qt.AlignVCenter
+        // The grid would compress the row while the pill's width animates
+        // up; pinning the minimum keeps the reveal from squashing it.
+        Layout.minimumWidth: implicitWidth
+        spacing: 15
+
+        // --- POMODORO SECTION ---
+        RowLayout {
+            visible: (root.pRunning && root.sRunning) || (!root.sRunning && root.hasPomo)
+            spacing: 5
+
+            MaterialSymbol {
+                text: "search_activity"
+                iconSize: Appearance.font.pixelSize.large
+                color: Appearance.colors.colOnLayer1
+                Layout.alignment: Qt.AlignVCenter
+            }
+            StyledText {
+                text: {
+                    const t = TimerService.pomodoroSecondsLeft
+                    return Math.floor(t/60).toString().padStart(2,'0') + ":" + (t%60).toString().padStart(2,'0')
+                }
+                color: Appearance.colors.colOnLayer1
+                font.pixelSize: Appearance.font.pixelSize.small
+                // Tabular figures: every digit shares one width, so a ticking
+                // time doesn't resize the pill.
+                font.features: ({ "tnum": 1 })
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+
+        // --- STOPWATCH SECTION ---
+        RowLayout {
+            visible: root.sRunning || (root.hasStop && !root.hasPomo && !root.hasCountdown)
+            spacing: 5
+
+            MaterialSymbol {
+                text: "timer"
+                iconSize: Appearance.font.pixelSize.large
+                color: Appearance.colors.colOnLayer1
+                Layout.alignment: Qt.AlignVCenter
+            }
+            StyledText {
+                text: {
+                    const t = TimerService.stopwatchTime
+                    const sec = Math.floor(t/100)
+                    return Math.floor(sec/60).toString().padStart(2,'0') + ":" +
+                    (sec%60).toString().padStart(2,'0') + "." +
+                    (t%100).toString().padStart(2,'0')
+                }
+                color: Appearance.colors.colOnLayer1
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.features: ({ "tnum": 1 })
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+
+        // --- COUNTDOWN SECTION ---
+        RowLayout {
+            visible: (root.cRunning && root.sRunning) || (!root.sRunning && root.hasCountdown)
+            spacing: 5
+
+            MaterialSymbol {
+                text: "hourglass_top"
+                iconSize: Appearance.font.pixelSize.large
+                color: Appearance.colors.colOnLayer1
+                Layout.alignment: Qt.AlignVCenter
+            }
+            StyledText {
+                text: {
+                    const t = TimerService.countdownSecondsLeft
+                    return Math.floor(t/60).toString().padStart(2,'0') + ":" + (t%60).toString().padStart(2,'0')
+                }
+                color: Appearance.colors.colOnLayer1
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.features: ({ "tnum": 1 })
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
+    }
+}

@@ -1,0 +1,591 @@
+//@ pragma UseQApplication
+//@ pragma Env QS_NO_RELOAD_POPUP=1
+//@ pragma Env QT_QUICK_CONTROLS_STYLE=Basic
+//@ pragma Env QT_QUICK_FLICKABLE_WHEEL_DECELERATION=10000
+
+// Adjust this to make the app smaller or larger
+//@ pragma Env QT_SCALE_FACTOR=1
+
+import QtQuick
+import QtQuick.Controls
+import QtQuick.Layouts
+import QtQuick.Window
+import Quickshell
+import Quickshell.Io
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.common.functions as CF
+// The Background page previews the wallpaper transitions; pages load by path,
+// so the module has to be named here for the scanner to find it.
+import qs.modules.ii.background
+
+ApplicationWindow {
+    id: root
+    property string firstRunFilePath: CF.FileUtils.trimFileProtocol(`${Directories.state}/user/first_run.txt`)
+    property string firstRunFileContent: "This file is just here to confirm you've been greeted :>"
+    property real contentPadding: 8
+    property bool showNextTime: false
+    property var pages: [
+        {
+            group: 1,
+            name: Translation.tr("Quick"),
+            icon: "instant_mix",
+            component: "modules/settings/QuickConfig.qml"
+        },
+        {
+            group: 1,
+            name: "Wi-Fi",
+            icon: "wifi",
+            component: "modules/settings/WifiConfig.qml"
+        },
+        {
+            group: 1,
+            name: Translation.tr("Bluetooth"),
+            icon: "bluetooth",
+            component: "modules/settings/BluetoothConfig.qml"
+        },
+        {
+            group: 2,
+            name: Translation.tr("Bar"),
+            icon: "toast",
+            iconRotation: 180,
+            component: "modules/settings/BarConfig.qml"
+        },
+        {
+            group: 2,
+            name: Translation.tr("Dock"),
+            // The bar's glyph the other way up, so the two entries are one
+            // shape distinguished only by which edge it sits on.
+            icon: "toast",
+            component: "modules/settings/DockConfig.qml"
+        },
+        {
+            group: 2,
+            name: Translation.tr("Interface"),
+            icon: "bottom_app_bar",
+            component: "modules/settings/InterfaceConfig.qml"
+        },
+        {
+            group: 2,
+            name: Translation.tr("Background"),
+            icon: "texture",
+            component: "modules/settings/BackgroundConfig.qml"
+        },
+        {
+            group: 2,
+            name: Translation.tr("Decorations"),
+            icon: "palette",
+            component: "modules/settings/DecorationsConfig.qml"
+        },
+        {
+            group: 2,
+            name: Translation.tr("Themes"),
+            icon: "style",
+            component: "modules/settings/ThemesConfig.qml"
+        },
+        {
+            group: 3,
+            name: Translation.tr("Display"),
+            icon: "monitor",
+            component: "modules/settings/DisplayConfig.qml",
+            // The Display page is by far the heaviest entry in this settings
+            // app — multiple monitors × per-monitor sections × ~400 widgets
+            // each. Synchronous load froze the page-swap animation while
+            // every monitor section materialised. Loader.asynchronous offloads
+            // the page's QML compilation + initial binding pass to a worker
+            // thread so the swap stays smooth. Only this page is opted-in;
+            // other pages stay sync because their layouts don't tolerate
+            // having a 0-width parent during the brief async-loading window.
+            asynchronous: true
+        },
+        {
+            group: 3,
+            name: Translation.tr("Layouts"),
+            icon: "view_quilt",
+            component: "modules/settings/LayoutsConfig.qml"
+        },
+        {
+            group: 3,
+            name: Translation.tr("Keyboard"),
+            icon: "keyboard",
+            component: "modules/settings/KeyboardConfig.qml"
+        },
+        {
+            group: 3,
+            name: Translation.tr("Mouse"),
+            icon: "mouse",
+            component: "modules/settings/MouseConfig.qml"
+        },
+        {
+            group: 3,
+            name: Translation.tr("Power"),
+            icon: "bolt",
+            component: "modules/settings/PowerConfig.qml"
+        },
+        {
+            group: 4,
+            name: Translation.tr("Accounts"),
+            icon: "manage_accounts",
+            component: "modules/settings/AccountsConfig.qml"
+        },
+        {
+            group: 4,
+            name: Translation.tr("Services"),
+            icon: "settings",
+            component: "modules/settings/ServicesConfig.qml"
+        },
+        {
+            group: 4,
+            name: Translation.tr("Manage"),
+            icon: "apps",
+            component: "modules/settings/ManageAppsConfig.qml"
+        },
+        {
+            group: 4,
+            name: Translation.tr("Update"),
+            icon: "system_update_alt",
+            component: "modules/settings/UpdateConfig.qml"
+        },
+        {
+            group: 4,
+            name: Translation.tr("Recovery"),
+            icon: "healing",
+            component: "modules/settings/RecoverConfig.qml"
+        },
+        {
+            group: 5,
+            name: Translation.tr("About"),
+            icon: "info",
+            component: "modules/settings/About.qml"
+        }
+    ]
+    
+    // Read deep-linking from environment variables (set by dialogs)
+    // A page may be named by its component file (UpdateConfig.qml) instead of
+    // its position, so callers don't have to track this list's ordering.
+    property int initialPage: {
+        const envPage = Quickshell.env("QS_SETTINGS_PAGE");
+        if (!envPage) return 0;
+        const named = root.pages.findIndex(page => page.component.endsWith(envPage));
+        return named !== -1 ? named : (parseInt(envPage) || 0);
+    }
+    property int initialTab: {
+        const envTab = Quickshell.env("QS_SETTINGS_TAB");
+        return envTab ? parseInt(envTab) : 0;
+    }
+    // Handed to the loaded page below and cleared once a page reports the
+    // section found, so later page visits start at the top as usual.
+    property string pendingSettingsSection: Quickshell.env("QS_SETTINGS_SECTION") || ""
+    property int currentPage: initialPage
+
+    visible: true
+    onClosing: Qt.quit()
+    title: Translation.tr("Mainstream Settings")
+
+    // Re-center on the active screen after a monitor scale apply.
+    //
+    // Why hyprctl instead of Screen.*: on Hyprland/Wayland the QScreen
+    // attached properties don't reliably notify when the compositor changes
+    // a per-monitor scale at runtime, so reading Screen.width/height after a
+    // reload returns the *previous* logical size. That made a 167%→100%
+    // change land the window at the old (smaller) centre — visibly up-left
+    // of the new true centre — and a 167%→200% change overshoot down-right.
+    //
+    // hyprctl monitors -j is the source of truth: pixel `width`/`height`
+    // plus `scale` give the logical compositor size (width/scale), and
+    // `x`/`y` give the monitor origin in the multi-monitor virtual desktop.
+    function recenter() {
+        recenterProc.running = false;
+        recenterProc.running = true;
+    }
+
+    Process {
+        id: recenterProc
+        command: ["hyprctl", "monitors", "-j"]
+        stdout: SplitParser {
+            splitMarker: ""
+            onRead: data => {
+                try {
+                    let mons = JSON.parse(data);
+                    if (!mons || mons.length === 0) return;
+                    let mon = mons.find(m => m.focused) || mons[0];
+                    let scale = mon.scale || 1.0;
+                    // Hyprland's transform values 1, 3, 5, 7 are 90°/270°
+                    // rotations — swap width/height in those cases so the
+                    // logical orientation matches the visible one.
+                    let rot = (mon.transform || 0) % 2 === 1;
+                    let pxW = rot ? mon.height : mon.width;
+                    let pxH = rot ? mon.width  : mon.height;
+                    let logicalW = pxW / scale;
+                    let logicalH = pxH / scale;
+                    let tx = Math.round(mon.x + (logicalW - root.width)  / 2);
+                    let ty = Math.round(mon.y + (logicalH - root.height) / 2);
+                    // Wayland xdg-shell does not allow clients to set their
+                    // own x/y after creation — assigning root.x/root.y is a
+                    // no-op on Hyprland. Ask the compositor to move us via
+                    // a hyprctl dispatch keyed on our (translated) title.
+                    let titleRegex = (root.title || "")
+                        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+                    if (!titleRegex) return;
+                    recenterMoveProc.command = [
+                        "hyprctl", "dispatch",
+                        `hl.dsp.window.move({ x = ${tx}, y = ${ty}, window = [[title:^${titleRegex}$]] })`
+                    ];
+                    recenterMoveProc.running = false;
+                    recenterMoveProc.running = true;
+                } catch (e) {}
+            }
+        }
+    }
+
+    Process { id: recenterMoveProc; command: [] }
+
+    // Debounce — give hyprctl reload a beat to land before we query so we
+    // don't read the pre-apply geometry.
+    Timer {
+        id: recenterTimer
+        interval: 220
+        repeat: false
+        onTriggered: root.recenter()
+    }
+
+    Screen.onWidthChanged:  recenterTimer.restart()
+    Screen.onHeightChanged: recenterTimer.restart()
+    onWidthChanged:  recenterTimer.restart()
+    onHeightChanged: recenterTimer.restart()
+
+    // The Loader below swaps in DisplayConfig.qml when the user opens the
+    // Display page. DisplayConfig emits scaleApplied() after its reloadProc
+    // exits, which is the only deterministic "apply has fully landed"
+    // signal — Screen.* changes are unreliable on Wayland scale apply.
+    Connections {
+        target: pageLoader.item
+        ignoreUnknownSignals: true
+        function onScaleApplied() { recenterTimer.restart() }
+    }
+
+    Component.onCompleted: {
+        MaterialThemeLoader.reapplyTheme()
+        ThemeLibrary.load()
+        Config.readWriteDelay = 0 // Settings app always only sets one var at a time so delay isn't needed
+        recenterTimer.restart()
+    }
+
+    minimumWidth: 750
+    minimumHeight: 500
+    width: 1100
+    height: 750
+    color: Appearance.m3colors.m3background
+
+    ColumnLayout {
+        anchors {
+            fill: parent
+            margins: contentPadding
+        }
+
+        Keys.onPressed: (event) => {
+            if (event.modifiers === Qt.ControlModifier) {
+                if (event.key === Qt.Key_PageDown) {
+                    root.currentPage = Math.min(root.currentPage + 1, root.pages.length - 1)
+                    event.accepted = true;
+                } 
+                else if (event.key === Qt.Key_PageUp) {
+                    root.currentPage = Math.max(root.currentPage - 1, 0)
+                    event.accepted = true;
+                }
+                else if (event.key === Qt.Key_Tab) {
+                    root.currentPage = (root.currentPage + 1) % root.pages.length;
+                    event.accepted = true;
+                }
+                else if (event.key === Qt.Key_Backtab) {
+                    root.currentPage = (root.currentPage - 1 + root.pages.length) % root.pages.length;
+                    event.accepted = true;
+                }
+            }
+        }
+
+        Item { // Titlebar
+            visible: Config.options?.windows.showTitlebar
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+            implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
+            StyledText {
+                id: titleText
+                anchors {
+                    left: Config.options.windows.centerTitle ? undefined : parent.left
+                    horizontalCenter: Config.options.windows.centerTitle ? parent.horizontalCenter : undefined
+                    verticalCenter: parent.verticalCenter
+                    leftMargin: 12
+                }
+                color: Appearance.colors.colOnLayer0
+                text: Translation.tr("Settings")
+                font {
+                    family: Appearance.font.family.title
+                    pixelSize: Appearance.font.pixelSize.title
+                    variableAxes: Appearance.font.variableAxes.title
+                }
+            }
+            RowLayout { // Window controls row
+                id: windowControlsRow
+                anchors.verticalCenter: parent.verticalCenter
+                anchors.right: parent.right
+                // Close button suppressed — use Super+Q (or the window
+                // manager's own close gesture) to dismiss the window.
+                RippleButton {
+                    visible: false
+                    buttonRadius: Appearance.rounding.full
+                    implicitWidth: 35
+                    implicitHeight: 35
+                    onClicked: root.close()
+                    contentItem: MaterialSymbol {
+                        anchors.centerIn: parent
+                        horizontalAlignment: Text.AlignHCenter
+                        text: "close"
+                        iconSize: 20
+                    }
+                }
+            }
+        }
+
+        RowLayout { // Window content with navigation rail and content pane
+            Layout.fillWidth: true
+            Layout.fillHeight: true
+            spacing: contentPadding
+            Item {
+                id: navRailWrapper
+                Layout.fillHeight: true
+                Layout.margins: 5
+                implicitWidth: 150
+                Flickable {
+                    id: navRailFlickable
+                    anchors.fill: parent
+                    clip: true
+                    contentWidth: width
+                    contentHeight: navRail.implicitHeight
+                    boundsBehavior: Flickable.StopAtBounds
+                    ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
+
+                ColumnLayout {
+                    id: navRail
+                    width: navRailFlickable.width
+                    spacing: 0
+
+                    Repeater {
+                        model: root.pages
+                        delegate: ColumnLayout {
+                            required property int index
+                            required property var modelData
+                            Layout.fillWidth: true
+                            spacing: 0
+
+                            // Divider whenever the group changes — driven off each
+                            // page's `group`, so pages can be added, removed, or
+                            // reordered without touching hardcoded indices.
+                            Rectangle {
+                                visible: index > 0 && root.pages[index - 1].group !== modelData.group
+                                Layout.fillWidth: true
+                                Layout.margins: 12
+                                implicitHeight: 1
+                                opacity: 0.3
+                                color: Appearance.m3colors.m3outlineVariant
+                            }
+
+                            SettingsNavButton {
+                                toggled: root.currentPage === index
+                                onPressed: root.currentPage = index
+                                buttonIcon: modelData.icon
+                                buttonIconRotation: modelData.iconRotation ?? 0
+                                buttonText: modelData.name
+                            }
+                        }
+                    }
+                } // ColumnLayout navRail
+                } // Flickable
+            }
+            Rectangle { // Content container
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+                color: Appearance.m3colors.m3surfaceContainerLow
+                radius: Appearance.rounding.windowRounding - root.contentPadding
+
+                Loader {
+                    id: pageLoader
+                    anchors.fill: parent
+                    opacity: 1.0
+
+                    active: Config.ready
+                    source: Config.ready ? root.pages[root.currentPage].component : ""
+                    // Per-page opt-in (see the page entries above) — currently
+                    // only DisplayConfig flips this on. Async loads avoid the
+                    // page-swap stutter on heavy pages but break layouts that
+                    // assume the Loader's content is sized synchronously, so
+                    // we don't apply it as a blanket setting.
+                    asynchronous: Config.ready
+                        && (root.pages[root.currentPage]?.asynchronous ?? false)
+
+                    onLoaded: {
+                        if (!root.pendingSettingsSection || !item?.scrollToSection) return;
+                        const name = root.pendingSettingsSection;
+                        const page = item;
+                        // After layout: section positions are not final inside onLoaded.
+                        Qt.callLater(() => {
+                            if (page === pageLoader.item && page.scrollToSection(name))
+                                root.pendingSettingsSection = "";
+                        });
+                    }
+
+                    function reloadCurrentPage() {
+                        if (!Config.ready)
+                            return;
+
+                        const currentSource = root.pages[root.currentPage].component;
+                        source = "";
+                        source = currentSource;
+                    }
+
+                    Connections {
+                        target: Appearance
+                        function onThemeRevisionChanged() {
+                            pageLoader.reloadCurrentPage();
+                        }
+                    }
+
+                    Connections {
+                        target: root
+                        function onCurrentPageChanged() {
+                            switchAnim.complete();
+                            switchAnim.start();
+                        }
+                    }
+
+                    SequentialAnimation {
+                        id: switchAnim
+
+                        NumberAnimation {
+                            target: pageLoader
+                            properties: "opacity"
+                            from: 1
+                            to: 0
+                            duration: 100
+                            easing.type: Appearance.animation.elementMoveExit.type
+                            easing.bezierCurve: Appearance.animationCurves.emphasizedFirstHalf
+                        }
+                        ParallelAnimation {
+                            PropertyAction {
+                                target: pageLoader
+                                property: "source"
+                                value: root.pages[root.currentPage].component
+                            }
+                            PropertyAction {
+                                target: pageLoader
+                                property: "anchors.topMargin"
+                                value: 20
+                            }
+                        }
+                        ParallelAnimation {
+                            NumberAnimation {
+                                target: pageLoader
+                                properties: "opacity"
+                                from: 0
+                                to: 1
+                                duration: 200
+                                easing.type: Appearance.animation.elementMoveEnter.type
+                                easing.bezierCurve: Appearance.animationCurves.emphasizedLastHalf
+                            }
+                            NumberAnimation {
+                                target: pageLoader
+                                properties: "anchors.topMargin"
+                                to: 0
+                                duration: 200
+                                easing.type: Appearance.animation.elementMoveEnter.type
+                                easing.bezierCurve: Appearance.animationCurves.emphasizedLastHalf
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Inline nav button for settings — same visual style as NavigationRailButton
+    // in expanded mode but without states/transitions to avoid animation on first open.
+    component SettingsNavButton: TabButton {
+        id: navBtn
+        property bool toggled: false
+        property string buttonIcon
+        // A glyph that only reads correctly one way up, the bar's among them,
+        // is turned here. NavigationRailButton has carried this for its own
+        // rows all along; this one had the value passed to it and nowhere to
+        // put it, so the bar's icon sat upside down.
+        property real buttonIconRotation: 0
+        property string buttonText
+
+        readonly property real baseSize: 56
+        readonly property real visualWidth: baseSize + 20 + navBtnText.implicitWidth
+
+        Layout.fillWidth: true
+        implicitHeight: baseSize
+        padding: 0
+        background: null
+        PointingHandInteraction {}
+
+        contentItem: Item {
+            anchors {
+                top: parent.top
+                bottom: parent.bottom
+                left: parent.left
+            }
+            implicitWidth: navBtn.visualWidth
+
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.bottom: parent.bottom
+                implicitWidth: navBtn.visualWidth
+                radius: Appearance.rounding.full
+                color: navBtn.toggled ?
+                    (navBtn.down ? Appearance.colors.colSecondaryContainerActive : navBtn.hovered ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colSecondaryContainer) :
+                    (navBtn.down ? Appearance.colors.colLayer1Active : navBtn.hovered ? Appearance.colors.colLayer1Hover : CF.ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1))
+
+                Behavior on color {
+                    animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                }
+            }
+
+            Item {
+                id: navBtnIconArea
+                implicitWidth: navBtn.baseSize
+                implicitHeight: 32
+                anchors {
+                    left: parent.left
+                    verticalCenter: parent.verticalCenter
+                }
+                MaterialSymbol {
+                    anchors.centerIn: parent
+                    iconSize: 24
+                    fill: navBtn.toggled ? 1 : 0
+                    font.weight: (navBtn.toggled || navBtn.hovered) ? Font.DemiBold : Font.Normal
+                    text: navBtn.buttonIcon
+                    rotation: navBtn.buttonIconRotation
+                    color: navBtn.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer1
+
+                    Behavior on color {
+                        animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                    }
+                }
+            }
+
+            StyledText {
+                id: navBtnText
+                anchors {
+                    left: navBtnIconArea.right
+                    verticalCenter: navBtnIconArea.verticalCenter
+                }
+                text: navBtn.buttonText
+                font.pixelSize: 14
+                color: Appearance.colors.colOnLayer1
+            }
+        }
+    }
+}

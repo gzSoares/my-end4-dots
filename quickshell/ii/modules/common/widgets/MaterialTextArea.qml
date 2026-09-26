@@ -1,0 +1,78 @@
+import qs.modules.common
+import QtQuick
+import QtQuick.Controls.Material
+import QtQuick.Controls
+
+/**
+ * Material 3 styled TextArea (filled style)
+ * https://m3.material.io/components/text-fields/overview
+ * Note: We don't use NativeRendering because it makes the small placeholder text look weird
+ */
+TextArea {
+    id: root
+    Material.theme: Material.System
+    Material.accent: Appearance.m3colors.m3primary
+    Material.primary: Appearance.m3colors.m3primary
+    Material.background: Appearance.m3colors.m3surface
+    Material.foreground: Appearance.m3colors.m3onSurface
+    Material.containerStyle: Material.Filled
+    // Distance field whatever the screen does, for the reason MaterialTextField
+    // carries: hinting makes the small placeholder text look wrong at any scale.
+    renderType: Text.QtRendering
+
+    selectedTextColor: Appearance.m3colors.m3onSecondaryContainer
+    selectionColor: Appearance.colors.colSecondaryContainer
+    placeholderTextColor: Appearance.m3colors.m3outline
+
+    background: Rectangle {
+        implicitHeight: 56
+        color: Appearance.m3colors.m3surface
+        topLeftRadius: 4
+        topRightRadius: 4
+        Rectangle {
+            anchors {
+                left: parent.left
+                right: parent.right
+                bottom: parent.bottom
+            }
+            height: 1
+            color: root.focus ? Appearance.m3colors.m3primary : 
+                root.hovered ? Appearance.m3colors.m3outline : Appearance.m3colors.m3outlineVariant
+
+            Behavior on color {
+                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+            }
+        }
+    }
+
+    font {
+        family: Appearance.font.family.main
+        pixelSize: Appearance?.font.pixelSize.small ?? 15
+        hintingPreference: Font.PreferFullHinting
+        variableAxes: Appearance.font.variableAxes.main
+    }
+    wrapMode: TextEdit.Wrap
+
+    // The toolkit grows its own editing menu on a right click; leaving it in
+    // place would open both.
+    ContextMenu.menu: null
+
+    // Built on the first right click rather than with the field — see the note
+    // in MaterialTextField: asking whether there is anything to paste reaches
+    // the clipboard, and nothing has to own the selection for that to be asked.
+    Loader {
+        id: editMenuLoader
+        active: false
+        sourceComponent: TextFieldContextMenu {
+            target: root
+        }
+    }
+
+    TapHandler {
+        acceptedButtons: Qt.RightButton
+        onTapped: eventPoint => {
+            editMenuLoader.active = true;
+            editMenuLoader.item.openAt(eventPoint.position.x, eventPoint.position.y);
+        }
+    }
+}
