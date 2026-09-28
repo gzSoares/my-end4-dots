@@ -1,24 +1,24 @@
 hl.config({
     general = {
         col = {
-            active_border   = "rgba(d8c0ccEE)",
-            inactive_border = "rgba(49464755)",
+            active_border   = "rgba(83d2e4EE)",
+            inactive_border = "rgba(3f484b55)",
         },
     },
     decoration = {
         shadow = {
             enabled      = true,
-            color        = "rgba(d8c0cc66)",
+            color        = "rgba(83d2e466)",
             range        = 8,
             render_power = 3,
         },
     },
     misc = {
-        background_color = "rgba(151314FF)",
+        background_color = "rgba(0e1416FF)",
     },
 })
 
 hl.window_rule({
     match        = { pin = 1 },
-    border_color = "rgba(d8c0ccFF) rgba(d3c2c9FF) rgba(debeceFF) rgba(d8c0ccFF)",
+    border_color = "rgba(83d2e4FF) rgba(b2cbd1FF) rgba(bdc5ebFF) rgba(83d2e4FF)",
 })

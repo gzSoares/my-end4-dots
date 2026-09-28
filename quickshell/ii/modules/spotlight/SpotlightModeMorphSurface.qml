@@ -136,12 +136,8 @@ Item {
         anchors.fill: surfaceSource
         source: surfaceSource
         opacity: root.surfaceColor.a
-        autoPaddingEnabled: true
-        shadowEnabled: true
-        shadowColor: root.shadowColor
-        shadowBlur: root.shadowBlur
-        shadowVerticalOffset: root.shadowVerticalOffset
-        shadowHorizontalOffset: 0
+        autoPaddingEnabled: false
+        shadowEnabled: false
     }
 
     component ShapeBlurRegion: Item {

@@ -35,38 +35,83 @@ ContentPage {
     function gestureBlock() {
         const g = Config.options.gestures;
         const lua = {
-            "swipe3": {
-                "move": '{\n    fingers = 3,\n    direction = "swipe",\n    action = "move"\n}',
-                "workspace": '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "workspace"\n}',
-                "resize": '{\n    fingers = 3,\n    direction = "swipe",\n    action = "resize"\n}',
-                "moveColumn": '{\n    fingers = 3,\n    direction = "horizontal",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}'
-            },
-            "vertical3": {
-                "workspace": '{\n    fingers = 3,\n    direction = "vertical",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.y\n                local threshold = 80\n\n                -- dedos para BAIXO (delta positivo) -> workspace de baixo (igual CTRL+SUPER+Right)\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.focus({ workspace = "r+1" }))\n                    accum = accum - threshold\n                end\n\n                -- dedos para CIMA (delta negativo) -> workspace de cima (igual CTRL+SUPER+Left)\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.focus({ workspace = "r-1" }))\n                    accum = accum + threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
-                "scrollOverviewOpen": '{\n    fingers = 3,\n    direction = "up",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}'
-            },
-            "pinch3": {
-                "float": '{\n    fingers = 3,\n    direction = "pinch",\n    action = "float"\n}',
-                "fullscreen": '{\n    fingers = 3,\n    direction = "pinch",\n    action = "fullscreen"\n}',
-                "close": '{\n    fingers = 3,\n    direction = "pinch",\n    action = "close"\n}'
-            },
-            "horizontal4": {
-                "overviewOpen": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
-                "fullscreen": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "fullscreen"\n}',
-                "special": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
-                "scrollOverviewOpen": '{\n    fingers = 4,\n    direction = "horizontal",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}'
-            },
-            "up4": {
-                "overviewOpen": '{\n    fingers = 4,\n    direction = "up",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
-                "fullscreen": '{\n    fingers = 4,\n    direction = "up",\n    action = "fullscreen"\n}',
-                "special": '{\n    fingers = 4,\n    direction = "up",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
-                "scrollOverviewOpen": '{\n    fingers = 4,\n    direction = "up",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}'
-            },
-            "down4": {
-                "overviewClose": '{\n    fingers = 4,\n    direction = "down",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesClose"))\n    end\n}',
-                "special": '{\n    fingers = 4,\n    direction = "down",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
-                "close": '{\n    fingers = 4,\n    direction = "down",\n    action = "close"\n}'
-            }
+"swipe3": {
+    "move":                 '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "move"\n}',
+    "moveColumn":           '{\n    fingers = 3,\n    direction = "horizontal",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+    "resize":               '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "resize"\n}',
+    "float":                '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "float"\n}',
+    "fullscreen":           '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "fullscreen"\n}',
+    "scrollOverviewOpen":   '{\n    fingers = 3,\n    direction = "horizontal",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}',
+    "overviewOpen":         '{\n    fingers = 3,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+    "workspace":            '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "workspace"\n}',
+    "special":              '{\n    fingers = 3,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+    "close":                '{\n    fingers = 3,\n    direction = "horizontal",\n    action = "close"\n}'
+},
+
+"vertical3": {
+    "move":                 '{\n    fingers = 3,\n    direction = "vertical",\n    action = "move"\n}',
+    "moveColumn":           '{\n    fingers = 3,\n    direction = "vertical",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+    "resize":               '{\n    fingers = 3,\n    direction = "vertical",\n    action = "resize"\n}',
+    "float":                '{\n    fingers = 3,\n    direction = "vertical",\n    action = "float"\n}',
+    "fullscreen":           '{\n    fingers = 3,\n    direction = "vertical",\n    action = "fullscreen"\n}',
+    "scrollOverviewOpen":   '{\n    fingers = 3,\n    direction = "vertical",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}',
+    "overviewOpen":         '{\n    fingers = 3,\n    direction = "vertical",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+    "workspace":            '{\n    fingers = 3,\n    direction = "vertical",\n    action = "workspace"\n}',
+    "special":              '{\n    fingers = 3,\n    direction = "vertical",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+    "close":                '{\n    fingers = 3,\n    direction = "vertical",\n    action = "close"\n}'
+},
+
+"pinch3": {
+    "move":                 '{\n    fingers = 3,\n    direction = "pinch",\n    action = "move"\n}',
+    "moveColumn":           '{\n    fingers = 3,\n    direction = "pinch",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+    "resize":               '{\n    fingers = 3,\n    direction = "pinch",\n    action = "resize"\n}',
+    "float":                '{\n    fingers = 3,\n    direction = "pinch",\n    action = "float"\n}',
+    "fullscreen":           '{\n    fingers = 3,\n    direction = "pinch",\n    action = "fullscreen"\n}',
+    "scrollOverviewOpen":   '{\n    fingers = 3,\n    direction = "pinch",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}',
+    "overviewOpen":         '{\n    fingers = 3,\n    direction = "pinch",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+    "workspace":            '{\n    fingers = 3,\n    direction = "pinch",\n    action = "workspace"\n}',
+    "special":              '{\n    fingers = 3,\n    direction = "pinch",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+    "close":                '{\n    fingers = 3,\n    direction = "pinch",\n    action = "close"\n}'
+},
+
+"horizontal4": {
+    "move":                 '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "move"\n}',
+    "moveColumn":           '{\n    fingers = 4,\n    direction = "horizontal",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+    "resize":               '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "resize"\n}',
+    "float":                '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "float"\n}',
+    "fullscreen":           '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "fullscreen"\n}',
+    "scrollOverviewOpen":   '{\n    fingers = 4,\n    direction = "horizontal",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}',
+    "overviewOpen":         '{\n    fingers = 4,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+    "workspace":            '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "workspace"\n}',
+    "special":              '{\n    fingers = 4,\n    direction = "horizontal",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+    "close":                '{\n    fingers = 4,\n    direction = "horizontal",\n    action = "close"\n}'
+},
+
+"up4": {
+    "move":                 '{\n    fingers = 4,\n    direction = "up",\n    action = "move"\n}',
+    "moveColumn":           '{\n    fingers = 4,\n    direction = "up",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+    "resize":               '{\n    fingers = 4,\n    direction = "up",\n    action = "resize"\n}',
+    "float":                '{\n    fingers = 4,\n    direction = "up",\n    action = "float"\n}',
+    "fullscreen":           '{\n    fingers = 4,\n    direction = "up",\n    action = "fullscreen"\n}',
+    "scrollOverviewOpen":   '{\n    fingers = 4,\n    direction = "up",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}',
+    "overviewOpen":         '{\n    fingers = 4,\n    direction = "up",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+    "workspace":            '{\n    fingers = 4,\n    direction = "up",\n    action = "workspace"\n}',
+    "special":              '{\n    fingers = 4,\n    direction = "up",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+    "close":                '{\n    fingers = 4,\n    direction = "up",\n    action = "close"\n}'
+},
+
+"down4": {
+    "move":                 '{\n    fingers = 4,\n    direction = "down",\n    action = "move"\n}',
+    "moveColumn":           '{\n    fingers = 4,\n    direction = "down",\n    action = (function()\n        local accum = 0\n        return {\n            start = function(e) accum = 0 end,\n            update = function(e)\n                accum = accum + e.delta.x\n                local threshold = 80 -- px por "passo" de coluna\n\n                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA\n                while accum < -threshold do\n                    hl.dispatch(hl.dsp.layout("move +col"))\n                    accum = accum + threshold\n                end\n\n                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA\n                while accum > threshold do\n                    hl.dispatch(hl.dsp.layout("move -col"))\n                    accum = accum - threshold\n                end\n            end,\n            finish = function(e) accum = 0 end,\n        }\n    end)()\n}',
+    "resize":               '{\n    fingers = 4,\n    direction = "down",\n    action = "resize"\n}',
+    "float":                '{\n    fingers = 4,\n    direction = "down",\n    action = "float"\n}',
+    "fullscreen":           '{\n    fingers = 4,\n    direction = "down",\n    action = "fullscreen"\n}',
+    "scrollOverviewOpen":   '{\n    fingers = 4,\n    direction = "down",\n    action = (function()\n        local scrolloverview_open = false\n        return function()\n            local f = hl.plugin.scrolloverview.overview(scrolloverview_open and "off" or "on")\n            if type(f) == "function" then\n                f()\n                scrolloverview_open = not scrolloverview_open\n            end\n        end\n    end)()\n}',
+    "overviewOpen":         '{\n    fingers = 4,\n    direction = "down",\n    action = function()\n        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))\n    end\n}',
+    "workspace":            '{\n    fingers = 4,\n    direction = "down",\n    action = "workspace"\n}',
+    "special":              '{\n    fingers = 4,\n    direction = "down",\n    action = function()\n        hl.dispatch(hl.dsp.workspace.toggle_special("special"))\n    end\n}',
+    "close":                '{\n    fingers = 4,\n    direction = "down",\n    action = "close"\n}'
+}
         };
         const lines = [];
         for (const slot of ["swipe3", "pinch3", "horizontal4", "vertical3", "up4", "down4"]) {
@@ -1724,125 +1769,119 @@ ContentPage {
             title: Translation.tr("Gestures")
             Layout.topMargin: 20
 
-            GestureRow {
-                icon: "swipe"
-                label: Translation.tr("3 fingers swipe")
-                slot: "swipe3"
-                options: [{
-                    "displayName": Translation.tr("Move window"),
-                    "value": "move"
-                }, {
-                    "displayName": Translation.tr("Switch workspaces"),
-                    "value": "workspace"
-                }, {
-                    "displayName": Translation.tr("Move column focus"),
-                    "value": "moveColumn"
-                }, {
-                    "displayName": Translation.tr("Resize window"),
-                    "value": "resize"
-                }, {
-                    "displayName": Translation.tr("Do Nothing"),
-                    "value": "none"
-                }]
-            }
+GestureRow {
+    icon: "swipe"
+    label: Translation.tr("3 fingers swipe")
+    slot: "swipe3"
+    options: [
+        { "displayName": Translation.tr("Move window"),             "value": "move" },
+        { "displayName": Translation.tr("Move column focus"),       "value": "moveColumn" },
+        { "displayName": Translation.tr("Resize window"),           "value": "resize" },
+        { "displayName": Translation.tr("Floating window"),         "value": "float" },
+        { "displayName": Translation.tr("Fullscreen"),              "value": "fullscreen" },
+        { "displayName": Translation.tr("Open scroll overview"),    "value": "scrollOverviewOpen" },
+        { "displayName": Translation.tr("Open overview"),           "value": "overviewOpen" },
+        { "displayName": Translation.tr("Switch workspaces"),       "value": "workspace" },
+        { "displayName": Translation.tr("Show special workspace"),  "value": "special" },
+        { "displayName": Translation.tr("Close window"),            "value": "close" },
+        { "displayName": Translation.tr("Do Nothing"),              "value": "none" }
+    ]
+}
 
-            GestureRow {
-                icon: "swipe_up"
-                label: Translation.tr("3 fingers swipe up/down")
-                slot: "vertical3"
-                options: [{
-                    "displayName": Translation.tr("Switch workspaces"),
-                    "value": "workspace"
-                }, {
-                    "displayName": Translation.tr("Open scroll overview"),
-                    "value": "scrollOverviewOpen"
-                }, {
-                    "displayName": Translation.tr("Do Nothing"),
-                    "value": "none"
-                }]
-            }
+GestureRow {
+    icon: "swipe_up"
+    label: Translation.tr("3 fingers swipe up/down")
+    slot: "vertical3"
+    options: [
+        { "displayName": Translation.tr("Move window"),             "value": "move" },
+        { "displayName": Translation.tr("Move column focus"),       "value": "moveColumn" },
+        { "displayName": Translation.tr("Resize window"),           "value": "resize" },
+        { "displayName": Translation.tr("Floating window"),         "value": "float" },
+        { "displayName": Translation.tr("Fullscreen"),              "value": "fullscreen" },
+        { "displayName": Translation.tr("Open scroll overview"),    "value": "scrollOverviewOpen" },
+        { "displayName": Translation.tr("Open overview"),           "value": "overviewOpen" },
+        { "displayName": Translation.tr("Switch workspaces"),       "value": "workspace" },
+        { "displayName": Translation.tr("Show special workspace"),  "value": "special" },
+        { "displayName": Translation.tr("Close window"),            "value": "close" },
+        { "displayName": Translation.tr("Do Nothing"),              "value": "none" }
+    ]
+}
 
-            GestureRow {
-                icon: "pinch"
-                label: Translation.tr("3 fingers pinch")
-                slot: "pinch3"
-                options: [{
-                    "displayName": Translation.tr("Toggle floating"),
-                    "value": "float"
-                }, {
-                    "displayName": Translation.tr("Fullscreen"),
-                    "value": "fullscreen"
-                }, {
-                    "displayName": Translation.tr("Close window"),
-                    "value": "close"
-                }, {
-                    "displayName": Translation.tr("Do Nothing"),
-                    "value": "none"
-                }]
-            }
+GestureRow {
+    icon: "pinch"
+    label: Translation.tr("3 fingers pinch")
+    slot: "pinch3"
+    options: [
+        { "displayName": Translation.tr("Move window"),             "value": "move" },
+        { "displayName": Translation.tr("Move column focus"),       "value": "moveColumn" },
+        { "displayName": Translation.tr("Resize window"),           "value": "resize" },
+        { "displayName": Translation.tr("Floating window"),         "value": "float" },
+        { "displayName": Translation.tr("Fullscreen"),              "value": "fullscreen" },
+        { "displayName": Translation.tr("Open scroll overview"),    "value": "scrollOverviewOpen" },
+        { "displayName": Translation.tr("Open overview"),           "value": "overviewOpen" },
+        { "displayName": Translation.tr("Switch workspaces"),       "value": "workspace" },
+        { "displayName": Translation.tr("Show special workspace"),  "value": "special" },
+        { "displayName": Translation.tr("Close window"),            "value": "close" },
+        { "displayName": Translation.tr("Do Nothing"),              "value": "none" }
+    ]
+}
 
-            GestureRow {
-                icon: "swipe_right"
-                label: Translation.tr("4 fingers swipe sideways")
-                slot: "horizontal4"
-                options: [{
-                    "displayName": Translation.tr("Open overview"),
-                    "value": "overviewOpen"
-                }, {
-                    "displayName": Translation.tr("Fullscreen"),
-                    "value": "fullscreen"
-                }, {
-                    "displayName": Translation.tr("Special workspace"),
-                    "value": "special"
-                }, {
-                    "displayName": Translation.tr("Open scroll overview"),
-                    "value": "scrollOverviewOpen"
-                }, {
-                    "displayName": Translation.tr("Do Nothing"),
-                    "value": "none"
-                }]
-            }
+GestureRow {
+    icon: "swipe_right"
+    label: Translation.tr("4 fingers swipe sideways")
+    slot: "horizontal4"
+    options: [
+        { "displayName": Translation.tr("Move window"),             "value": "move" },
+        { "displayName": Translation.tr("Move column focus"),       "value": "moveColumn" },
+        { "displayName": Translation.tr("Resize window"),           "value": "resize" },
+        { "displayName": Translation.tr("Floating window"),         "value": "float" },
+        { "displayName": Translation.tr("Fullscreen"),              "value": "fullscreen" },
+        { "displayName": Translation.tr("Open scroll overview"),    "value": "scrollOverviewOpen" },
+        { "displayName": Translation.tr("Open overview"),           "value": "overviewOpen" },
+        { "displayName": Translation.tr("Switch workspaces"),       "value": "workspace" },
+        { "displayName": Translation.tr("Show special workspace"),  "value": "special" },
+        { "displayName": Translation.tr("Close window"),            "value": "close" },
+        { "displayName": Translation.tr("Do Nothing"),              "value": "none" }
+    ]
+}
 
-            GestureRow {
-                icon: "swipe_up"
-                label: Translation.tr("4 fingers swipe up")
-                slot: "up4"
-                options: [{
-                    "displayName": Translation.tr("Open overview"),
-                    "value": "overviewOpen"
-                }, {
-                    "displayName": Translation.tr("Fullscreen"),
-                    "value": "fullscreen"
-                }, {
-                    "displayName": Translation.tr("Special workspace"),
-                    "value": "special"
-                }, {
-                    "displayName": Translation.tr("Open scroll overview"),
-                    "value": "scrollOverviewOpen"
-                }, {
-                    "displayName": Translation.tr("Do Nothing"),
-                    "value": "none"
-                }]
-            }
+GestureRow {
+    icon: "swipe_up"
+    label: Translation.tr("4 fingers swipe up")
+    slot: "up4"
+    options: [
+        { "displayName": Translation.tr("Move window"),             "value": "move" },
+        { "displayName": Translation.tr("Move column focus"),       "value": "moveColumn" },
+        { "displayName": Translation.tr("Resize window"),           "value": "resize" },
+        { "displayName": Translation.tr("Floating window"),         "value": "float" },
+        { "displayName": Translation.tr("Fullscreen"),              "value": "fullscreen" },
+        { "displayName": Translation.tr("Open scroll overview"),    "value": "scrollOverviewOpen" },
+        { "displayName": Translation.tr("Open overview"),           "value": "overviewOpen" },
+        { "displayName": Translation.tr("Switch workspaces"),       "value": "workspace" },
+        { "displayName": Translation.tr("Show special workspace"),  "value": "special" },
+        { "displayName": Translation.tr("Close window"),            "value": "close" },
+        { "displayName": Translation.tr("Do Nothing"),              "value": "none" }
+    ]
+}
 
-            GestureRow {
-                icon: "swipe_down"
-                label: Translation.tr("4 fingers swipe down")
-                slot: "down4"
-                options: [{
-                    "displayName": Translation.tr("Close overview"),
-                    "value": "overviewClose"
-                }, {
-                    "displayName": Translation.tr("Close window"),
-                    "value": "close"
-                }, {
-                    "displayName": Translation.tr("Special workspace"),
-                    "value": "special"
-                }, {
-                    "displayName": Translation.tr("Do Nothing"),
-                    "value": "none"
-                }]
-            }
+GestureRow {
+    icon: "swipe_down"
+    label: Translation.tr("4 fingers swipe down")
+    slot: "down4"
+    options: [
+        { "displayName": Translation.tr("Move window"),             "value": "move" },
+        { "displayName": Translation.tr("Move column focus"),       "value": "moveColumn" },
+        { "displayName": Translation.tr("Resize window"),           "value": "resize" },
+        { "displayName": Translation.tr("Floating window"),         "value": "float" },
+        { "displayName": Translation.tr("Fullscreen"),              "value": "fullscreen" },
+        { "displayName": Translation.tr("Open scroll overview"),    "value": "scrollOverviewOpen" },
+        { "displayName": Translation.tr("Open overview"),           "value":  "overviewOpen" },
+        { "displayName": Translation.tr("Switch workspaces"),       "value": "workspace" },
+        { "displayName": Translation.tr("Show special workspace"),  "value": "special" },
+        { "displayName": Translation.tr("Close window"),            "value": "close" },
+        { "displayName": Translation.tr("Do Nothing"),              "value": "none" }
+    ]
+}
 
             component GestureRow: ConfigRow {
                 id: gestureRow

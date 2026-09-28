@@ -56,39 +56,17 @@ hl.gesture({
 hl.gesture({
     fingers = 3,
     direction = "pinch",
-    action = "float"
+    action = "fullscreen"
 })
 hl.gesture({
     fingers = 4,
     direction = "horizontal",
-    action = "fullscreen"
+    action = "float"
 })
 hl.gesture({
     fingers = 3,
     direction = "vertical",
-    action = (function()
-        local accum = 0
-        return {
-            start = function(e) accum = 0 end,
-            update = function(e)
-                accum = accum + e.delta.y
-                local threshold = 80
-
-                -- dedos para BAIXO (delta positivo) -> workspace de baixo (igual CTRL+SUPER+Right)
-                while accum > threshold do
-                    hl.dispatch(hl.dsp.focus({ workspace = "r+1" }))
-                    accum = accum - threshold
-                end
-
-                -- dedos para CIMA (delta negativo) -> workspace de cima (igual CTRL+SUPER+Left)
-                while accum < -threshold do
-                    hl.dispatch(hl.dsp.focus({ workspace = "r-1" }))
-                    accum = accum + threshold
-                end
-            end,
-            finish = function(e) accum = 0 end,
-        }
-    end)()
+    action = "workspace"
 })
 hl.gesture({
     fingers = 4,
@@ -182,7 +160,7 @@ hl.config({
         dim_inactive = true,
         dim_strength = 0.05,
         dim_special = 0.2,
-        inactive_opacity = 0.91,
+        inactive_opacity = 1,
         active_opacity = 1
     },
     animations = {
