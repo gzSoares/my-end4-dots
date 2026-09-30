@@ -35,7 +35,7 @@ hl.bind("SUPER_R", hl.dsp.global("quickshell:workspaceNumber"), {ignore_mods = t
 -- Fork overhaul (f9dec549, 401f0e4f): overview on f10, cheatsheet on Tab,
 -- OSK on f11, overlay on f12, bar on H. Frees J/K/M/Slash/Space for layout dispatchers below.
 hl.bind("SUPER + f10", hl.dsp.global("quickshell:overviewWorkspacesToggle"), {description = "Toggle overview"} )
-hl.bind("SUPER + V", hl.dsp.global("quickshell:overviewClipboardToggle"), {description = "Clipboard history >> clipboard"} )
+-- hl.bind("SUPER + V", hl.dsp.global("quickshell:overviewClipboardToggle"), {description = "Clipboard history >> clipboard"} )
 hl.bind("SUPER + ALT + V", hl.dsp.exec_cmd(hyprScripts .. "/wipe_cliphist.sh") )
 hl.bind("SUPER + Period", hl.dsp.global("quickshell:overviewEmojiToggle"), {description = "Emoji >> clipboard"} )
 hl.bind("SUPER + A", hl.dsp.global("quickshell:sidebarLeftToggle"), {description = "Toggle left sidebar"} )

@@ -1362,9 +1362,10 @@ Singleton {
                 property bool battery: true
                 property bool pomodoro: true
                 property bool timer: true
+                property bool notifications: true
                 property string theme: "freedesktop"
             }
-
+            
             property JsonObject time: JsonObject {
                 // https://doc.qt.io/qt-6/qtime.html#toString
                 property string format: "h:mm AP"

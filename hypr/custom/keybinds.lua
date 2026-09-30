@@ -33,3 +33,4 @@ end
 hl.bind("CTRL + SUPER + mouse_down", hl.dsp.focus({direction = "r"}), {description = "Focus window to the right"} )
 hl.bind("CTRL + SUPER + mouse_up", hl.dsp.focus({direction = "l"}), {description = "Focus window to the left"} )
 hl.unbind("CTRL + SUPER + T")
+hl.bind("SUPER + V", hl.dsp.exec_cmd("qs -c ii ipc call spotlightMode openMode clipboard"))

@@ -213,6 +213,36 @@ Singleton {
         }
     }
 
+    property int reminderHour: 9              // hora a partir da qual avisa
+    property var _notifiedToday: ({})
+    property string _notifiedDay: ""
+
+    function checkDueReminders() {
+        const now = new Date()
+        if (now.getHours() < root.reminderHour) return
+
+        const dayKey = now.getFullYear() + "-" + now.getMonth() + "-" + now.getDate()
+        if (root._notifiedDay !== dayKey) {
+            root._notifiedDay = dayKey
+            root._notifiedToday = ({})
+        }
+
+        const due = root.getTasksForDate(now.getFullYear(), now.getMonth(), now.getDate())
+        for (const t of due) {
+            if (root._notifiedToday[t.content]) continue
+            root._notifiedToday[t.content] = true
+            Quickshell.execDetached(["notify-send", "ToDo \u2014 vence hoje", t.content, "-a", "Shell"])
+        }
+    }
+
+    Timer {
+        interval: 3600000
+        running: true
+        repeat: true
+        triggeredOnStart: true
+        onTriggered: root.checkDueReminders()
+    }
+
     Timer {
         interval: 15 * 60 * 1000
         running: true
