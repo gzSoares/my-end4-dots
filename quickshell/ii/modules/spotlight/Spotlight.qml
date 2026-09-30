@@ -25,7 +25,8 @@ PanelWindow {
     // ── Configuração ──
     property string terminal: "kitty"
     property bool aiAutoQuestion: false
-    readonly property string geminiModel: "gemini-3-flash-preview"
+    readonly property string ollamaUrl: "http://localhost:11434"
+    readonly property string ollamaModel: "qwen3:4b-instruct"
 
     readonly property var bangs: ({
         yt:    ["YouTube",        "https://www.youtube.com/results?search_query="],
@@ -118,6 +119,7 @@ PanelWindow {
     property bool aiLoading: false
     property int _aiReq: 0
     property var _aiXhr: null
+    property string _pendingAiPrompt: ""
 
     readonly property var emojiList: [
         { e: "😀", n: "grinning" }, { e: "😃", n: "smiley" }, { e: "😄", n: "smile" },
@@ -459,7 +461,7 @@ PanelWindow {
     property real panelYOffset: 12
     property bool circlesVisible: false
     property bool circlesLocked: false
-    property string placeholderText: "Spotlight Search"
+    property string placeholderText: "Search or Ask"
     property real railProgress: 0.0
 
     function animateRail(target) {
@@ -702,18 +704,9 @@ PanelWindow {
         _pass.exec(["bash", "-c", "LC_ALL=C tr -dc 'A-Za-z0-9!@#$%&*' </dev/urandom | head -c " + len]);
     }
 
-    function runGemini(prompt) {
+    function runOllama(prompt) {
         if (!prompt) return;
         if (prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
-
-        const key = Quickshell.env("GEMINI_API_KEY");
-        if (!key) {
-            root._lastAiQuery = prompt;
-            root.aiLoading = false;
-            root.aiText = "GEMINI_API_KEY não está definida no ambiente do Quickshell";
-            root.buildResults();
-            return;
-        }
 
         root._lastAiQuery = prompt;
         root.aiLoading = true;
@@ -740,29 +733,32 @@ PanelWindow {
             let answer = "";
             try {
                 const data = JSON.parse(xhr.responseText);
-                const cand = data.candidates && data.candidates[0];
-                const parts = cand && cand.content && cand.content.parts;
-                if (parts && parts.length) {
-                    answer = parts.map(p => p.text || "").join("").trim();
+                if (data.response) {
+                    answer = String(data.response);
+                    // remove bloco de raciocínio (<think>...</think>), inclusive quando só o </think> aparece
+                    answer = answer.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/^[\s\S]*<\/think>/, "").trim();
                 }
                 if (!answer) {
-                    if (data.error && data.error.message) answer = "Gemini error: " + data.error.message;
-                    else if (cand && cand.finishReason === "MAX_TOKENS") answer = "Resposta cortada (MAX_TOKENS) — aumente maxOutputTokens";
+                    if (data.error) answer = "Ollama error: " + (data.error.message || data.error);
                     else answer = "No AI response";
                 }
             } catch (e) {
-                answer = xhr.status === 0 ? "Sem resposta da API (rede/timeout)" : "Erro ao consultar a IA (HTTP " + xhr.status + ")";
+                answer = xhr.status === 0 ? "Sem resposta do Ollama (container parado ou timeout)" : "Erro ao consultar a IA (HTTP " + xhr.status + ")";
             }
             finish(answer);
         };
 
-        xhr.open("POST", "https://generativelanguage.googleapis.com/v1beta/models/" + root.geminiModel + ":generateContent");
+        xhr.open("POST", root.ollamaUrl + "/api/generate");
         xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.setRequestHeader("x-goog-api-key", key);
-        xhr.timeout = 20000;
+        xhr.timeout = 120000;
         xhr.send(JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { maxOutputTokens: 2048 }
+            model: root.ollamaModel,
+            prompt: prompt,
+            stream: false,
+            think: false,
+            system: "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma.",
+            keep_alive: "30m",
+            options: { num_predict: 1024 }
         }));
 
         root.buildResults();
@@ -789,6 +785,7 @@ PanelWindow {
         else if (isQuestion) prompt = s;
 
         if (!prompt || isSlashOther) {
+            _aiDeb.stop();
             if (root.aiText !== "") {
                 root._aiReq++;
                 if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} root._aiXhr = null; }
@@ -798,7 +795,8 @@ PanelWindow {
             }
             return;
         }
-        root.runGemini(prompt);
+        root._pendingAiPrompt = prompt;
+        _aiDeb.restart();
     }
 
     function fetchTime(city) {
@@ -1158,7 +1156,7 @@ function updatePreview() {
         }
         if (cmdName === "ai" && cmdArgs.length > 0) {
             if (root.aiText) {
-                _addItems(items, disp, [{ kind: "info", name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado", category: root.aiLoading ? "Gemini · thinking…" : "Gemini — Enter to copy" }], "AI");
+                _addItems(items, disp, [{ kind: "info", name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado", category: root.aiLoading ? "Ollama · thinking…" : "Ollama — Enter to copy" }], "AI");
             }
             return true;
         }
@@ -1240,10 +1238,10 @@ function updatePreview() {
             { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
             { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
             { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
-            { kind: "cmd", name: "/ai",         category: "Ask Gemini",                     action: "ai:" },
+            { kind: "cmd", name: "/ai",         category: "Ask Ollama",                     action: "ai:" },
             { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
             { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
-            { kind: "cmd", name: "/calendar",        category: "Add a calendar event",           action: "todo:" },
+            { kind: "cmd", name: "/calendar",        category: "Add a calendar event",      action: "todo:" },
             { kind: "cmd", name: "/notes",      category: "Add a ToDo task",                action: "todo:" },
             { kind: "cmd", name: "/lock",       category: "Lock Screen",                    action: "sys:lock" },
             { kind: "cmd", name: "/sleep",      category: "Sleep",                          action: "sys:sleep" },
@@ -1438,7 +1436,7 @@ function updatePreview() {
             _addItems(items, disp, [{
                 kind: "info",
                 name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado",
-                category: root.aiLoading ? "Gemini · thinking…" : "Gemini — Enter to copy"
+                category: root.aiLoading ? "AI · thinking…" : "AI — Enter to copy"
             }], "AI");
         }
 
@@ -1622,7 +1620,7 @@ function updatePreview() {
         }
         else if (e.kind === "media") { SpotlightController.run("playerctl play-pause"); keepOpen = true; }
         else if (e.kind === "info") {
-            if (root.aiText && e.category && e.category.indexOf("Gemini") !== -1) {
+            if (root.aiText && e.category && e.category.indexOf("Ollama") !== -1) {
                 if (!root.aiLoading) root.copyText(root.aiText);
                 keepOpen = true;
             } else if (e.name && e.name !== "Thinking…") {
@@ -2964,7 +2962,7 @@ function updatePreview() {
                     Text { text: "\u2728"; font.pixelSize: 15 }
                     Text {
                         Layout.fillWidth: true
-                        text: root.aiLoading ? "Gemini \u00b7 thinking\u2026" : "Gemini"
+                        text: root.aiLoading ? "AI \u00b7 thinking\u2026" : "AI"
                         color: root.sFg
                         font { family: "SF Pro Display"; pixelSize: 13; weight: Font.DemiBold }
                         elide: Text.ElideRight
@@ -3022,6 +3020,7 @@ function updatePreview() {
 
     Timer { id: _fdDeb; interval: 140; repeat: false; onTriggered: root.runFd() }
     Timer { id: _sideEffectsDeb; interval: 250; repeat: false; onTriggered: root.runSideEffects() }
+    Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runOllama(root._pendingAiPrompt) }
     Process { id: _mediaCmd; running: false }
 
     Timer {
