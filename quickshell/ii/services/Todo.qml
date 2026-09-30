@@ -24,6 +24,9 @@ Singleton {
     property var edsTasks: []
     property var edsLists: []
     property var list: localList.concat(edsTasks)
+    property int _pendingWrites: 0
+    property var _deferredDone: ({})
+    property bool _fetchStale: false
 
     readonly property var syncList: {
         for (let i = 0; i < edsLists.length; i++)
@@ -45,9 +48,23 @@ Singleton {
         return edsTasks[index - localList.length]
     }
 
+    Component {
+        id: edsWriteComponent
+        Process {
+            id: writeProc
+            onExited: (exitCode, exitStatus) => {
+                root._pendingWrites = Math.max(0, root._pendingWrites - 1)
+                if (root._pendingWrites === 0) edsReconcileTimer.restart()
+                writeProc.destroy()
+            }
+        }
+    }
+
     function _edsWrite(args) {
-        Quickshell.execDetached([root.helperPath].concat(args))
-        edsReconcileTimer.restart()
+        root._pendingWrites++
+        root._fetchStale = true
+        const p = edsWriteComponent.createObject(root, { command: [root.helperPath].concat(args) })
+        p.running = true
     }
 
     function addItem(item) {
@@ -139,8 +156,14 @@ Singleton {
             const item = _edsAt(index)
             item.done = value
             root.edsTasks = edsTasks.slice(0)
-            if (item.uid.length > 0)
+            if (item.uid.length > 0) {
                 _edsWrite(["set-done", item.listUid, item.uid, value ? "1" : "0"])
+            } else {
+                // a tarefa ainda está sendo criada no servidor: guarda o pedido
+                const d = Object.assign({}, root._deferredDone)
+                d[item.listUid + "|" + item.content] = value
+                root._deferredDone = d
+            }
             return
         }
         localList[index].done = value
@@ -173,7 +196,11 @@ Singleton {
 
     function refresh() {
         todoFileView.reload()
-        if (!edsFetchProc.running) edsFetchProc.running = true
+        if (root._pendingWrites > 0) return
+        if (!edsFetchProc.running) {
+            root._fetchStale = false
+            edsFetchProc.running = true
+        }
     }
 
     Component.onCompleted: {
@@ -185,10 +212,31 @@ Singleton {
         command: [root.helperPath, "list"]
         stdout: StdioCollector {
             onStreamFinished: {
+                if (root._fetchStale) return
                 try {
                     const data = JSON.parse(this.text || "{}")
+                    const tasks = data.tasks ?? []
+
+                    // aplica os checks feitos enquanto a tarefa ainda não tinha uid
+                    const pend = root._deferredDone
+                    const keys = Object.keys(pend)
+                    if (keys.length > 0) {
+                        for (const k of keys) {
+                            for (const t of tasks) {
+                                if (t.uid && (t.listUid + "|" + t.content) === k) {
+                                    if (t.done !== pend[k]) {
+                                        t.done = pend[k]
+                                        root._edsWrite(["set-done", t.listUid, t.uid, pend[k] ? "1" : "0"])
+                                    }
+                                    break
+                                }
+                            }
+                        }
+                        root._deferredDone = ({})
+                    }
+
                     root.edsLists = data.lists ?? []
-                    root.edsTasks = data.tasks ?? []
+                    root.edsTasks = tasks
                 } catch (e) {
                     // keep the previous state on parse trouble
                 }
@@ -200,9 +248,12 @@ Singleton {
     // uids, server-side tweaks) shortly after the last one.
     Timer {
         id: edsReconcileTimer
-        interval: 2000
+        interval: 1000
         onTriggered: {
-            if (!edsFetchProc.running) edsFetchProc.running = true
+            if (root._pendingWrites > 0) return
+            if (edsFetchProc.running) { edsReconcileTimer.restart(); return }
+            root._fetchStale = false
+            edsFetchProc.running = true
         }
     }
 
