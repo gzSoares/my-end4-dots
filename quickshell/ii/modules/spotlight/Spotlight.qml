@@ -25,8 +25,12 @@ PanelWindow {
     // ── Configuração ──
     property string terminal: "kitty"
     property bool aiAutoQuestion: false
-    readonly property string ollamaUrl: "http://localhost:11434"
-    readonly property string ollamaModel: "qwen3:4b-instruct"
+    // Hermes Agent (API server do gateway). Ative com API_SERVER_ENABLED=true no ~/.hermes/.env
+    readonly property string hermesUrl: "http://127.0.0.1:8642"
+    // Mesmo valor de API_SERVER_KEY no ~/.hermes/.env
+    readonly property string hermesKey: "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"
+    // O provedor/modelo (NVIDIA / nemotron) é definido na config do próprio Hermes
+    readonly property string hermesModel: "hermes-agent"
 
     readonly property var bangs: ({
         yt:    ["YouTube",        "https://www.youtube.com/results?search_query="],
@@ -486,7 +490,12 @@ PanelWindow {
     // BUSCAS ASSÍNCRONAS
     // ════════════════════════════════════════════════════════════════
     function runFd() {
-        if (root.slashMode || root.query.trim().length < 2) { root.fileItems = []; root.buildResults(); return; }
+        // não busca arquivos quando a consulta é uma pergunta para a IA
+        if (root.slashMode || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
+            root.fileItems = [];
+            root.buildResults();
+            return;
+        }
         const q = root.query.trim();
         const id = ++root._fdReq;
         _fd.exec(["bash", "-c",
@@ -704,7 +713,10 @@ PanelWindow {
         _pass.exec(["bash", "-c", "LC_ALL=C tr -dc 'A-Za-z0-9!@#$%&*' </dev/urandom | head -c " + len]);
     }
 
-    function runOllama(prompt) {
+    // ════════════════════════════════════════════════════════════════
+    // IA (Hermes Agent — API compatível com OpenAI)
+    // ════════════════════════════════════════════════════════════════
+    function runHermes(prompt) {
         if (!prompt) return;
         if (prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
 
@@ -720,7 +732,7 @@ PanelWindow {
 
         const finish = (answer) => {
             if (req !== root._aiReq) return;
-            if (answer.length > 2000) answer = answer.slice(0, 2000) + "…";
+            if (answer.length > 4000) answer = answer.slice(0, 4000) + "…";
             root.aiText = answer;
             root.aiLoading = false;
             root._aiXhr = null;
@@ -733,32 +745,37 @@ PanelWindow {
             let answer = "";
             try {
                 const data = JSON.parse(xhr.responseText);
-                if (data.response) {
-                    answer = String(data.response);
+                const msg = data.choices && data.choices[0] && data.choices[0].message;
+                if (msg && msg.content) {
                     // remove bloco de raciocínio (<think>...</think>), inclusive quando só o </think> aparece
-                    answer = answer.replace(/<think>[\s\S]*?<\/think>/g, "").replace(/^[\s\S]*<\/think>/, "").trim();
+                    answer = String(msg.content)
+                        .replace(/<think>[\s\S]*?<\/think>/g, "")
+                        .replace(/^[\s\S]*<\/think>/, "")
+                        .trim();
                 }
                 if (!answer) {
-                    if (data.error) answer = "Ollama error: " + (data.error.message || data.error);
+                    if (data.error) answer = "Hermes Agent error: " + (data.error.message || data.error);
                     else answer = "No AI response";
                 }
             } catch (e) {
-                answer = xhr.status === 0 ? "Sem resposta do Ollama (container parado ou timeout)" : "Erro ao consultar a IA (HTTP " + xhr.status + ")";
+                if (xhr.status === 0) answer = "Sem resposta do Hermes Agent (gateway parado ou timeout)";
+                else if (xhr.status === 401) answer = "Hermes Agent: chave inválida (API_SERVER_KEY)";
+                else answer = "Erro ao consultar a IA (HTTP " + xhr.status + ")";
             }
             finish(answer);
         };
 
-        xhr.open("POST", root.ollamaUrl + "/api/generate");
+        xhr.open("POST", root.hermesUrl + "/v1/chat/completions");
         xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.timeout = 120000;
+        xhr.setRequestHeader("Authorization", "Bearer " + root.hermesKey);
+        xhr.timeout = 180000;
         xhr.send(JSON.stringify({
-            model: root.ollamaModel,
-            prompt: prompt,
+            model: root.hermesModel,
             stream: false,
-            think: false,
-            system: "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma.",
-            keep_alive: "30m",
-            options: { num_predict: 1024 }
+            messages: [
+                { role: "system", content: "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma." },
+                { role: "user", content: prompt }
+            ]
         }));
 
         root.buildResults();
@@ -771,32 +788,72 @@ PanelWindow {
         return root.hasOwn(n, k) ? n[k] : c;
     }
 
-    function checkAI() {
-        const s = root.query.trim();
+    // Pergunta automática (só com aiAutoQuestion): termina com "?" e não usa prefixo explícito
+    function aiIsAuto(s) {
+        return root.aiAutoQuestion && !s.startsWith("/") && s.endsWith("?") && s.length > 3
+            && !/^\/?(ai|gpt|ia)\s/i.test(s)
+            && !/^(?:tr|traduzir|translate)\s+/i.test(s);
+    }
+
+    // Devolve o prompt que a consulta representa ("" se não for uma consulta de IA)
+    function aiPromptFor(s) {
         const tm = s.match(/^(?:tr|traduzir|translate)\s+([a-z]{2}(?:-[a-z]{2})?)\s+(.+)$/i);
         const m = s.match(/^\/?(ai|gpt|ia)\s+(.+)$/i);
+        if (tm) return "Translate the following text to " + root.langName(tm[1]) +
+                       ". Reply with ONLY the translation, without quotes or explanations.\n\n" + tm[2];
+        if (m && m[2] && (!s.startsWith("/") || m[1].toLowerCase() === "ai")) return m[2].trim();
+        if (root.aiIsAuto(s)) return s;
+        return "";
+    }
+
+    function clearAi() {
+        root._aiReq++;
+        if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} root._aiXhr = null; }
+        root.aiText = "";
+        root.aiLoading = false;
+        root._lastAiQuery = "";
+    }
+
+    // Item da lista que representa a IA (resposta pronta, carregando ou dica de Enter)
+    function _aiResultItems() {
+        if (root.aiText) {
+            return [{
+                kind: "info", isAi: true,
+                name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado",
+                category: root.aiLoading ? "Hermes Agent · thinking…" : "Hermes Agent — Enter to copy"
+            }];
+        }
+        if (root.aiPromptFor(root.query.trim()) !== "") {
+            return [{ kind: "info", isAi: true, name: "Perguntar ao Hermes Agent", category: "Pressione Enter para enviar" }];
+        }
+        return [];
+    }
+
+    function checkAI() {
+        const s = root.query.trim();
         const isSlashOther = s.startsWith("/") && !/^\/ai\s/i.test(s);
-        const isQuestion = root.aiAutoQuestion && !s.startsWith("/") && s.endsWith("?") && s.length > 3;
+        const prompt = isSlashOther ? "" : root.aiPromptFor(s);
 
-        let prompt = "";
-        if (tm) prompt = "Translate the following text to " + root.langName(tm[1]) +
-                         ". Reply with ONLY the translation, without quotes or explanations.\n\n" + tm[2];
-        else if (m && m[2] && (!s.startsWith("/") || m[1].toLowerCase() === "ai")) prompt = m[2].trim();
-        else if (isQuestion) prompt = s;
-
-        if (!prompt || isSlashOther) {
+        if (!prompt) {
             _aiDeb.stop();
             if (root.aiText !== "") {
-                root._aiReq++;
-                if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} root._aiXhr = null; }
-                root.aiText = "";
-                root.aiLoading = false;
-                root._lastAiQuery = "";
+                root.clearAi();
+                if (root._shown) root.buildResults();
             }
             return;
         }
+
         root._pendingAiPrompt = prompt;
-        _aiDeb.restart();
+        if (root.aiIsAuto(s)) {
+            _aiDeb.restart();
+        } else {
+            // envio manual (Enter); se o texto mudou, descarta a resposta antiga
+            _aiDeb.stop();
+            if (prompt !== root._lastAiQuery && root.aiText !== "") {
+                root.clearAi();
+                if (root._shown) root.buildResults();
+            }
+        }
     }
 
     function fetchTime(city) {
@@ -928,106 +985,106 @@ PanelWindow {
     // PREVIEW
     // ════════════════════════════════════════════════════════════════
     function resetPreview() {
-    audioPlayer.stop();
-    root.previewThumbPath = "";
-    root.previewNatW = 0;
-    root.previewNatH = 0;
-    root.previewPath = "";
-    root.previewKind = "";
-    root.previewText = "";
-}
-
-function previewFile(p, isDirectory) {
-    audioPlayer.stop();
-    root.previewThumbPath = "";
-    root.previewNatW = 0;
-    root.previewNatH = 0;
-
-    const ext = p.split(".").pop().toLowerCase();
-    const imgExts = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
-    const textExts = ["txt", "md", "json", "qml", "js", "ts", "py", "sh", "conf", "yaml", "yml", "xml", "html", "css", "c", "cpp", "h", "lua", "toml", "ini", "log"];
-    const videoExts = ["mp4", "mkv", "webm", "avi", "mov", "m4v", "flv"];
-    const audioExts = ["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac"];
-
-    if (isDirectory) {
-        root.previewKind = ""; root.previewPath = ""; root.previewText = "";
-    } else if (imgExts.indexOf(ext) !== -1) {
-        root.previewKind = "image";
-        root.previewPath = p;
+        audioPlayer.stop();
+        root.previewThumbPath = "";
+        root.previewNatW = 0;
+        root.previewNatH = 0;
+        root.previewPath = "";
+        root.previewKind = "";
         root.previewText = "";
-    } else if (textExts.indexOf(ext) !== -1) {
-        root.previewKind = "text";
-        root.previewPath = p;
-        _preview.exec(["bash", "-c", "head -c 1500 " + root.shellQuote(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
-    } else if (videoExts.indexOf(ext) !== -1) {
-        root.previewKind = "video";
-        root.previewPath = p;
-        const thumbPath = "/tmp/spotlight_thumb_" + Date.now() + ".jpg";
-        root._pendingPreview = { for: p, path: thumbPath, kind: "video" };
-        _videoThumb.exec(["bash", "-c",
-            "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + root.shellQuote(p) +
-            " -o " + root.shellQuote(thumbPath) + " -s 400 2>/dev/null"
-        ]);
-    } else if (audioExts.indexOf(ext) !== -1) {
-        root.previewKind = "audio";
-        root.previewPath = p;
-        const coverPath = "/tmp/spotlight_cover_" + Date.now() + ".jpg";
-        root._pendingPreview = { for: p, path: coverPath, kind: "audio" };
-        _audioCover.exec(["bash", "-c",
-            "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + root.shellQuote(p) +
-            " -an -frames:v 1 " + root.shellQuote(coverPath) + " 2>/dev/null"
-        ]);
-    } else if (ext === "pdf") {
-        root.previewKind = "pdf";
-        root.previewPath = p;
-        const thumbBase = "/tmp/spotlight_pdf_" + Date.now();
-        root._pendingPreview = { for: p, path: thumbBase + ".jpg", kind: "pdf" };
-        _pdfThumb.exec(["bash", "-c",
-            "rm -f /tmp/spotlight_pdf_*.jpg; " +
-            "pdftoppm -jpeg -f 1 -l 1 -scale-to 1200 " + root.shellQuote(p) + " " + root.shellQuote(thumbBase) + " 2>/dev/null; " +
-            "f=$(ls " + root.shellQuote(thumbBase) + "*.jpg 2>/dev/null | head -1); " +
-            "[ -n \"$f\" ] && mv \"$f\" " + root.shellQuote(thumbBase + ".jpg")
-        ]);
-    } else {
-        root.previewKind = ""; root.previewPath = ""; root.previewText = "";
-    }
-}
-
-function previewClipText(id) {
-    root._clipPrevKey = root.selectedKey;
-    const script = [
-        "c=$(cliphist decode " + id + " 2>/dev/null | head -c 4000)",
-        "n=$(printf '%s\\n' \"$c\" | wc -l)",
-        "first=$(printf '%s\\n' \"$c\" | tr -d '\\r' | grep -m1 -E '^(file://|/)')",
-        "case \"$first\" in",
-        "  file://*) p=$(printf '%b' \"$(printf '%s' \"$first\" | sed 's#^file://##; s/%/\\\\x/g')\") ;;",
-        "  /*) p=\"$first\" ;;",
-        "  *) p=\"\" ;;",
-        "esac",
-        "if [ \"$n\" -le 3 ] && [ -n \"$p\" ] && [ -f \"$p\" ]; then printf 'FILE\\t%s\\n' \"$p\"; else printf 'TEXT\\n%s' \"$c\"; fi"
-    ].join("\n");
-    _clipPreview.exec(["bash", "-c", script]);
-}
-
-function updatePreview() {
-    const key = root.selectedKey;
-    if (key === root._previewKeyShown) return;
-    root._previewKeyShown = key;
-
-    const it = root.selectedItem;
-
-    if (it && it.kind === "file") {
-        root.previewFile(it.path, !!it.isDirectory);
-        return;
     }
 
-    if (it && it.kind === "clip") {
-        if (it.isImage && it.imagePath) { root.previewFile(it.imagePath, false); return; }
-        if (/^\d+$/.test(it.id || "")) { root.previewClipText(it.id); return; }
+    function previewFile(p, isDirectory) {
+        audioPlayer.stop();
+        root.previewThumbPath = "";
+        root.previewNatW = 0;
+        root.previewNatH = 0;
+
+        const ext = p.split(".").pop().toLowerCase();
+        const imgExts = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
+        const textExts = ["txt", "md", "json", "qml", "js", "ts", "py", "sh", "conf", "yaml", "yml", "xml", "html", "css", "c", "cpp", "h", "lua", "toml", "ini", "log"];
+        const videoExts = ["mp4", "mkv", "webm", "avi", "mov", "m4v", "flv"];
+        const audioExts = ["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac"];
+
+        if (isDirectory) {
+            root.previewKind = ""; root.previewPath = ""; root.previewText = "";
+        } else if (imgExts.indexOf(ext) !== -1) {
+            root.previewKind = "image";
+            root.previewPath = p;
+            root.previewText = "";
+        } else if (textExts.indexOf(ext) !== -1) {
+            root.previewKind = "text";
+            root.previewPath = p;
+            _preview.exec(["bash", "-c", "head -c 1500 " + root.shellQuote(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
+        } else if (videoExts.indexOf(ext) !== -1) {
+            root.previewKind = "video";
+            root.previewPath = p;
+            const thumbPath = "/tmp/spotlight_thumb_" + Date.now() + ".jpg";
+            root._pendingPreview = { for: p, path: thumbPath, kind: "video" };
+            _videoThumb.exec(["bash", "-c",
+                "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + root.shellQuote(p) +
+                " -o " + root.shellQuote(thumbPath) + " -s 400 2>/dev/null"
+            ]);
+        } else if (audioExts.indexOf(ext) !== -1) {
+            root.previewKind = "audio";
+            root.previewPath = p;
+            const coverPath = "/tmp/spotlight_cover_" + Date.now() + ".jpg";
+            root._pendingPreview = { for: p, path: coverPath, kind: "audio" };
+            _audioCover.exec(["bash", "-c",
+                "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + root.shellQuote(p) +
+                " -an -frames:v 1 " + root.shellQuote(coverPath) + " 2>/dev/null"
+            ]);
+        } else if (ext === "pdf") {
+            root.previewKind = "pdf";
+            root.previewPath = p;
+            const thumbBase = "/tmp/spotlight_pdf_" + Date.now();
+            root._pendingPreview = { for: p, path: thumbBase + ".jpg", kind: "pdf" };
+            _pdfThumb.exec(["bash", "-c",
+                "rm -f /tmp/spotlight_pdf_*.jpg; " +
+                "pdftoppm -jpeg -f 1 -l 1 -scale-to 1200 " + root.shellQuote(p) + " " + root.shellQuote(thumbBase) + " 2>/dev/null; " +
+                "f=$(ls " + root.shellQuote(thumbBase) + "*.jpg 2>/dev/null | head -1); " +
+                "[ -n \"$f\" ] && mv \"$f\" " + root.shellQuote(thumbBase + ".jpg")
+            ]);
+        } else {
+            root.previewKind = ""; root.previewPath = ""; root.previewText = "";
+        }
     }
 
-    root.resetPreview();
-}
+    function previewClipText(id) {
+        root._clipPrevKey = root.selectedKey;
+        const script = [
+            "c=$(cliphist decode " + id + " 2>/dev/null | head -c 4000)",
+            "n=$(printf '%s\\n' \"$c\" | wc -l)",
+            "first=$(printf '%s\\n' \"$c\" | tr -d '\\r' | grep -m1 -E '^(file://|/)')",
+            "case \"$first\" in",
+            "  file://*) p=$(printf '%b' \"$(printf '%s' \"$first\" | sed 's#^file://##; s/%/\\\\x/g')\") ;;",
+            "  /*) p=\"$first\" ;;",
+            "  *) p=\"\" ;;",
+            "esac",
+            "if [ \"$n\" -le 3 ] && [ -n \"$p\" ] && [ -f \"$p\" ]; then printf 'FILE\\t%s\\n' \"$p\"; else printf 'TEXT\\n%s' \"$c\"; fi"
+        ].join("\n");
+        _clipPreview.exec(["bash", "-c", script]);
+    }
+
+    function updatePreview() {
+        const key = root.selectedKey;
+        if (key === root._previewKeyShown) return;
+        root._previewKeyShown = key;
+
+        const it = root.selectedItem;
+
+        if (it && it.kind === "file") {
+            root.previewFile(it.path, !!it.isDirectory);
+            return;
+        }
+
+        if (it && it.kind === "clip") {
+            if (it.isImage && it.imagePath) { root.previewFile(it.imagePath, false); return; }
+            if (/^\d+$/.test(it.id || "")) { root.previewClipText(it.id); return; }
+        }
+
+        root.resetPreview();
+    }
 
     Timer { id: _previewDeb; interval: 120; repeat: false; onTriggered: root.updatePreview() }
 
@@ -1155,9 +1212,7 @@ function updatePreview() {
             return true;
         }
         if (cmdName === "ai" && cmdArgs.length > 0) {
-            if (root.aiText) {
-                _addItems(items, disp, [{ kind: "info", name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado", category: root.aiLoading ? "Ollama · thinking…" : "Ollama — Enter to copy" }], "AI");
-            }
+            _addItems(items, disp, root._aiResultItems(), "AI");
             return true;
         }
         if (cmdName === "emoji") {
@@ -1238,10 +1293,10 @@ function updatePreview() {
             { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
             { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
             { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
-            { kind: "cmd", name: "/ai",         category: "Ask Ollama",                     action: "ai:" },
+            { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
             { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
             { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
-            { kind: "cmd", name: "/calendar",        category: "Add a calendar event",      action: "todo:" },
+            { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
             { kind: "cmd", name: "/notes",      category: "Add a ToDo task",                action: "todo:" },
             { kind: "cmd", name: "/lock",       category: "Lock Screen",                    action: "sys:lock" },
             { kind: "cmd", name: "/sleep",      category: "Sleep",                          action: "sys:sleep" },
@@ -1326,6 +1381,12 @@ function updatePreview() {
     function _buildSearchMode(items, disp, q, ql) {
         if (!ql && root.nowPlayingText.length > 0) {
             _addItems(items, disp, [{ kind: "media", name: root.nowPlayingText, category: root.nowPlayingStatus === "Playing" ? "Now playing" : "Paused" }], "NOW PLAYING");
+        }
+
+        // IA primeiro: assim ela é o item selecionado por padrão e o Enter envia/copia
+        if (ql) {
+            const aiItems = root._aiResultItems();
+            if (aiItems.length) _addItems(items, disp, aiItems, "AI");
         }
 
         if (ql) {
@@ -1430,14 +1491,6 @@ function updatePreview() {
         }
         if (ql && root.currencyText) {
             _addItems(items, disp, [{ kind: "calc", name: root.currencyText, raw: root.currencyText, category: "Currency", iconKey: "calc" }], "CURRENCY");
-        }
-
-        if (ql && root.aiText) {
-            _addItems(items, disp, [{
-                kind: "info",
-                name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado",
-                category: root.aiLoading ? "AI · thinking…" : "AI — Enter to copy"
-            }], "AI");
         }
 
         const playMatch = q.match(/^(toque|tocar|play)\s+(.+)$/i);
@@ -1584,6 +1637,18 @@ function updatePreview() {
             if (command.length > 0) root.runInTerminal(command);
             return;
         }
+
+        // Enter em uma consulta de IA ainda não enviada: envia ao Hermes Agent
+        // (só quando o item de IA é o selecionado, para não atrapalhar quem navegou para outro item)
+        const aiPrompt = root.aiPromptFor(queryText);
+        const sel = root.items[root.selectedIndex];
+        const aiOk = !(queryText.startsWith("/") && !/^\/ai\s/i.test(queryText));
+        if (aiPrompt && aiOk && (!sel || sel.isAi) && !root.aiLoading && root._lastAiQuery !== aiPrompt) {
+            _aiDeb.stop();
+            root.runHermes(aiPrompt);
+            return;
+        }
+
         const e = root.items[root.selectedIndex];
         if (!e) return;
 
@@ -1620,8 +1685,8 @@ function updatePreview() {
         }
         else if (e.kind === "media") { SpotlightController.run("playerctl play-pause"); keepOpen = true; }
         else if (e.kind === "info") {
-            if (root.aiText && e.category && e.category.indexOf("Ollama") !== -1) {
-                if (!root.aiLoading) root.copyText(root.aiText);
+            if (e.isAi) {
+                if (!root.aiLoading && root.aiText) root.copyText(root.aiText);
                 keepOpen = true;
             } else if (e.name && e.name !== "Thinking…") {
                 root.copyText(e.name);
@@ -1713,15 +1778,13 @@ function updatePreview() {
             } else if (e.action.startsWith("ipc:")) {
                 const parts = e.action.split(":");
                 SpotlightController.run("qs -c ii ipc call " + parts[1] + " " + parts[2]);
-            } else if (e.action === "web:" || e.action === "calc:" || e.action === "buscar:" || e.action === "ai:") {
-                if (!searchField.text.endsWith(" ")) searchField.text = searchField.text + " ";
-                searchField.cursorPosition = searchField.text.length;
-                searchField.forceActiveFocus();
-            } else if (e.action === "todo:") {
+            } else if (e.action === "web:" || e.action === "calc:" || e.action === "buscar:"
+                       || e.action === "ai:" || e.action === "todo:") {
+                // completa o comando digitado (ex.: "/a" + Enter vira "/ai ") e mantém o Spotlight aberto
                 searchField.text = e.name + " ";
                 searchField.cursorPosition = searchField.text.length;
                 searchField.forceActiveFocus();
-            return;
+                return;
             }
         }
 
@@ -1745,11 +1808,7 @@ function updatePreview() {
                 searchField.text = "";
                 root.circlesVisible = false;
                 root.circlesLocked = false;
-                root._aiReq++;
-                if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} root._aiXhr = null; }
-                root.aiText = "";
-                root.aiLoading = false;
-                root._lastAiQuery = "";
+                root.clearAi();
                 root.passText = "";
                 root._passKey = "";
                 root.timeText = "";
@@ -1763,11 +1822,10 @@ function updatePreview() {
                 root.previewKind = "";
                 root.previewPath = "";
                 root.buildResults();
-                    if (root._pendingMode !== "") {
-                        root.setMode(root._pendingMode);
-                        root._pendingMode = "";
-                    }
-                    openAnim.start();
+                if (root._pendingMode !== "") {
+                    root.setMode(root._pendingMode);
+                    root._pendingMode = "";
+                }
                 openAnim.start();
                 Qt.callLater(() => searchField.forceActiveFocus());
             } else {
@@ -2136,7 +2194,7 @@ function updatePreview() {
                                 else if (modelData.m === "clipboard") root.placeholderText = "Clipboard"
                             }
                             onExited: {
-                                root.placeholderText = "Spotlight Search"
+                                root.placeholderText = "Search or Ask"
                             }
                             onClicked: {
                                 root.circlesLocked = true
@@ -2241,32 +2299,32 @@ function updatePreview() {
                         ? Qt.rgba(1, 1, 1, 0.28)
                         : Qt.rgba(1, 1, 1, 0.12)
 
-        Canvas {
-            id: toggleArrow
-            anchors.centerIn: parent
-            width: 14
-            height: 14
-            rotation: root.circlesVisible ? 0 : 180
+            Canvas {
+                id: toggleArrow
+                anchors.centerIn: parent
+                width: 14
+                height: 14
+                rotation: root.circlesVisible ? 0 : 180
 
-            Behavior on rotation {
-                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-            }
+                Behavior on rotation {
+                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+                }
 
-            onPaint: {
-                var ctx = getContext("2d")
-                ctx.reset()
-                ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9)
-                ctx.lineWidth = 1.8
-                ctx.lineCap = "round"
-                ctx.lineJoin = "round"
-                // chevron ▶ (abre para a direita)
-                ctx.beginPath()
-                ctx.moveTo(5, 3)
-                ctx.lineTo(10, 7)
-                ctx.lineTo(5, 11)
-                ctx.stroke()
+                onPaint: {
+                    var ctx = getContext("2d")
+                    ctx.reset()
+                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9)
+                    ctx.lineWidth = 1.8
+                    ctx.lineCap = "round"
+                    ctx.lineJoin = "round"
+                    // chevron ▶ (abre para a direita)
+                    ctx.beginPath()
+                    ctx.moveTo(5, 3)
+                    ctx.lineTo(10, 7)
+                    ctx.lineTo(5, 11)
+                    ctx.stroke()
+                }
             }
-        }
 
             MouseArea {
                 id: modesToggleMA
@@ -2962,7 +3020,7 @@ function updatePreview() {
                     Text { text: "\u2728"; font.pixelSize: 15 }
                     Text {
                         Layout.fillWidth: true
-                        text: root.aiLoading ? "AI \u00b7 thinking\u2026" : "AI"
+                        text: root.aiLoading ? "Hermes Agent \u00b7 thinking\u2026" : "Hermes Agent"
                         color: root.sFg
                         font { family: "SF Pro Display"; pixelSize: 13; weight: Font.DemiBold }
                         elide: Text.ElideRight
@@ -2999,6 +3057,7 @@ function updatePreview() {
                     Text {
                         width: aiScroll.availableWidth
                         text: root.aiText
+                        textFormat: Text.MarkdownText
                         color: root.sFgDim
                         font { family: "SF Pro Text"; pixelSize: 16 }
                         wrapMode: Text.Wrap
@@ -3020,7 +3079,8 @@ function updatePreview() {
 
     Timer { id: _fdDeb; interval: 140; repeat: false; onTriggered: root.runFd() }
     Timer { id: _sideEffectsDeb; interval: 250; repeat: false; onTriggered: root.runSideEffects() }
-    Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runOllama(root._pendingAiPrompt) }
+    // só dispara no modo automático (aiAutoQuestion); nos demais o envio é no Enter
+    Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runHermes(root._pendingAiPrompt) }
     Process { id: _mediaCmd; running: false }
 
     Timer {
@@ -3158,21 +3218,21 @@ function updatePreview() {
     }
 
     Process {
-            id: _addEvent
-            running: false
-            property string title: ""
-            stderr: StdioCollector {
-                onStreamFinished: { if (text.trim()) console.warn("[spotlight] eds-add-event:", text.trim()); }
-            }
-            onExited: (exitCode, exitStatus) => {
-                if (exitCode === 0) {
-                    CalendarEvents.refresh();
-                    SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote("Event added: " + title));
-                } else {
-                    SpotlightController.run("notify-send -u critical 'Spotlight' 'Could not add event (see qs log)'");
-                }
+        id: _addEvent
+        running: false
+        property string title: ""
+        stderr: StdioCollector {
+            onStreamFinished: { if (text.trim()) console.warn("[spotlight] eds-add-event:", text.trim()); }
+        }
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) {
+                CalendarEvents.refresh();
+                SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote("Event added: " + title));
+            } else {
+                SpotlightController.run("notify-send -u critical 'Spotlight' 'Could not add event (see qs log)'");
             }
         }
+    }
 
     Process {
         id: _currency; running: false
@@ -3371,23 +3431,23 @@ function updatePreview() {
     }
 
     Process {
-    id: _clipPreview; running: false
-    stdout: StdioCollector {
-        onStreamFinished: {
-            if (root._clipPrevKey !== root.selectedKey) return;   // a seleção já mudou
-            const nl = text.indexOf("\n");
-            const head = nl >= 0 ? text.slice(0, nl) : text;
-            const body = nl >= 0 ? text.slice(nl + 1) : "";
-            if (head.startsWith("FILE\t")) {
-                root.previewFile(head.slice(5), false);
-            } else {
-                root.previewKind = "text";
-                root.previewPath = "clip:" + root.selectedKey;
-                root.previewText = body;
+        id: _clipPreview; running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                if (root._clipPrevKey !== root.selectedKey) return;   // a seleção já mudou
+                const nl = text.indexOf("\n");
+                const head = nl >= 0 ? text.slice(0, nl) : text;
+                const body = nl >= 0 ? text.slice(nl + 1) : "";
+                if (head.startsWith("FILE\t")) {
+                    root.previewFile(head.slice(5), false);
+                } else {
+                    root.previewKind = "text";
+                    root.previewPath = "clip:" + root.selectedKey;
+                    root.previewText = body;
+                }
             }
         }
     }
-}
 
     Process {
         id: _pdfThumb; running: false
