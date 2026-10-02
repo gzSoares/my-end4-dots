@@ -24,13 +24,11 @@ PanelWindow {
 
     // ── Configuração ──
     property string terminal: "kitty"
-    property bool aiAutoQuestion: false
-    // Hermes Agent (API server do gateway). Ative com API_SERVER_ENABLED=true no ~/.hermes/.env
-    readonly property string hermesUrl: "http://127.0.0.1:8642"
-    // Mesmo valor de API_SERVER_KEY no ~/.hermes/.env
-    readonly property string hermesKey: "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"
-    // O provedor/modelo (NVIDIA / nemotron) é definido na config do próprio Hermes
-    readonly property string hermesModel: "hermes-agent"
+    property bool aiAutoQuestion: true
+
+    readonly property string hermesUrl: Quickshell.env("HERMES_URL") || "http://127.0.0.1:8642"
+    readonly property string hermesKey: Quickshell.env("HERMES_API_KEY") || ""
+    readonly property string hermesModel: Quickshell.env("HERMES_MODEL") || "hermes-agent"
 
     readonly property var bangs: ({
         yt:    ["YouTube",        "https://www.youtube.com/results?search_query="],
@@ -54,7 +52,7 @@ PanelWindow {
     property var fileItems: []
     property string mode: "search"
     property var recentItems: []
-    property string browseDir: ""   // "" = home foldeer
+    property string browseDir: ""
     property bool _userNavigated: false
     property string _clipPrevKey: ""
     property string _pendingMode: ""
@@ -65,9 +63,7 @@ PanelWindow {
             || root.query.length > 0
             || root.items.length > 0
             || root.nowPlayingText.length > 0)
-        // com os círculos abertos e sem texto, só o header aparece (pílula + círculos)
         && !(root.railOpen && root.query.length === 0)
-    // sysStatsText NÃO entra aqui — evita a "faixa" escura com a linha
     property bool slashMode: root.query.startsWith("/")
     property string nowPlayingText: ""
     property string nowPlayingStatus: ""
@@ -87,7 +83,8 @@ PanelWindow {
     property string weatherCity: "Itapira"
     property string _wxLastCity: ""
     property int _wxReq: 0
-    property var _wxXhr: null
+    property var _wxGeoXhr: null
+    property var _wxDataXhr: null
     property string dictText: ""
     property string previewPath: ""
     property string previewKind: ""
@@ -110,6 +107,7 @@ PanelWindow {
     property var usageCounts: ({})
     property var _pendingPreview: ({ for: "", path: "", kind: "" })
     property string _buildSig: ""
+    property var _cache: ({})
 
     property int _fdReq: 0
     property int _rgReq: 0
@@ -124,6 +122,13 @@ PanelWindow {
     property int _aiReq: 0
     property var _aiXhr: null
     property string _pendingAiPrompt: ""
+    property int _aiRetries: 0
+    property var aiHistory: []
+    property bool aiConversationMode: false
+
+    readonly property bool aiErrored: root.aiText.startsWith("Sem resposta")
+                                     || root.aiText.startsWith("Hermes Agent:")
+                                     || root.aiText.startsWith("Erro ao consultar")
 
     readonly property var emojiList: [
         { e: "😀", n: "grinning" }, { e: "😃", n: "smiley" }, { e: "😄", n: "smile" },
@@ -204,6 +209,24 @@ PanelWindow {
         SpotlightController.run("notify-send 'Spotlight Timer' " + root.shellQuote("Timer started (" + label + ")"));
     }
 
+    function cacheGet(key, ttlMs) {
+        const c = root._cache[key];
+        if (!c) return null;
+        if (Date.now() - c.t > ttlMs) return null;
+        return c.v;
+    }
+
+    function cacheSet(key, value) {
+        const c = Object.assign({}, root._cache);
+        c[key] = { v: value, t: Date.now() };
+        const keys = Object.keys(c);
+        if (keys.length > 200) {
+            keys.sort((a, b) => c[a].t - c[b].t);
+            for (let i = 0; i < keys.length - 150; i++) delete c[keys[i]];
+        }
+        root._cache = c;
+    }
+
     function parseTodoInput(raw) {
         let text = String(raw).trim();
         const pad = n => (n < 10 ? "0" : "") + n;
@@ -250,7 +273,6 @@ PanelWindow {
             if (hasDate) {
                 target = new Date(dY, dM - 1, dD, hh, mm);
             } else {
-                // sem data: hoje se a hora ainda não passou, senão amanhã
                 target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
                 if (target <= now) target.setDate(target.getDate() + 1);
             }
@@ -314,7 +336,9 @@ PanelWindow {
         }
 
         root.usageCounts = counts;
-        _saveUsage.command = ["bash", "-c", "mkdir -p ~/.cache && cat > ~/.cache/spotlight-usage.json << 'SPTEOF'\n" + JSON.stringify(counts) + "\nSPTEOF"];
+        const payload = JSON.stringify(counts);
+        _saveUsage.command = ["bash", "-c",
+            "mkdir -p ~/.cache && printf '%s' " + root.shellQuote(payload) + " > ~/.cache/spotlight-usage.json"];
         _saveUsage.running = true;
     }
 
@@ -435,7 +459,6 @@ PanelWindow {
         return { w: outW, h: outH };
     }
 
-    // ── Visual macOS Spotlight ──
     readonly property color glassBg: Qt.rgba(30 / 255, 30 / 255, 30 / 255, 0.72)
     readonly property color glassBorder: Qt.rgba(1, 1, 1, 0.12)
     readonly property color glassHighlight: Qt.rgba(1, 1, 1, 0.06)
@@ -490,10 +513,9 @@ PanelWindow {
     // BUSCAS ASSÍNCRONAS
     // ════════════════════════════════════════════════════════════════
     function runFd() {
-        // não busca arquivos quando a consulta é uma pergunta para a IA
         if (root.slashMode || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
             root.fileItems = [];
-            root.buildResults();
+            root.scheduleRebuild();
             return;
         }
         const q = root.query.trim();
@@ -513,8 +535,7 @@ PanelWindow {
     }
 
     function runContentSearch(term) {
-        if (!term || root._lastContentQuery === term) return;
-        root._lastContentQuery = term;
+        if (!term) return;
         const id = ++root._rgReq;
         _rg.exec(["bash", "-c",
             "echo " + id + "; rg -l -i -F --max-count 1 -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"
@@ -591,11 +612,20 @@ PanelWindow {
     }
 
     function fetchWeather(city, preferBR) {
+        const cacheKey = "wx:" + city.toLowerCase() + ":" + (preferBR ? "br" : "any");
+        const cached = root.cacheGet(cacheKey, 5 * 60 * 1000);
+        if (cached) {
+            root.weatherText = cached;
+            if (root._shown) root.scheduleRebuild();
+            return;
+        }
+
         const req = ++root._wxReq;
-        if (root._wxXhr) { try { root._wxXhr.abort(); } catch (e) {} }
+        if (root._wxGeoXhr) { try { root._wxGeoXhr.abort(); } catch (e) {} }
+        if (root._wxDataXhr) { try { root._wxDataXhr.abort(); } catch (e) {} }
 
         const geo = new XMLHttpRequest();
-        root._wxXhr = geo;
+        root._wxGeoXhr = geo;
         geo.timeout = 10000;
         geo.onreadystatechange = function () {
             if (geo.readyState !== XMLHttpRequest.DONE || req !== root._wxReq) return;
@@ -605,10 +635,10 @@ PanelWindow {
                 const list = data.results || [];
                 place = (preferBR && list.find(r => r.country_code === "BR")) || list[0] || null;
             } catch (e) { place = null; }
-            if (!place) { root.weatherText = "Cidade não encontrada: " + city; if (root._shown) root.buildResults(); return; }
+            if (!place) { root.weatherText = "Cidade não encontrada: " + city; if (root._shown) root.scheduleRebuild(); return; }
 
             const wx = new XMLHttpRequest();
-            root._wxXhr = wx;
+            root._wxDataXhr = wx;
             wx.timeout = 10000;
             wx.onreadystatechange = function () {
                 if (wx.readyState !== XMLHttpRequest.DONE || req !== root._wxReq) return;
@@ -617,11 +647,13 @@ PanelWindow {
                     const d = root.wxDescribe(c.weather_code);
                     const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
                                   (place.country_code !== "BR" && place.country ? ", " + place.country : "");
-                    root.weatherText = where + ": " + d[0] + " " + Math.round(c.temperature_2m) + "°C" +
+                    const txt = where + ": " + d[0] + " " + Math.round(c.temperature_2m) + "°C" +
                         " (sensação " + Math.round(c.apparent_temperature) + "°C) · " + d[1] +
                         " · umidade " + Math.round(c.relative_humidity_2m) + "% · vento " + Math.round(c.wind_speed_10m) + " km/h";
+                    root.weatherText = txt;
+                    root.cacheSet(cacheKey, txt);
                 } catch (e) { root.weatherText = "Não foi possível obter o clima"; }
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             };
             wx.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude +
                 "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto");
@@ -656,6 +688,9 @@ PanelWindow {
             const lang = pt ? "pt-BR" : "en";
             const word = m[2].trim().replace(pt ? /[^a-zà-ú-]/g : /[^a-z-]/g, "");
             if (!word) { if (root.dictText !== "") root.dictText = ""; return; }
+            const cacheKey = "dict:" + lang + ":" + word;
+            const cached = root.cacheGet(cacheKey, 24 * 60 * 60 * 1000);
+            if (cached !== null) { root.dictText = cached; if (root._shown) root.scheduleRebuild(); return; }
             _dict.exec(["bash", "-c", "curl -s --max-time 10 'https://api.dictionaryapi.dev/api/v2/entries/" + lang + "/" + root.urlq(word) + "' 2>/dev/null"]);
         } else if (root.dictText !== "") {
             root.dictText = "";
@@ -676,6 +711,9 @@ PanelWindow {
         const from = m ? root.curCode(m[2]) : "";
         const to = m ? root.curCode(m[3]) : "";
         if (!m || !from || !to) { if (root.currencyText) root.currencyText = ""; return; }
+        const cacheKey = "cur:" + from + ":" + to + ":" + m[1];
+        const cached = root.cacheGet(cacheKey, 10 * 60 * 1000);
+        if (cached !== null) { root.currencyText = cached; if (root._shown) root.scheduleRebuild(); return; }
         root._pendingCurrency = { val: parseFloat(m[1]), from: from.toUpperCase(), to: to.toUpperCase() };
         _currency.exec(["bash", "-c", "curl -s --max-time 10 'https://api.exchangerate-api.com/v4/latest/" + from.toUpperCase() + "' 2>/dev/null"]);
     }
@@ -714,15 +752,31 @@ PanelWindow {
     }
 
     // ════════════════════════════════════════════════════════════════
-    // IA (Hermes Agent — API compatível com OpenAI)
+    // IA (Hermes Agent) — com histórico multi-turno
     // ════════════════════════════════════════════════════════════════
-    function runHermes(prompt) {
+    function runHermes(prompt, isRetry) {
+        isRetry = !!isRetry;
         if (!prompt) return;
+        if (!root.hermesKey) {
+            root.aiText = "Hermes Agent: configure HERMES_API_KEY no ambiente";
+            root.aiLoading = false;
+            if (root._shown) root.scheduleRebuild();
+            return;
+        }
         if (prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
 
+        if (!isRetry) root._aiRetries = 0;
         root._lastAiQuery = prompt;
         root.aiLoading = true;
         root.aiText = "Thinking…";
+
+        // atualiza histórico ANTES do XHR (a pergunta aparece na hora)
+        const h = root.aiHistory.slice();
+        h.push({ role: "user", content: prompt });
+        while (h.length > 20) h.shift();
+        root.aiHistory = h;
+
+        const history = root.aiHistory.slice();
 
         const req = ++root._aiReq;
         if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} }
@@ -736,18 +790,26 @@ PanelWindow {
             root.aiText = answer;
             root.aiLoading = false;
             root._aiXhr = null;
-            if (root._shown) root.buildResults();
+
+            if (!root.aiErrored) {
+                const h2 = root.aiHistory.slice();
+                h2.push({ role: "assistant", content: answer });
+                while (h2.length > 20) h2.shift();
+                root.aiHistory = h2;
+            }
+
+            if (root._shown) root.scheduleRebuild();
         };
 
         xhr.onreadystatechange = function () {
             if (xhr.readyState !== XMLHttpRequest.DONE) return;
             if (req !== root._aiReq) return;
             let answer = "";
+            let shouldRetry = false;
             try {
                 const data = JSON.parse(xhr.responseText);
                 const msg = data.choices && data.choices[0] && data.choices[0].message;
                 if (msg && msg.content) {
-                    // remove bloco de raciocínio (<think>...</think>), inclusive quando só o </think> aparece
                     answer = String(msg.content)
                         .replace(/<think>[\s\S]*?<\/think>/g, "")
                         .replace(/^[\s\S]*<\/think>/, "")
@@ -758,9 +820,19 @@ PanelWindow {
                     else answer = "No AI response";
                 }
             } catch (e) {
-                if (xhr.status === 0) answer = "Sem resposta do Hermes Agent (gateway parado ou timeout)";
+                if (xhr.status === 0) {
+                    if (!isRetry && root._aiRetries < 1) shouldRetry = true;
+                    else answer = "Sem resposta do Hermes Agent (gateway parado ou timeout)";
+                }
                 else if (xhr.status === 401) answer = "Hermes Agent: chave inválida (API_SERVER_KEY)";
                 else answer = "Erro ao consultar a IA (HTTP " + xhr.status + ")";
+            }
+            if (shouldRetry) {
+                root._aiRetries++;
+                root.aiLoading = false;
+                _aiRetryTimer.prompt = prompt;
+                _aiRetryTimer.restart();
+                return;
             }
             finish(answer);
         };
@@ -768,17 +840,17 @@ PanelWindow {
         xhr.open("POST", root.hermesUrl + "/v1/chat/completions");
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.setRequestHeader("Authorization", "Bearer " + root.hermesKey);
-        xhr.timeout = 180000;
+        xhr.timeout = 30000;
         xhr.send(JSON.stringify({
             model: root.hermesModel,
             stream: false,
             messages: [
                 { role: "system", content: "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma." },
-                { role: "user", content: prompt }
+                ...history
             ]
         }));
 
-        root.buildResults();
+        root.scheduleRebuild();
     }
 
     function langName(c) {
@@ -788,14 +860,12 @@ PanelWindow {
         return root.hasOwn(n, k) ? n[k] : c;
     }
 
-    // Pergunta automática (só com aiAutoQuestion): termina com "?" e não usa prefixo explícito
     function aiIsAuto(s) {
         return root.aiAutoQuestion && !s.startsWith("/") && s.endsWith("?") && s.length > 3
             && !/^\/?(ai|gpt|ia)\s/i.test(s)
             && !/^(?:tr|traduzir|translate)\s+/i.test(s);
     }
 
-    // Devolve o prompt que a consulta representa ("" se não for uma consulta de IA)
     function aiPromptFor(s) {
         const tm = s.match(/^(?:tr|traduzir|translate)\s+([a-z]{2}(?:-[a-z]{2})?)\s+(.+)$/i);
         const m = s.match(/^\/?(ai|gpt|ia)\s+(.+)$/i);
@@ -812,9 +882,9 @@ PanelWindow {
         root.aiText = "";
         root.aiLoading = false;
         root._lastAiQuery = "";
+        root._aiRetries = 0;
     }
 
-    // Item da lista que representa a IA (resposta pronta, carregando ou dica de Enter)
     function _aiResultItems() {
         if (root.aiText) {
             return [{
@@ -838,7 +908,7 @@ PanelWindow {
             _aiDeb.stop();
             if (root.aiText !== "") {
                 root.clearAi();
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
             return;
         }
@@ -847,16 +917,26 @@ PanelWindow {
         if (root.aiIsAuto(s)) {
             _aiDeb.restart();
         } else {
-            // envio manual (Enter); se o texto mudou, descarta a resposta antiga
             _aiDeb.stop();
             if (prompt !== root._lastAiQuery && root.aiText !== "") {
                 root.clearAi();
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
 
+    // ════════════════════════════════════════════════════════════════
+    // HORA
+    // ════════════════════════════════════════════════════════════════
     function fetchTime(city) {
+        const cacheKey = "time:" + city.toLowerCase();
+        const cached = root.cacheGet(cacheKey, 30 * 1000);
+        if (cached) {
+            root.timeText = cached;
+            if (root._shown) root.scheduleRebuild();
+            return;
+        }
+
         const req = ++root._timeReq;
         if (root._timeXhr) { try { root._timeXhr.abort(); } catch (e) {} }
 
@@ -867,31 +947,26 @@ PanelWindow {
             if (geo.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
             let place = null;
             try { place = (JSON.parse(geo.responseText).results || [])[0] || null; } catch (e) { place = null; }
-            if (!place) { root.timeText = "Cidade não encontrada: " + city; if (root._shown) root.buildResults(); return; }
+            if (!place) { root.timeText = "Cidade não encontrada: " + city; if (root._shown) root.scheduleRebuild(); return; }
 
             const tz = new XMLHttpRequest();
             root._timeXhr = tz;
             tz.timeout = 10000;
             tz.onreadystatechange = function () {
                 if (tz.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
+
+                let tzName = "", utcOffset = null;
                 try {
                     const data = JSON.parse(tz.responseText);
-                    const off = data.utc_offset_seconds;
-                    const now = new Date();
-                    const there = new Date(now.getTime() + now.getTimezoneOffset() * 60000 + off * 1000);
-                    const pad = (n) => (n < 10 ? "0" : "") + n;
-                    const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "s\u00e1b"][there.getDay()];
-                    const localOff = -now.getTimezoneOffset() * 60;
-                    const diff = (off - localOff) / 3600;
-                    const diffStr = diff === 0 ? "mesmo fuso que você"
-                                  : (diff > 0 ? "+" : "") + (Number.isInteger(diff) ? diff : diff.toFixed(1)) + "h em relação a você";
-                    const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
-                                  (place.country ? ", " + place.country : "");
-                    root.timeText = where + ": " + pad(there.getHours()) + ":" + pad(there.getMinutes()) +
-                                    " \u00b7 " + wd + " " + pad(there.getDate()) + "/" + pad(there.getMonth() + 1) +
-                                    " \u00b7 " + diffStr + " (" + data.timezone + ")";
-                } catch (e) { root.timeText = "Não foi possível obter a hora"; }
-                if (root._shown) root.buildResults();
+                    tzName = data.timezone || "";
+                    if (typeof data.utc_offset_seconds === "number") utcOffset = data.utc_offset_seconds;
+                } catch (e) { /* ignora */ }
+
+                if (utcOffset === null) {
+                    root.fetchTimezoneFallback(city, place, req, cacheKey);
+                    return;
+                }
+                root.renderTime(place, tzName, utcOffset, cacheKey);
             };
             tz.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude +
                     "&current=temperature_2m&timezone=auto");
@@ -899,6 +974,56 @@ PanelWindow {
         };
         geo.open("GET", "https://geocoding-api.open-meteo.com/v1/search?count=3&language=pt&name=" + encodeURIComponent(city));
         geo.send();
+    }
+
+    function fetchTimezoneFallback(city, place, req, cacheKey) {
+        const fb = new XMLHttpRequest();
+        root._timeXhr = fb;
+        fb.timeout = 10000;
+        fb.onreadystatechange = function () {
+            if (fb.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
+            try {
+                const data = JSON.parse(fb.responseText);
+                if (!data.utc_offset) throw new Error("sem utc_offset");
+                const sign = data.utc_offset[0] === "-" ? -1 : 1;
+                const [hh, mm] = data.utc_offset.slice(1).split(":").map(Number);
+                const seconds = sign * (hh * 3600 + mm * 60);
+                root.renderTime(place, data.timezone || "", seconds, cacheKey);
+            } catch (e) {
+                root.timeText = "Não foi possível obter a hora de " + city;
+                if (root._shown) root.scheduleRebuild();
+            }
+        };
+        const gmtOffset = Math.round(-place.longitude / 15);
+        const gmtSign = gmtOffset >= 0 ? "+" : "-";
+        fb.open("GET", "https://worldtimeapi.org/api/timezone/Etc/GMT" + gmtSign + Math.abs(gmtOffset));
+        fb.send();
+    }
+
+    function renderTime(place, tzName, utcOffsetSeconds, cacheKey) {
+        const now = new Date();
+        const localOffsetSec = -now.getTimezoneOffset() * 60;
+        const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
+        const there = new Date(utcMs + utcOffsetSeconds * 1000);
+
+        const pad = (n) => (n < 10 ? "0" : "") + n;
+        const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "s\u00e1b"][there.getUTCDay()];
+
+        const timeStr = pad(there.getUTCHours()) + ":" + pad(there.getUTCMinutes());
+        const dateStr = wd + " " + pad(there.getUTCDate()) + "/" + pad(there.getUTCMonth() + 1);
+
+        const diffH = (utcOffsetSeconds - localOffsetSec) / 3600;
+        const diffStr = diffH === 0 ? "mesmo fuso que você"
+                      : (diffH > 0 ? "+" : "") + (Number.isInteger(diffH) ? diffH : diffH.toFixed(1)) + "h em relação a você";
+
+        const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
+                      (place.country ? ", " + place.country : "");
+
+        const tzSuffix = tzName ? " (" + tzName + ")" : "";
+        const txt = where + ": " + timeStr + " \u00b7 " + dateStr + " \u00b7 " + diffStr + tzSuffix;
+        root.timeText = txt;
+        if (cacheKey) root.cacheSet(cacheKey, txt);
+        if (root._shown) root.scheduleRebuild();
     }
 
     function checkTime() {
@@ -964,7 +1089,15 @@ PanelWindow {
 
     function checkContentSearch() {
         const m = root.query.trim().match(/^\/buscar\s+(.+)$/i);
-        if (m && m[1].trim()) root.runContentSearch(m[1].trim());
+        if (m && m[1].trim()) {
+            const term = m[1].trim();
+            if (term !== root._lastContentQuery) {
+                root._lastContentQuery = term;
+                root.runContentSearch(term);
+            }
+        } else {
+            root._lastContentQuery = "";
+        }
     }
 
     function runSideEffects() {
@@ -1013,9 +1146,9 @@ PanelWindow {
             root.previewPath = p;
             root.previewText = "";
         } else if (textExts.indexOf(ext) !== -1) {
-            root.previewKind = "text";
+            root.previewKind = (ext === "md") ? "markdown" : "text";
             root.previewPath = p;
-            _preview.exec(["bash", "-c", "head -c 1500 " + root.shellQuote(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
+            _preview.exec(["bash", "-c", "head -c 4000 " + root.shellQuote(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
         } else if (videoExts.indexOf(ext) !== -1) {
             root.previewKind = "video";
             root.previewPath = p;
@@ -1057,7 +1190,7 @@ PanelWindow {
             "n=$(printf '%s\\n' \"$c\" | wc -l)",
             "first=$(printf '%s\\n' \"$c\" | tr -d '\\r' | grep -m1 -E '^(file://|/)')",
             "case \"$first\" in",
-            "  file://*) p=$(printf '%b' \"$(printf '%s' \"$first\" | sed 's#^file://##; s/%/\\\\x/g')\") ;;",
+            "  file://*) p=$(printf '%s' \"$first\" | sed 's#^file://##' | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))' 2>/dev/null) ;;",
             "  /*) p=\"$first\" ;;",
             "  *) p=\"\" ;;",
             "esac",
@@ -1118,10 +1251,12 @@ PanelWindow {
         if (!arr.length) return;
         if (title) disp.push({ isHeader: true, title: title });
         for (const it of arr) {
-            it._idx = items.length;
-            it._dispIdx = disp.length;
-            items.push(it);
-            disp.push(it);
+            if (!it) continue;
+            const copy = Object.assign({}, it);
+            copy._idx = items.length;
+            copy._dispIdx = disp.length;
+            items.push(copy);
+            disp.push(copy);
         }
     }
 
@@ -1236,7 +1371,6 @@ PanelWindow {
         }
 
         if ((cmdName === "todo" || cmdName === "notes") && cmdArgs.length > 0) {
-            // o ql vem em minúsculas; pega o texto original para manter maiúsculas
             const orig = root.query.trim().slice(1);
             const t = root.parseTodoInput(orig.slice(spaceIdx + 1));
             _addItems(items, disp, [{
@@ -1294,6 +1428,7 @@ PanelWindow {
             { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
             { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
             { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
+            { kind: "cmd", name: "/nova",       category: "New AI conversation (clears history)", action: "ai-new:" },
             { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
             { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
             { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
@@ -1372,10 +1507,15 @@ PanelWindow {
 
     function urlTarget(q) {
         const t = q.trim();
-        const isUrl = /^(https?:\/\/)?(www\.)?[\w-]+(\.[\w-]+)+(:\d+)?(\/\S*)?$/i.test(t)
-                   && /\.(com|org|net|io|dev|app|br|pt|co|uk|edu|gov|xyz|me|tv|info|biz|gg|ai|sh|so)(\/|$|:|\?)/i.test(t);
-        if (!isUrl) return "";
-        return /^https?:\/\//i.test(t) ? t : "https://" + t;
+        if (!t || /\s/.test(t)) return "";
+        try {
+            const u = new URL(/^https?:\/\//i.test(t) ? t : "https://" + t);
+            const host = u.hostname;
+            if (!host.includes(".")) return "";
+            const tld = host.split(".").pop();
+            if (tld.length < 2) return "";
+            return u.toString();
+        } catch (e) { return ""; }
     }
 
     function _buildSearchMode(items, disp, q, ql) {
@@ -1383,7 +1523,6 @@ PanelWindow {
             _addItems(items, disp, [{ kind: "media", name: root.nowPlayingText, category: root.nowPlayingStatus === "Playing" ? "Now playing" : "Paused" }], "NOW PLAYING");
         }
 
-        // IA primeiro: assim ela é o item selecionado por padrão e o Enter envia/copia
         if (ql) {
             const aiItems = root._aiResultItems();
             if (aiItems.length) _addItems(items, disp, aiItems, "AI");
@@ -1451,7 +1590,6 @@ PanelWindow {
             let dueStr = "";
             let dueLabel = "";
 
-            // data opcional no fim: YYYY-MM-DD, DD/MM ou DD/MM/YYYY
             const dm = text.match(/\s+(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?)$/);
             if (dm) {
                 const iso = !!dm[1];
@@ -1459,7 +1597,6 @@ PanelWindow {
                 const d = parseInt(iso ? dm[3] : dm[4]);
                 const today = new Date();
                 let y = iso ? parseInt(dm[1]) : (dm[6] ? parseInt(dm[6]) : today.getFullYear());
-                // sem ano e já passou este ano: usa o próximo
                 if (!iso && !dm[6] && new Date(y, mo - 1, d, 23, 59) < today) y += 1;
 
                 const check = new Date(Date.UTC(y, mo - 1, d, 12));
@@ -1574,10 +1711,15 @@ PanelWindow {
         }
         root._buildSig = sig;
         root.selectedIndex = idx;
+
         if (idx === 0) {
-            resultList.positionViewAtBeginning();
-            resultGrid.positionViewAtBeginning();
+            if (resultList) resultList.positionViewAtBeginning();
+            if (resultGrid) resultGrid.positionViewAtBeginning();
         }
+    }
+
+    function scheduleRebuild() {
+        _rebuildDeb.restart();
     }
 
     function setMode(m) {
@@ -1588,7 +1730,7 @@ PanelWindow {
         if (m === "windows") _windows.running = true;
         if (m === "wifi") _wifi.running = true;
         if (m === "bluetooth") _bt.running = true;
-        root.buildResults();
+        root.scheduleRebuild();
     }
 
     function runRecents() {
@@ -1622,9 +1764,9 @@ PanelWindow {
         root._userNavigated = true;
         root.selectedIndex = (root.selectedIndex + delta + root.items.length) % root.items.length;
         const it = root.items[root.selectedIndex];
-        if (resultList.visible) {
+        if (resultList && resultList.visible) {
             resultList.positionViewAtIndex(it._dispIdx, ListView.Contain);
-        } else if (resultGrid.visible) {
+        } else if (resultGrid && resultGrid.visible) {
             resultGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain);
         }
     }
@@ -1638,8 +1780,6 @@ PanelWindow {
             return;
         }
 
-        // Enter em uma consulta de IA ainda não enviada: envia ao Hermes Agent
-        // (só quando o item de IA é o selecionado, para não atrapalhar quem navegou para outro item)
         const aiPrompt = root.aiPromptFor(queryText);
         const sel = root.items[root.selectedIndex];
         const aiOk = !(queryText.startsWith("/") && !/^\/ai\s/i.test(queryText));
@@ -1661,7 +1801,7 @@ PanelWindow {
                 root.browseDir = e.path;
                 root.selectedIndex = 0;
                 root.runRecents();
-                return;              // mantém o Spotlight aberto
+                return;
             }
             if (alt) {
                 const i = e.path.lastIndexOf("/");
@@ -1738,11 +1878,11 @@ PanelWindow {
                 }
             }
             else if (e.action === "addevent:") {
+                if (!e.evText || !e.evDate) return;
                 _addEvent.title = e.evText;
                 _addEvent.command = ["python3", Quickshell.shellPath("scripts/calendar/eds-add-event.py"),
                                     e.evText, e.evDate, e.evTime, String(e.evDuration)];
                 _addEvent.running = true;
-                // aviso na hora do evento (apague esta linha se não quiser)
                 if (e.evRemind && e.evRemindMs > Date.now()) root.scheduleReminder(e.evRemind, e.evText);
             }
             else if (e.action.startsWith("action:")) {
@@ -1778,9 +1918,16 @@ PanelWindow {
             } else if (e.action.startsWith("ipc:")) {
                 const parts = e.action.split(":");
                 SpotlightController.run("qs -c ii ipc call " + parts[1] + " " + parts[2]);
+            } else if (e.action === "ai-new:") {
+                root.aiHistory = [];
+                root.clearAi();
+                searchField.text = "";
+                root.query = "";
+                root.scheduleRebuild();
+                searchField.forceActiveFocus();
+                return;
             } else if (e.action === "web:" || e.action === "calc:" || e.action === "buscar:"
                        || e.action === "ai:" || e.action === "todo:") {
-                // completa o comando digitado (ex.: "/a" + Enter vira "/ai ") e mantém o Spotlight aberto
                 searchField.text = e.name + " ";
                 searchField.cursorPosition = searchField.text.length;
                 searchField.forceActiveFocus();
@@ -1809,6 +1956,7 @@ PanelWindow {
                 root.circlesVisible = false;
                 root.circlesLocked = false;
                 root.clearAi();
+                root.aiHistory = [];
                 root.passText = "";
                 root._passKey = "";
                 root.timeText = "";
@@ -1821,7 +1969,8 @@ PanelWindow {
                 root._previewKeyShown = "";
                 root.previewKind = "";
                 root.previewPath = "";
-                root.buildResults();
+                root._lastContentQuery = "";
+                root.scheduleRebuild();
                 if (root._pendingMode !== "") {
                     root.setMode(root._pendingMode);
                     root._pendingMode = "";
@@ -1869,7 +2018,7 @@ PanelWindow {
         target: SpotlightApps
         ignoreUnknownSignals: true
         function onReadyChanged() {
-            if (SpotlightController.spotlightOpen) root.buildResults();
+            if (SpotlightController.spotlightOpen) root.scheduleRebuild();
         }
     }
 
@@ -1916,7 +2065,6 @@ PanelWindow {
             NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
         }
 
-        // Chrome único: barra + resultados (visual macOS)
         Rectangle {
             id: panelChrome
             anchors.left: parent.left
@@ -1928,7 +2076,6 @@ PanelWindow {
             border.color: root.glassBorder
             border.width: 1
             z: 0
-            clip: true
 
             Behavior on height {
                 NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
@@ -2028,7 +2175,6 @@ PanelWindow {
                         Keys.onEscapePressed: (event) => { SpotlightController.spotlightOpen = false; event.accepted = true }
                         Keys.onTabPressed: (event) => { root.circlesVisible = !root.circlesVisible; event.accepted = true }
                         Keys.onPressed: (event) => {
-                            // Backspace com a busca vazia no modo Files: sobe um nível
                             if (event.key === Qt.Key_Backspace && searchField.text === ""
                                     && root.mode === "files" && root.browseDir !== "" && root.browseDir !== "/") {
                                 const i = root.browseDir.lastIndexOf("/");
@@ -2049,6 +2195,11 @@ PanelWindow {
                                     SpotlightController.spotlightOpen = false;
                                     event.accepted = true;
                                 }
+                                else if (event.key === Qt.Key_R && root.aiHistory.length > 0) {
+                                    root.runHermes(root._lastAiQuery, false);
+                                    event.accepted = true;
+                                    return;
+                                }
                             }
                         }
                         onTextChanged: {
@@ -2057,7 +2208,7 @@ PanelWindow {
                             if (text.length > 0 && !root.circlesLocked && root.mode !== "search") {
                                 root.mode = "search";
                             }
-                            root.buildResults();
+                            root.scheduleRebuild();
                             _fdDeb.restart();
                             _sideEffectsDeb.restart();
                             if (text.length > 0) root.circlesVisible = false
@@ -2220,7 +2371,6 @@ PanelWindow {
                 property real startProgress: 0
                 property bool isDragging: false
 
-                // NÃO abrir no hover
                 onEntered: { }
                 onExited: { }
 
@@ -2271,14 +2421,13 @@ PanelWindow {
                     }
                 }
                 MouseArea { id: clearMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                    onClicked: { searchField.text = ""; root.query = ""; root.buildResults(); searchField.forceActiveFocus() }
+                    onClicked: { searchField.text = ""; root.query = ""; root.scheduleRebuild(); searchField.forceActiveFocus() }
                 }
             }
         }
 
         Rectangle {
             id: modesToggle
-            // à direita do campo de busca — acompanha o morph ao abrir os círculos
             x: morphSurface.mainWidth - width - 10
             y: (searchHeader.height - height) / 2
             width: 28
@@ -2287,9 +2436,6 @@ PanelWindow {
             z: 120
 
             visible: root.query.length === 0
-
-            // opcional: esconde o toggle enquanto os modos estão abertos
-            // visible: root.railProgress < 0.15
 
             color: modesToggleMA.containsMouse || root.circlesVisible
                 ? Qt.rgba(1, 1, 1, 0.14)
@@ -2317,7 +2463,6 @@ PanelWindow {
                     ctx.lineWidth = 1.8
                     ctx.lineCap = "round"
                     ctx.lineJoin = "round"
-                    // chevron ▶ (abre para a direita)
                     ctx.beginPath()
                     ctx.moveTo(5, 3)
                     ctx.lineTo(10, 7)
@@ -2331,17 +2476,15 @@ PanelWindow {
                 anchors.fill: parent
                 hoverEnabled: true
                 cursorShape: Qt.PointingHandCursor
-                // importante: o clique não deve “vazar” para a dragZone
                 onClicked: {
                     root.circlesVisible = !root.circlesVisible
-                    root.circlesLocked = true   // impede hover de outra zona reabrir depois
+                    root.circlesLocked = true
                 }
             }
         }
 
         Rectangle {
             id: clearClipBtn
-            // centralizado logo abaixo do toggle, na altura da linha "CLIPBOARD"
             x: morphSurface.mainWidth - 36
             y: root.searchH + 4
             width: 24
@@ -2396,8 +2539,6 @@ PanelWindow {
                 onClicked: root.clearClipboard()
             }
         }
-
-
 
         Item {
             id: resultsCard
@@ -2771,10 +2912,10 @@ PanelWindow {
             anchors.left: searchHeader.right
             anchors.leftMargin: 16
             anchors.top: searchHeader.top
-            width: root.previewKind === "text" ? 420
+            width: root.previewKind === "text" || root.previewKind === "markdown" ? 420
                  : (root.previewKind === "pdf" || root.previewKind === "image" || root.previewKind === "video") ? root.previewSizeLarge().w
                  : root.previewSize().w
-            height: root.previewKind === "text" ? 660
+            height: root.previewKind === "text" || root.previewKind === "markdown" ? 660
                   : (root.previewKind === "pdf" || root.previewKind === "image" || root.previewKind === "video") ? root.previewSizeLarge().h
                   : root.previewSize().h
             radius: root.panelRadius
@@ -2854,6 +2995,39 @@ PanelWindow {
                         implicitWidth: 6
                         color: "transparent"
                     }
+                }
+            }
+
+            Flickable {
+                id: previewMdFlick
+                visible: root.previewKind === "markdown"
+                anchors.fill: parent
+                anchors.margins: 12
+                anchors.rightMargin: 22
+                clip: true
+                contentWidth: width
+                contentHeight: previewMdItem.implicitHeight
+                boundsBehavior: Flickable.StopAtBounds
+
+                Text {
+                    id: previewMdItem
+                    width: previewMdFlick.width
+                    text: root.previewText
+                    textFormat: Text.MarkdownText
+                    color: root.sFg
+                    font { family: "SF Pro Text"; pixelSize: 15 }
+                    wrapMode: Text.Wrap
+                    lineHeight: 1.4
+                    lineHeightMode: Text.ProportionalHeight
+                }
+
+                ScrollBar.vertical: ScrollBar {
+                    policy: previewMdFlick.contentHeight > previewMdFlick.height
+                        ? ScrollBar.AlwaysOn
+                        : ScrollBar.AlwaysOff
+                    width: 6
+                    contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Qt.rgba(1,1,1,0.35) }
+                    background: Rectangle { implicitWidth: 6; color: "transparent" }
                 }
             }
 
@@ -2997,8 +3171,8 @@ PanelWindow {
             anchors.left: searchHeader.right
             anchors.leftMargin: 16
             anchors.top: searchHeader.top
-            width: 420
-            height: 380
+            width: 460
+            height: 480
             radius: root.panelRadius
             color: root.glassBg
             border.color: root.glassBorder
@@ -3017,13 +3191,62 @@ PanelWindow {
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
-                    Text { text: "\u2728"; font.pixelSize: 15 }
+
+                    SiriOrb {
+                        Layout.preferredWidth: 26
+                        Layout.preferredHeight: 26
+                        size: 26
+                        active: root.aiLoading
+                    }
+
                     Text {
                         Layout.fillWidth: true
-                        text: root.aiLoading ? "Hermes Agent \u00b7 thinking\u2026" : "Hermes Agent"
-                        color: root.sFg
+                        text: {
+                            if (!root.aiLoading) {
+                                const turns = Math.floor(root.aiHistory.length / 2);
+                                return turns > 0 ? "Hermes Agent · " + turns + " msg" : "Hermes Agent"
+                            }
+                            if (root.aiErrored) return "Hermes Agent · erro"
+                            return "Hermes Agent" + ".".repeat((_dotsTimer.tick % 3) + 1)
+                        }
+                        color: root.aiErrored ? "#FF6961" : root.sFg
                         font { family: "SF Pro Display"; pixelSize: 13; weight: Font.DemiBold }
                         elide: Text.ElideRight
+                    }
+
+                    Rectangle {
+                        width: 24; height: 24; radius: 6
+                        color: newConvMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                        visible: root.aiHistory.length > 0
+                        Behavior on color { ColorAnimation { duration: 100 } }
+
+                        Canvas {
+                            anchors.centerIn: parent
+                            width: 12; height: 12
+                            onPaint: {
+                                var ctx = getContext("2d"); ctx.reset()
+                                ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.85); ctx.lineWidth = 1.4
+                                ctx.lineCap = "round"
+                                ctx.beginPath()
+                                ctx.moveTo(2, 2); ctx.lineTo(10, 10)
+                                ctx.moveTo(10, 2); ctx.lineTo(2, 10)
+                                ctx.stroke()
+                            }
+                        }
+
+                        MouseArea {
+                            id: newConvMA
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                root.aiHistory = [];
+                                root.clearAi();
+                                root.scheduleRebuild();
+                            }
+                        }
                     }
                 }
 
@@ -3037,39 +3260,306 @@ PanelWindow {
                     contentWidth: availableWidth
 
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-
                     ScrollBar.vertical: ScrollBar {
                         width: 6
                         policy: aiScroll.contentHeight > aiScroll.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-
-                        contentItem: Rectangle {
-                            implicitWidth: 6
-                            radius: 3
-                            color: Qt.rgba(1, 1, 1, 0.35)
-                        }
-
-                        background: Rectangle {
-                            implicitWidth: 6
-                            color: "transparent"
-                        }
+                        contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Qt.rgba(1, 1, 1, 0.35) }
+                        background: Rectangle { implicitWidth: 6; color: "transparent" }
                     }
 
-                    Text {
+                    ColumnLayout {
                         width: aiScroll.availableWidth
-                        text: root.aiText
-                        textFormat: Text.MarkdownText
-                        color: root.sFgDim
-                        font { family: "SF Pro Text"; pixelSize: 16 }
-                        wrapMode: Text.Wrap
-                        lineHeight: 1.35
-                        lineHeightMode: Text.ProportionalHeight
+                        spacing: 8
+
+                        Repeater {
+                            model: root.aiHistory
+
+                            delegate: Item {
+                                id: bubbleItem
+                                required property var modelData
+                                required property int index
+                                Layout.fillWidth: true
+                                Layout.preferredHeight: bubble.implicitHeight + 22
+
+                                readonly property bool isUser: modelData.role === "user"
+
+                                property real anim: 0
+                                property string ts: ""
+
+                                Component.onCompleted: {
+                                    ts = Qt.formatTime(new Date(), "hh:mm")
+                                    enterAnim.start()
+                                }
+
+                                SequentialAnimation {
+                                    id: enterAnim
+                                    NumberAnimation {
+                                        target: bubbleItem
+                                        property: "anim"
+                                        from: 0; to: 1.08
+                                        duration: 200
+                                        easing.type: Easing.OutCubic
+                                    }
+                                    NumberAnimation {
+                                        target: bubbleItem
+                                        property: "anim"
+                                        to: 1.0
+                                        duration: 140
+                                        easing.type: Easing.OutBack
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: avatar
+                                    visible: !isUser
+                                    anchors.left: parent.left
+                                    anchors.top: parent.top
+                                    width: 22; height: 22; radius: 11
+                                    color: Qt.rgba(0.37, 0.36, 0.90, 0.6)
+                                    border.width: 1
+                                    border.color: Qt.rgba(1, 1, 1, 0.15)
+
+                                    SiriOrb {
+                                        anchors.centerIn: parent
+                                        width: 16
+                                        height: 16
+                                        size: 16
+                                        active: false
+                                        showRing: false
+                                    }
+                                }
+
+                                Rectangle {
+                                    id: bubble
+                                    anchors.right: isUser ? parent.right : undefined
+                                    anchors.left: isUser ? undefined : avatar.right
+                                    anchors.leftMargin: 8
+
+                                    transform: [
+                                        Translate { y: (1 - bubbleItem.anim) * 12 },
+                                        Scale {
+                                            origin.x: isUser ? bubble.width : 0
+                                            origin.y: bubble.height
+                                            xScale: 0.9 + 0.1 * bubbleItem.anim
+                                            yScale: 0.9 + 0.1 * bubbleItem.anim
+                                        }
+                                    ]
+                                    opacity: Math.min(1, bubbleItem.anim)
+
+                                    radius: 18
+
+                                    width: Math.min(parent.width * (isUser ? 0.78 : 0.85), implicitWidth)
+                                    implicitWidth: bubbleText.implicitWidth + 24
+                                    implicitHeight: bubbleText.implicitHeight + 20
+
+                                    gradient: Gradient {
+                                        orientation: Gradient.Diagonal
+                                        GradientStop {
+                                            position: 0.0
+                                            color: isUser
+                                                ? Qt.rgba(0.20, 0.55, 1.0, 0.95)
+                                                : Qt.rgba(1, 1, 1, 0.12)
+                                        }
+                                        GradientStop {
+                                            position: 1.0
+                                            color: isUser                                                ? Qt.rgba(0.10, 0.40, 0.95, 0.95)
+                                                : Qt.rgba(1, 1, 1, 0.06)
+                                        }
+                                    }
+
+                                    border.width: 1
+                                    border.color: isUser
+                                        ? Qt.rgba(0.40, 0.70, 1.0, 0.35)
+                                        : Qt.rgba(1, 1, 1, 0.14)
+
+
+                                    Text {
+                                        id: bubbleText
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: 12
+                                        text: modelData.content
+                                        textFormat: isUser ? Text.PlainText : Text.MarkdownText
+                                        color: "#ffffff"
+                                        font { family: "SF Pro Text"; pixelSize: 14 }
+                                        wrapMode: Text.Wrap
+                                        lineHeight: 1.4
+                                        lineHeightMode: Text.ProportionalHeight
+                                    }
+                                }
+
+                                Row {
+                                    anchors.top: bubble.bottom
+                                    anchors.topMargin: 3
+                                    anchors.right: isUser ? bubble.right : undefined
+                                    anchors.left: isUser ? undefined : bubble.left
+                                    spacing: 4
+
+                                    Text {
+                                        text: bubbleItem.ts
+                                        color: Qt.rgba(1, 1, 1, 0.28)
+                                        font { family: "SF Pro Text"; pixelSize: 9 }
+                                    }
+                                    Text {
+                                        visible: isUser
+                                        text: "✓✓"
+                                        color: Qt.rgba(0.4, 0.75, 1.0, 0.7)
+                                        font { family: "SF Pro Text"; pixelSize: 9; weight: Font.Bold }
+                                    }
+                                }
+                            }
+                        }
+
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.preferredHeight: root.aiLoading ? 30 : 0
+                            visible: root.aiLoading
+
+                            SequentialAnimation on opacity {
+                                running: root.aiLoading
+                                loops: Animation.Infinite
+                                NumberAnimation { to: 0.4; duration: 600; easing.type: Easing.InOutSine }
+                                NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
+                            }
+
+                            Row {
+                                anchors.left: parent.left
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: 6
+
+                                Text {
+                                    text: "Hermes está digitando"
+                                    color: root.sFgDim
+                                    font { family: "SF Pro Text"; pixelSize: 12; italic: true }
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                                Text {
+                                    text: ".".repeat((_dotsTimer.tick % 3) + 1)
+                                    color: root.sFgDim
+                                    font { family: "SF Pro Text"; pixelSize: 12; italic: true }
+                                    anchors.verticalCenter: parent.verticalCenter
+                                }
+                            }
+                        }
+
+                        Connections {
+                            target: root
+                            function onAiHistoryChanged() {
+                                Qt.callLater(() => {
+                                    scrollAnim.to = Math.max(0, aiScroll.contentHeight - aiScroll.height)
+                                    scrollAnim.start()
+                                })
+                            }
+                        }
+
+                        NumberAnimation {
+                            id: scrollAnim
+                            target: aiScroll.contentItem
+                            property: "contentY"
+                            duration: 260
+                            easing.type: Easing.OutCubic
+                        }
+                    }
+                }
+
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 40
+                    radius: 10
+                    color: Qt.rgba(1, 1, 1, 0.06)
+                    border.width: 1
+                    border.color: chatInput.activeFocus ? root.accent : Qt.rgba(1, 1, 1, 0.12)
+                    Behavior on border.color { ColorAnimation { duration: 120 } }
+
+                    RowLayout {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        anchors.rightMargin: 6
+                        spacing: 8
+
+                        TextInput {
+                            id: chatInput
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            color: root.sFg
+                            font { family: "SF Pro Text"; pixelSize: 14 }
+                            selectByMouse: true
+                            clip: true
+                            enabled: !root.aiLoading
+
+                            Text {
+                                anchors.fill: parent
+                                text: root.aiLoading ? "Aguarde…" : "Continuar a conversa…"
+                                color: root.placeholderFg
+                                font: chatInput.font
+                                verticalAlignment: Text.AlignVCenter
+                                visible: chatInput.text.length === 0
+                            }
+
+                            Keys.onReturnPressed: (event) => {
+                                const t = chatInput.text.trim();
+                                if (t.length === 0 || root.aiLoading) return;
+                                chatInput.text = "";
+                                root.runHermes(t);
+                                event.accepted = true;
+                            }
+                            Keys.onEnterPressed: (event) => {
+                                const t = chatInput.text.trim();
+                                if (t.length === 0 || root.aiLoading) return;
+                                chatInput.text = "";
+                                root.runHermes(t);
+                                event.accepted = true;
+                            }
+                        }
+
+                        Rectangle {
+                            Layout.preferredWidth: 30
+                            Layout.preferredHeight: 30
+                            Layout.alignment: Qt.AlignVCenter
+                            radius: 8
+                            color: {
+                                if (root.aiLoading) return Qt.rgba(1, 1, 1, 0.04);
+                                if (sendMA.containsMouse) return Qt.rgba(0.0, 0.48, 1.0, 0.55);
+                                return Qt.rgba(0.0, 0.48, 1.0, 0.35);
+                            }
+                            Behavior on color { ColorAnimation { duration: 100 } }
+
+                            Canvas {
+                                anchors.centerIn: parent
+                                width: 14; height: 14
+                                onPaint: {
+                                    var ctx = getContext("2d"); ctx.reset()
+                                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9); ctx.lineWidth = 1.6
+                                    ctx.lineCap = "round"; ctx.lineJoin = "round"
+                                    ctx.beginPath()
+                                    ctx.moveTo(2, 7); ctx.lineTo(12, 7)
+                                    ctx.moveTo(8, 3); ctx.lineTo(12, 7); ctx.lineTo(8, 11)
+                                    ctx.stroke()
+                                }
+                            }
+
+                            MouseArea {
+                                id: sendMA
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                enabled: !root.aiLoading
+                                onClicked: {
+                                    const t = chatInput.text.trim();
+                                    if (t.length === 0) return;
+                                    chatInput.text = "";
+                                    root.runHermes(t);
+                                }
+                            }
+                        }
                     }
                 }
 
                 Text {
                     Layout.fillWidth: true
-                    visible: !root.aiLoading
-                    text: "Press ENTER to copy."
+                    visible: !root.aiLoading && root.aiHistory.length === 0
+                    text: "Enter para enviar · o histórico é limpo ao fechar o Spotlight"
                     color: root.headerFg
                     font { family: "SF Pro Text"; pixelSize: 10 }
                 }
@@ -3079,8 +3569,24 @@ PanelWindow {
 
     Timer { id: _fdDeb; interval: 140; repeat: false; onTriggered: root.runFd() }
     Timer { id: _sideEffectsDeb; interval: 250; repeat: false; onTriggered: root.runSideEffects() }
-    // só dispara no modo automático (aiAutoQuestion); nos demais o envio é no Enter
+    Timer { id: _rebuildDeb; interval: 30; repeat: false; onTriggered: root.buildResults() }
     Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runHermes(root._pendingAiPrompt) }
+    Timer {
+        id: _aiRetryTimer
+        interval: 1000; repeat: false
+        property string prompt: ""
+        onTriggered: { if (prompt) root.runHermes(prompt, true); }
+    }
+
+    Timer {
+        id: _dotsTimer
+        interval: 400
+        running: root.aiLoading
+        repeat: true
+        property int tick: 0
+        onTriggered: tick++
+    }
+
     Process { id: _mediaCmd; running: false }
 
     Timer {
@@ -3105,7 +3611,7 @@ PanelWindow {
                 if (newText !== root.nowPlayingText || newStatus !== root.nowPlayingStatus) {
                     root.nowPlayingText = newText;
                     root.nowPlayingStatus = newStatus;
-                    if (root._shown) root.buildResults();
+                    if (root._shown) root.scheduleRebuild();
                 }
             }
         }
@@ -3132,7 +3638,7 @@ PanelWindow {
                 const id = parseInt(lines.shift());
                 if (id !== root._fdReq) return;
                 root.fileItems = root.parseFdLines(lines);
-                root.buildResults();
+                root.scheduleRebuild();
             }
         }
     }
@@ -3144,14 +3650,13 @@ PanelWindow {
                 const lines = text.split("\n");
                 root.browseDir = lines.shift().trim();
                 root.recentItems = root.parseFdLines(lines);
-                if (root.mode === "files") root.buildResults();
+                if (root.mode === "files") root.scheduleRebuild();
             }
         }
     }
 
     Process {
         id: _clip; running: false
-        // Decode clipboard entries only to identify image MIME types and cache image bytes locally.
         command: ["bash", "-c", "cache=\"$HOME/.cache/quickshell/spotlight-clipboard\"; mkdir -p \"$cache\"; cliphist list 2>/dev/null | head -n 30 | while IFS=$'\\t' read -r id preview; do [ -n \"$id\" ] || continue; mime=$(cliphist decode \"$id\" 2>/dev/null | file --brief --mime-type - 2>/dev/null); case \"$mime\" in image/*) ext=${mime#image/}; case \"$ext\" in jpeg) ext=jpg;; svg+xml) ext=svg;; esac; path=\"$cache/$id.$ext\"; cliphist decode \"$id\" > \"$path\" 2>/dev/null && printf '%s\\tIMAGE\\t%s\\t%s\\n' \"$id\" \"$path\" \"$mime\";; *) printf '%s\\tTEXT\\t\\t%s\\n' \"$id\" \"$preview\";; esac; done"]
         stdout: StdioCollector {
             onStreamFinished: {
@@ -3168,7 +3673,7 @@ PanelWindow {
                     out.push({ id: id, text: t.length > 120 ? t.slice(0, 120) + "\u2026" : t,
                                isImage: isImage, imagePath: imagePath });
                 }
-                root.clipItems = out; if (root.mode === "clipboard") root.buildResults();
+                root.clipItems = out; if (root.mode === "clipboard") root.scheduleRebuild();
             }
         }
     }
@@ -3180,8 +3685,7 @@ PanelWindow {
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 root.clipItems = [];
-                if (root.mode === "clipboard")
-                    root.buildResults();
+                if (root.mode === "clipboard") root.scheduleRebuild();
                 console.log("Clipboard history cleared");
             } else {
                 console.warn("Failed to clear clipboard history. Exit code:", exitCode);
@@ -3199,14 +3703,20 @@ PanelWindow {
                     def = (data[0] && data[0].meanings && data[0].meanings[0] && data[0].meanings[0].definitions && data[0].meanings[0].definitions[0] && data[0].meanings[0].definitions[0].definition) || "";
                 } catch (e) { def = ""; }
                 root.dictText = def;
-                if (root._shown) root.buildResults();
+                const s = root.query.trim().toLowerCase();
+                const m = s.match(/^(define|significado|meaning)\s+(.+)$/);
+                if (m) {
+                    const pt = m[1] === "significado";
+                    const lang = pt ? "pt-BR" : "en";
+                    const word = m[2].trim().replace(pt ? /[^a-zà-ú-]/g : /[^a-z-]/g, "");
+                    if (word) root.cacheSet("dict:" + lang + ":" + word, def);
+                }
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
 
-    Process {
-        id: _saveUsage; running: false
-    }
+    Process { id: _saveUsage; running: false }
     Process {
         id: _loadUsage; running: false
         command: ["bash", "-c", "cat ~/.cache/spotlight-usage.json 2>/dev/null || echo '{}'"]
@@ -3243,12 +3753,14 @@ PanelWindow {
                     const p = root._pendingCurrency;
                     if (p && data.rates && data.rates[p.to] !== undefined) {
                         const result = (p.val * data.rates[p.to]).toFixed(p.to === "BTC" ? 8 : 2);
-                        root.currencyText = p.val + " " + p.from + " = " + result + " " + p.to;
+                        const txt = p.val + " " + p.from + " = " + result + " " + p.to;
+                        root.currencyText = txt;
+                        root.cacheSet("cur:" + p.from + ":" + p.to + ":" + p.val, txt);
                     } else {
                         root.currencyText = "";
                     }
                 } catch (e) { root.currencyText = ""; }
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3265,7 +3777,7 @@ PanelWindow {
                     const state = (t.match(/state:\s*(\S+)/) || [])[1] || "";
                     root.batteryText = pct + (state ? " \u2014 " + state : "");
                 }
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3276,7 +3788,7 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 root.ipText = text.trim().replace("\n", "  \u2022  ");
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3290,7 +3802,7 @@ PanelWindow {
                     const data = JSON.parse(text);
                     root.windowItems = data.map(w => ({ title: w.title || w.class || "(untitled)", address: w.address, cls: w.class || "" }));
                 } catch (e) { root.windowItems = []; }
-                if (root.mode === "windows") root.buildResults();
+                if (root.mode === "windows") root.scheduleRebuild();
             }
         }
     }
@@ -3311,7 +3823,7 @@ PanelWindow {
                     out.push({ ssid: ssid, active: active });
                 }
                 root.wifiItems = out;
-                if (root.mode === "wifi") root.buildResults();
+                if (root.mode === "wifi") root.scheduleRebuild();
             }
         }
     }
@@ -3327,7 +3839,7 @@ PanelWindow {
                     return { mac: p[1] || "", name: p.slice(2).join(" ") || l };
                 });
                 root.btItems = out;
-                if (root.mode === "bluetooth") root.buildResults();
+                if (root.mode === "bluetooth") root.scheduleRebuild();
             }
         }
     }
@@ -3343,7 +3855,7 @@ PanelWindow {
                     const sp = root.splitPath(p);
                     return { name: sp.name, path: p, dir: sp.dir };
                 });
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3362,7 +3874,7 @@ PanelWindow {
                     out.push({ pid: parseInt(m[1]), mb: Math.round(parseInt(m[2]) / 1024), name: m[3] });
                 }
                 root.procItems = out;
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3377,7 +3889,7 @@ PanelWindow {
                 let out = lines.join("\n").trim();
                 if (!out) out = root._devLabel.indexOf("decodificado") >= 0 ? "Base64 inválido" : "(vazio)";
                 root.devResult = { q: root._devQ, text: out, label: root._devLabel };
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3406,7 +3918,7 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 root.sysStatsText = text.trim();
-                if (root._shown && root.query.length === 0 && root.mode === "search") root.buildResults();
+                if (root._shown && root.query.length === 0 && root.mode === "search") root.scheduleRebuild();
             }
         }
     }
@@ -3418,7 +3930,7 @@ PanelWindow {
                 const t = text.trim();
                 if (t.length !== root._passWanted) return;
                 root.passText = t;
-                if (root._shown) root.buildResults();
+                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3434,7 +3946,7 @@ PanelWindow {
         id: _clipPreview; running: false
         stdout: StdioCollector {
             onStreamFinished: {
-                if (root._clipPrevKey !== root.selectedKey) return;   // a seleção já mudou
+                if (root._clipPrevKey !== root.selectedKey) return;
                 const nl = text.indexOf("\n");
                 const head = nl >= 0 ? text.slice(0, nl) : text;
                 const body = nl >= 0 ? text.slice(nl + 1) : "";
