@@ -16,13 +16,14 @@ PanelWindow {
     screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0]
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    visible: root._shown
+    visible: root._shown && !root._capturing
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "macos:spotlight"
     WlrLayershell.layer: WlrLayer.Overlay
-    WlrLayershell.keyboardFocus: root._shown ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+        WlrLayershell.keyboardFocus: root._shown
+        ? (root._screenshotSelecting ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
+        : WlrKeyboardFocus.None
 
-    // ── Configuração ──
     property string terminal: "kitty"
     property bool aiAutoQuestion: true
 
@@ -125,6 +126,12 @@ PanelWindow {
     property int _aiRetries: 0
     property var aiHistory: []
     property bool aiConversationMode: false
+    property bool aiPersistentHistory: false
+    property bool _screenshotSelecting: false
+    property string _ocrMode: "analyze"   // "analyze" | "translate"
+    property string _ocrLang: "pt"
+    property bool _capturing: false          // esconde o Spotlight enquanto captura a tela
+    property string _screenQuestion: ""
 
     readonly property bool aiErrored: root.aiText.startsWith("Sem resposta")
                                      || root.aiText.startsWith("Hermes Agent:")
@@ -159,9 +166,6 @@ PanelWindow {
         { e: "🐻", n: "bear" }, { e: "🐼", n: "panda" }, { e: "🐸", n: "frog" }
     ]
 
-    // ════════════════════════════════════════════════════════════════
-    // HELPERS
-    // ════════════════════════════════════════════════════════════════
     function shellQuote(s) {
         return "'" + String(s).replace(/'/g, "'\\''") + "'";
     }
@@ -186,11 +190,9 @@ PanelWindow {
     }
 
     function openUrl(u) {
-        console.log("[spotlight] openUrl:", u);
         let ok = false;
-        try { ok = Qt.openUrlExternally(u); } catch (e) { console.warn("[spotlight] Qt.openUrlExternally falhou:", e); }
+        try { ok = Qt.openUrlExternally(u); } catch (e) { }
         if (!ok) {
-            console.warn("[spotlight] Qt.openUrlExternally retornou false; usando xdg-open/gio");
             SpotlightController.run(
                 "(" + root.xdgOpenCmd(u) + ") || gio open " + root.shellQuote(u) + " >/dev/null 2>&1 &"
             );
@@ -199,6 +201,10 @@ PanelWindow {
 
     function copyText(s) {
         SpotlightController.run("printf '%s' " + root.shellQuote(s) + " | wl-copy 2>/dev/null || true");
+    }
+
+    function _msg(role, content, label) {
+        return { role: role, content: content, label: label || "", ts: Qt.formatTime(new Date(), "hh:mm") };
     }
 
     function startTimer(secs, label) {
@@ -232,10 +238,8 @@ PanelWindow {
         const pad = n => (n < 10 ? "0" : "") + n;
         let hh = -1, mm = 0;
         let hasDate = false, dY = 0, dM = 0, dD = 0;
-
         const timeRe = /\s+(?:[àa]s\s+(\d{1,2})(?::(\d{2})|h(\d{2})?)?|(\d{1,2})(?::(\d{2})|h(\d{2})?))$/i;
         const dateRe = /\s+(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?)$/;
-
         for (let pass = 0; pass < 2; pass++) {
             if (hh < 0) {
                 const tm = text.match(timeRe);
@@ -265,14 +269,12 @@ PanelWindow {
                 }
             }
         }
-
         let remindAt = "", remindMs = 0, timeStr = "";
         if (hh >= 0) {
             const now = new Date();
             let target;
-            if (hasDate) {
-                target = new Date(dY, dM - 1, dD, hh, mm);
-            } else {
+            if (hasDate) target = new Date(dY, dM - 1, dD, hh, mm);
+            else {
                 target = new Date(now.getFullYear(), now.getMonth(), now.getDate(), hh, mm);
                 if (target <= now) target.setDate(target.getDate() + 1);
             }
@@ -282,7 +284,6 @@ PanelWindow {
             remindAt = dY + "-" + pad(dM) + "-" + pad(dD) + " " + timeStr + ":00";
             remindMs = target.getTime();
         }
-
         let dueStr = "", dueLabel = "";
         if (hasDate) {
             dueStr = dY + "-" + pad(dM) + "-" + pad(dD);
@@ -303,8 +304,7 @@ PanelWindow {
             text = text.slice(0, text.length - dm[0].length).trim();
         }
         const t = root.parseTodoInput(text);
-        return { text: t.text, dueStr: t.dueStr, dueLabel: t.dueLabel,
-                remindAt: t.remindAt, remindMs: t.remindMs, duration: duration };
+        return { text: t.text, dueStr: t.dueStr, dueLabel: t.dueLabel, remindAt: t.remindAt, remindMs: t.remindMs, duration: duration };
     }
 
     function scheduleReminder(whenStr, text) {
@@ -328,17 +328,14 @@ PanelWindow {
     function recordUsage(key) {
         const counts = Object.assign({}, root.usageCounts);
         counts[key] = (counts[key] || 0) + 1;
-
         const keys = Object.keys(counts);
         if (keys.length > 600) {
             const fk = keys.filter(k => k.startsWith("file:")).sort((a, b) => counts[a] - counts[b]);
             for (let i = 0; i < keys.length - 500 && i < fk.length; i++) delete counts[fk[i]];
         }
-
         root.usageCounts = counts;
         const payload = JSON.stringify(counts);
-        _saveUsage.command = ["bash", "-c",
-            "mkdir -p ~/.cache && printf '%s' " + root.shellQuote(payload) + " > ~/.cache/spotlight-usage.json"];
+        _saveUsage.command = ["bash", "-c", "mkdir -p ~/.cache && printf '%s' " + root.shellQuote(payload) + " > ~/.cache/spotlight-usage.json"];
         _saveUsage.running = true;
     }
 
@@ -384,7 +381,6 @@ PanelWindow {
         const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "Controle do sistema", iconKey: "shortcut" });
         const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
         let m;
-
         if ((m = ql.match(/^(?:volume|vol|som)\s*([+-])?\s*(\d{1,3})$/))) {
             const n = clamp(parseInt(m[2]), 0, 150);
             const fb = "; notify-send -t 1500 Volume \"$(wpctl get-volume @DEFAULT_AUDIO_SINK@)\"";
@@ -509,9 +505,6 @@ PanelWindow {
         easing.type: Easing.Linear
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // BUSCAS ASSÍNCRONAS
-    // ════════════════════════════════════════════════════════════════
     function runFd() {
         if (root.slashMode || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
             root.fileItems = [];
@@ -537,9 +530,7 @@ PanelWindow {
     function runContentSearch(term) {
         if (!term) return;
         const id = ++root._rgReq;
-        _rg.exec(["bash", "-c",
-            "echo " + id + "; rg -l -i -F --max-count 1 -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"
-        ]);
+        _rg.exec(["bash", "-c", "echo " + id + "; rg -l -i -F --max-count 1 -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"]);
     }
 
     function convertUnits(q) {
@@ -548,10 +539,8 @@ PanelWindow {
         if (!m) return null;
         const val = parseFloat(m[1]);
         if (isNaN(val)) return null;
-
         const alias = {
-            milha: "mi", milhas: "mi", mile: "mi", miles: "mi",
-            libra: "lb", libras: "lb", pound: "lb", pounds: "lb", lbs: "lb",
+            milha: "mi", milhas: "mi", mile: "mi", miles: "mi", libra: "lb", libras: "lb", pound: "lb", pounds: "lb", lbs: "lb",
             metro: "m", metros: "m", meter: "m", meters: "m",
             "quilômetro": "km", "quilômetros": "km", quilometro: "km", quilometros: "km", kilometer: "km", kilometers: "km",
             "centímetro": "cm", "centímetros": "cm", centimetro: "cm", centimetros: "cm",
@@ -581,7 +570,6 @@ PanelWindow {
         const norm = (u) => root.hasOwn(alias, u) ? alias[u] : u;
         const label = (u) => root.hasOwn(names, u) ? names[u] : u;
         const fmt = (v) => String(parseFloat(v.toPrecision(8)));
-
         const from = norm(m[2]), to = norm(m[3]);
         const temps = ["c", "f", "k"];
         if (temps.indexOf(from) >= 0 && temps.indexOf(to) >= 0) {
@@ -619,11 +607,9 @@ PanelWindow {
             if (root._shown) root.scheduleRebuild();
             return;
         }
-
         const req = ++root._wxReq;
         if (root._wxGeoXhr) { try { root._wxGeoXhr.abort(); } catch (e) {} }
         if (root._wxDataXhr) { try { root._wxDataXhr.abort(); } catch (e) {} }
-
         const geo = new XMLHttpRequest();
         root._wxGeoXhr = geo;
         geo.timeout = 10000;
@@ -636,7 +622,6 @@ PanelWindow {
                 place = (preferBR && list.find(r => r.country_code === "BR")) || list[0] || null;
             } catch (e) { place = null; }
             if (!place) { root.weatherText = "Cidade não encontrada: " + city; if (root._shown) root.scheduleRebuild(); return; }
-
             const wx = new XMLHttpRequest();
             root._wxDataXhr = wx;
             wx.timeout = 10000;
@@ -720,30 +705,20 @@ PanelWindow {
 
     function checkBattery() {
         const s = root.query.trim().toLowerCase();
-        if (s === "bateria" || s === "battery") {
-            _battery.running = true;
-        } else if (root.batteryText) {
-            root.batteryText = "";
-        }
+        if (s === "bateria" || s === "battery") _battery.running = true;
+        else if (root.batteryText) root.batteryText = "";
     }
 
     function checkMyIp() {
         const s = root.query.trim().toLowerCase();
-        if (s === "meu ip" || s === "my ip") {
-            _ipInfo.running = true;
-        } else if (root.ipText) {
-            root.ipText = "";
-        }
+        if (s === "meu ip" || s === "my ip") _ipInfo.running = true;
+        else if (root.ipText) root.ipText = "";
     }
 
     function checkPassword() {
         const s = root.query.trim().toLowerCase();
         const m = s.match(/^(senha|password)\s*(\d+)?$/);
-        if (!m) {
-            if (root.passText) root.passText = "";
-            root._passKey = "";
-            return;
-        }
+        if (!m) { if (root.passText) root.passText = ""; root._passKey = ""; return; }
         if (root._passKey === s) return;
         root._passKey = s;
         const len = Math.max(4, Math.min(64, parseInt(m[2] || "16")));
@@ -751,10 +726,99 @@ PanelWindow {
         _pass.exec(["bash", "-c", "LC_ALL=C tr -dc 'A-Za-z0-9!@#$%&*' </dev/urandom | head -c " + len]);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // IA (Hermes Agent) — com histórico multi-turno
-    // ════════════════════════════════════════════════════════════════
-    function runHermes(prompt, isRetry) {
+    function isTodoIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(crie|criar|adicionar?|adiciona|nova|novo|anote|anotar)\s+(uma\s+)?(tarefa|todo|to-?do)/i.test(s)
+            || /(me\s+lembr[ea]r?\s+de)/i.test(s);
+    }
+    function isNoteIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(crie|criar|salve|salvar|anote|anotar|nova)\s+(uma\s+)?(nota|anota[çc][ãa]o|note)/i.test(s);
+    }
+    function isEmailIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(mande|mandar|envi[ae]|enviar|escreva)\s+(um\s+)?(e-?mail|email|correio)/i.test(s)
+            || /(email|e-?mail)\s+(pro?|para)\s+[^\s]+@/i.test(s);
+    }
+    function isTimerIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(me\s+avise\s+em|timer|pomodoro|conte?|inici[ae]r?)\s+\d+/i.test(s)
+            || /\d+\s+(minuto|min|segundo|seg|hora|h)\b/i.test(s) && /(avise|timer|conte?)/i.test(s);
+    }
+    function isAliasIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(crie|criar|novo|nova)\s+(um\s+)?atalho/i.test(s);
+    }
+    function isBlockIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(bloqueie|bloquear|bloqueia)\s+([\w.-]+\.\w+)/i.test(s);
+    }
+    function isFocusIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(modo\s+foco|foco\s+por)/i.test(s);
+    }
+    function isMeetingIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(vou\s+entrar\s+(numa|em)\s+reuni[ãa]o|modo\s+reuni[ãa]o|iniciar\s+reuni[ãa]o)/i.test(s);
+    }
+    function isBriefingIntent(p) {
+        const s = String(p).toLowerCase();
+        return /^(bom\s+dia|briefing|resumo\s+do\s+dia|o\s+que\s+tenho\s+hoje)\s*[?!.]?$/i.test(s);
+    }
+    function isGitIntent(p) {
+        const s = String(p).toLowerCase();
+        return /^(git\s+commit|commit|mensagem\s+de\s+commit)$/i.test(s);
+    }
+    function isScreenshotIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(o\s+que|analise?|analisa|veja?|olhe?|leia?|traduza?|explica?|explique)\s+(est[áa]|ness[ae]|na|essa?)\s+(tela|screenshot|captura|imagem)/i.test(s)
+            || /(o\s+que\s+est[áa]\s+na\s+tela)/i.test(s);
+    }
+    function isWebSummaryIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(resuma?|resumir|analise?|analisa|o\s+que\s+diz)\s+(esse\s+)?(link|url|site)/i.test(s)
+            || /https?:\/\/\S+/i.test(s) && /(resuma?|analise?|o\s+que)/i.test(s);
+    }
+    function isPdfSummaryIntent(p) {
+        const s = String(p).toLowerCase();
+        return /(resuma?|resumir|analise?|analisa)\s+(o\s+|esse\s+|esta\s+)?(pdf|documento)/i.test(s);
+    }
+
+    function structuredIntent(p) {
+        if (root.isTodoIntent(p))        return "todo";
+        if (root.isNoteIntent(p))        return "note";
+        if (root.isEmailIntent(p))       return "email";
+        if (root.isTimerIntent(p))       return "timer";
+        if (root.isAliasIntent(p))       return "alias";
+        if (root.isBlockIntent(p))       return "block";
+        if (root.isFocusIntent(p))       return "focus";
+        if (root.isMeetingIntent(p))     return "meeting";
+        if (root.isBriefingIntent(p))    return "briefing";
+        if (root.isGitIntent(p))         return "git";
+        if (root.isScreenshotIntent(p))  return "screenshot";
+        if (root.isWebSummaryIntent(p))  return "web";
+        if (root.isPdfSummaryIntent(p))  return "pdf";
+        return "";
+    }
+
+    function buildSystemPrompt(intent, nowStr) {
+        const base = "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma.";
+        const extra = {
+            todo: `\nO usuário quer criar uma tarefa. Data atual: ${nowStr}. RESPONDA APENAS com JSON:\n{"action":"add_todo","text":"...","due":"YYYY-MM-DD HH:MM"}`,
+            note: `\nO usuário quer criar uma nota. RESPONDA APENAS com JSON:\n{"action":"add_note","title":"...","content":"..."}`,
+            email: `\nO usuário quer enviar email. RESPONDA APENAS com JSON:\n{"action":"send_email","to":"...","subject":"...","body":"..."}`,
+            timer: `\nO usuário quer um timer. RESPONDA APENAS com JSON:\n{"action":"start_timer","seconds":N,"label":"..."}`,
+            alias: `\nO usuário quer criar um atalho. RESPONDA APENAS com JSON:\n{"action":"create_alias","name":"...","actions":["..."]}`,
+            block: `\nO usuário quer bloquear sites. RESPONDA APENAS com JSON:\n{"action":"block_sites","sites":["..."],"minutes":N}`,
+            focus: `\nO usuário quer modo foco. RESPONDA APENAS com JSON:\n{"action":"focus_mode","minutes":N}`,
+            screenshot: `\nO usuário quer analisar ou traduzir a tela. RESPONDA APENAS com JSON:\n{"action":"screenshot","selectArea":true,"translate":false,"lang":"pt"}\nUse translate:true se ele pedir tradução e lang com o código do idioma de destino.`,
+            web: `\nO usuário quer resumir um link. RESPONDA APENAS com JSON:\n{"action":"web_summary","url":"<url>"}`,
+            pdf: `\nO usuário quer resumir um PDF. RESPONDA APENAS com JSON:\n{"action":"pdf_summary","path":"<caminho>"}`
+        };
+        return base + (extra[intent] ? extra[intent] : "");
+    }
+
+    function runHermes(prompt, isRetry, label) {
         isRetry = !!isRetry;
         if (!prompt) return;
         if (!root.hermesKey) {
@@ -763,41 +827,90 @@ PanelWindow {
             if (root._shown) root.scheduleRebuild();
             return;
         }
-        if (prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
+        if (!isRetry && prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
 
         if (!isRetry) root._aiRetries = 0;
         root._lastAiQuery = prompt;
         root.aiLoading = true;
         root.aiText = "Thinking…";
 
-        // atualiza histórico ANTES do XHR (a pergunta aparece na hora)
         const h = root.aiHistory.slice();
-        h.push({ role: "user", content: prompt });
+        if (!isRetry) h.push(root._msg("user", prompt, label));
         while (h.length > 20) h.shift();
         root.aiHistory = h;
-
         const history = root.aiHistory.slice();
+
+        const now = new Date();
+        const pad2 = n => String(n).padStart(2, "0");
+        const nowStr = now.getFullYear() + "-" + pad2(now.getMonth()+1) + "-" + pad2(now.getDate())
+                     + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
+        const internal = /^(Translate the following text|Analise este texto extra|Resuma este|Gere mensagem de commit|Formate este briefing|Contexto da tela)/.test(prompt);
+        const intent = internal ? "" : root.structuredIntent(prompt);
+        const sysContent = root.buildSystemPrompt(intent, nowStr);
 
         const req = ++root._aiReq;
         if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} }
-
         const xhr = new XMLHttpRequest();
         root._aiXhr = xhr;
 
         const finish = (answer) => {
             if (req !== root._aiReq) return;
             if (answer.length > 4000) answer = answer.slice(0, 4000) + "…";
+
+            const trimmed = String(answer).trim();
+            const cleaned = trimmed
+                .replace(/^```json\s*/i, "")
+                .replace(/^```\s*/i, "")
+                .replace(/```\s*$/i, "")
+                .trim();
+
+            if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+                try {
+                    const obj = JSON.parse(cleaned);
+                    if (obj.action === "screenshot") {
+                        root._ocrMode = obj.translate === true ? "translate" : "analyze";
+                        root._ocrLang = obj.lang || "pt";
+                        root.aiText = "📸 Capturando tela…";
+                        SpotlightActions.runScreenshotOcr(obj.selectArea === true);
+                        return;
+                    }
+                    if (obj.action === "web_summary" && obj.url) {
+                        root.aiText = "🌐 Baixando " + obj.url + "…";
+                        SpotlightActions.scrapeUrl(obj.url);
+                        return;
+                    }
+                    if (obj.action === "pdf_summary" && obj.path) {
+                        root.aiText = "📄 Lendo " + obj.path + "…";
+                        SpotlightActions.summarizePdf(obj.path);
+                        return;
+                    }
+                    const handled = root.handleStructuredAction(obj, prompt);
+                    if (handled) {
+                        root.aiText = handled;
+                        root.aiLoading = false;
+                        root._aiXhr = null;
+                        const h2 = root.aiHistory.slice();
+                        h2.push(root._msg("assistant", handled));
+                        while (h2.length > 20) h2.shift();
+                        root.aiHistory = h2;
+                        if (root.aiPersistentHistory) SpotlightActions.saveHistory(JSON.stringify(root.aiHistory));
+                        SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote(handled));
+                        if (root._shown) root.scheduleRebuild();
+                        return;
+                    }
+                } catch (e) { }
+            }
+
             root.aiText = answer;
             root.aiLoading = false;
             root._aiXhr = null;
-
             if (!root.aiErrored) {
                 const h2 = root.aiHistory.slice();
-                h2.push({ role: "assistant", content: answer });
+                h2.push(root._msg("assistant", answer));
                 while (h2.length > 20) h2.shift();
                 root.aiHistory = h2;
+                if (root.aiPersistentHistory) SpotlightActions.saveHistory(JSON.stringify(root.aiHistory));
             }
-
             if (root._shown) root.scheduleRebuild();
         };
 
@@ -840,17 +953,93 @@ PanelWindow {
         xhr.open("POST", root.hermesUrl + "/v1/chat/completions");
         xhr.setRequestHeader("Content-Type", "application/json");
         xhr.setRequestHeader("Authorization", "Bearer " + root.hermesKey);
-        xhr.timeout = 30000;
+        xhr.timeout = 60000;
         xhr.send(JSON.stringify({
             model: root.hermesModel,
             stream: false,
             messages: [
-                { role: "system", content: "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma." },
-                ...history
+                { role: "system", content: sysContent },
+                ...history.map(m => ({ role: m.role, content: m.content }))
             ]
         }));
-
         root.scheduleRebuild();
+    }
+
+    function handleStructuredAction(obj, prompt) {
+        if (!obj || !obj.action) return "";
+        switch (obj.action) {
+            case "add_todo": {
+                if (!obj.text) return "";
+                let due = undefined;
+                let dueLabel = "";
+                if (obj.due) {
+                    const parts = String(obj.due).trim().split(/\s+/);
+                    const datePart = parts[0];
+                    const timePart = parts[1] || "09:00";
+                    const [y, m, d] = datePart.split("-").map(Number);
+                    const [hh, mm] = timePart.split(":").map(Number);
+                    if ([y, m, d, hh, mm].every(n => !isNaN(n))) {
+                        due = new Date(Date.UTC(y, m - 1, d, hh, mm));
+                        dueLabel = String(d).padStart(2, "0") + "/" + String(m).padStart(2, "0")
+                                 + " às " + String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
+                    }
+                }
+                Todo.addTask(obj.text, due);
+                if (due && due.getTime() > Date.now()) {
+                    const whenStr = due.getFullYear() + "-"
+                        + String(due.getMonth() + 1).padStart(2, "0") + "-"
+                        + String(due.getDate()).padStart(2, "0") + " "
+                        + String(due.getHours()).padStart(2, "0") + ":"
+                        + String(due.getMinutes()).padStart(2, "0") + ":00";
+                    root.scheduleReminder(whenStr, obj.text);
+                }
+                return "✅ Tarefa criada: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
+            }
+            case "add_note": return SpotlightActions.addObsidianNote(obj.title || "Nota", obj.content || "");
+            case "send_email": return SpotlightActions.sendEmail(obj.to, obj.subject || "", obj.body || "");
+            case "start_timer": {
+                const s = parseInt(obj.seconds) || 0;
+                if (s <= 0) return "";
+                root.startTimer(s, obj.label || (s + "s"));
+                return "⏱ Timer iniciado: " + (obj.label || (s + "s"));
+            }
+            case "create_alias": return SpotlightActions.createAlias(obj.name, obj.actions || []);
+            case "block_sites": return SpotlightActions.blockSites(obj.sites || [], obj.minutes || 60);
+            case "focus_mode": return SpotlightActions.enterFocusMode(obj.minutes || 120);
+            default: return "";
+        }
+    }
+
+    function looksLikeUrl(t) {
+        return /^(https?:\/\/|www\.)\S+$/i.test(t) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t);
+    }
+
+    function onPageReady(page) {
+        if (!page || !page.ok) {
+            root.aiText = "❌ " + ((page && page.error) || "Não consegui ler o link");
+            root.aiLoading = false;
+            if (root._shown) root.scheduleRebuild();
+            return;
+        }
+        root._lastAiQuery = "";
+        root.runHermes(
+            "Resuma este conteúdo de página web de forma concisa:\n\n"
+            + "TÍTULO: " + (page.title || "") + "\n"
+            + "LINK: " + page.url + "\n\n"
+            + (page.text || "").slice(0, 5000),
+            false,
+            "🌐 Resumir: " + (page.title || page.url)
+        );
+    }
+
+    function buildScreenPrompt(windows, ocr, question) {
+        const ask = question
+            || "Explique o que está sendo mostrado na tela: qual é a atividade do usuário, o que há em cada janela e o que for relevante ou fora do normal. Seja objetivo.";
+        return "Contexto da tela do usuário (capturada agora).\n\n"
+            + "JANELAS NA ÁREA DE TRABALHO ATUAL:\n" + (windows || "(indisponível)") + "\n\n"
+            + "TEXTO LIDO NA TELA POR OCR (pode ter erros, ordem aproximada e texto de várias janelas misturado):\n"
+            + (ocr ? ocr.slice(0, 6000) : "(nenhum texto reconhecido)") + "\n\n"
+            + "PEDIDO: " + ask;
     }
 
     function langName(c) {
@@ -903,7 +1092,6 @@ PanelWindow {
         const s = root.query.trim();
         const isSlashOther = s.startsWith("/") && !/^\/ai\s/i.test(s);
         const prompt = isSlashOther ? "" : root.aiPromptFor(s);
-
         if (!prompt) {
             _aiDeb.stop();
             if (root.aiText !== "") {
@@ -912,11 +1100,9 @@ PanelWindow {
             }
             return;
         }
-
         root._pendingAiPrompt = prompt;
-        if (root.aiIsAuto(s)) {
-            _aiDeb.restart();
-        } else {
+        if (root.aiIsAuto(s)) _aiDeb.restart();
+        else {
             _aiDeb.stop();
             if (prompt !== root._lastAiQuery && root.aiText !== "") {
                 root.clearAi();
@@ -925,9 +1111,6 @@ PanelWindow {
         }
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // HORA
-    // ════════════════════════════════════════════════════════════════
     function fetchTime(city) {
         const cacheKey = "time:" + city.toLowerCase();
         const cached = root.cacheGet(cacheKey, 30 * 1000);
@@ -936,10 +1119,8 @@ PanelWindow {
             if (root._shown) root.scheduleRebuild();
             return;
         }
-
         const req = ++root._timeReq;
         if (root._timeXhr) { try { root._timeXhr.abort(); } catch (e) {} }
-
         const geo = new XMLHttpRequest();
         root._timeXhr = geo;
         geo.timeout = 10000;
@@ -948,28 +1129,24 @@ PanelWindow {
             let place = null;
             try { place = (JSON.parse(geo.responseText).results || [])[0] || null; } catch (e) { place = null; }
             if (!place) { root.timeText = "Cidade não encontrada: " + city; if (root._shown) root.scheduleRebuild(); return; }
-
             const tz = new XMLHttpRequest();
             root._timeXhr = tz;
             tz.timeout = 10000;
             tz.onreadystatechange = function () {
                 if (tz.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
-
                 let tzName = "", utcOffset = null;
                 try {
                     const data = JSON.parse(tz.responseText);
                     tzName = data.timezone || "";
                     if (typeof data.utc_offset_seconds === "number") utcOffset = data.utc_offset_seconds;
-                } catch (e) { /* ignora */ }
-
+                } catch (e) { }
                 if (utcOffset === null) {
                     root.fetchTimezoneFallback(city, place, req, cacheKey);
                     return;
                 }
                 root.renderTime(place, tzName, utcOffset, cacheKey);
             };
-            tz.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude +
-                    "&current=temperature_2m&timezone=auto");
+            tz.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude + "&current=temperature_2m&timezone=auto");
             tz.send();
         };
         geo.open("GET", "https://geocoding-api.open-meteo.com/v1/search?count=3&language=pt&name=" + encodeURIComponent(city));
@@ -1005,20 +1182,14 @@ PanelWindow {
         const localOffsetSec = -now.getTimezoneOffset() * 60;
         const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
         const there = new Date(utcMs + utcOffsetSeconds * 1000);
-
         const pad = (n) => (n < 10 ? "0" : "") + n;
         const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "s\u00e1b"][there.getUTCDay()];
-
         const timeStr = pad(there.getUTCHours()) + ":" + pad(there.getUTCMinutes());
         const dateStr = wd + " " + pad(there.getUTCDate()) + "/" + pad(there.getUTCMonth() + 1);
-
         const diffH = (utcOffsetSeconds - localOffsetSec) / 3600;
         const diffStr = diffH === 0 ? "mesmo fuso que você"
                       : (diffH > 0 ? "+" : "") + (Number.isInteger(diffH) ? diffH : diffH.toFixed(1)) + "h em relação a você";
-
-        const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
-                      (place.country ? ", " + place.country : "");
-
+        const where = place.name + (place.admin1 ? ", " + place.admin1 : "") + (place.country ? ", " + place.country : "");
         const tzSuffix = tzName ? " (" + tzName + ")" : "";
         const txt = where + ": " + timeStr + " \u00b7 " + dateStr + " \u00b7 " + diffStr + tzSuffix;
         root.timeText = txt;
@@ -1050,9 +1221,7 @@ PanelWindow {
         if (root._procKey === name) return;
         root._procKey = name;
         const id = ++root._psReq;
-        _ps.exec(["bash", "-c",
-            "echo " + id + "; ps -u \"$USER\" -o pid=,rss=,comm= --sort=-rss | grep -i -F -- " + root.shellQuote(name) + " | head -12"
-        ]);
+        _ps.exec(["bash", "-c", "echo " + id + "; ps -u \"$USER\" -o pid=,rss=,comm= --sort=-rss | grep -i -F -- " + root.shellQuote(name) + " | head -12"]);
     }
 
     function checkDev() {
@@ -1065,22 +1234,17 @@ PanelWindow {
             kind = m[1].toLowerCase() === "hash" ? "sha256" : m[1].toLowerCase();
             arg = m[2];
         }
-
         if (!kind) {
             if (root.devResult.q) root.devResult = { q: "", text: "", label: "" };
             root._devQ = "";
             return;
         }
         if (root._devQ === q && root.devResult.q === q) return;
-
         let cmd = "", label = "";
         if (kind === "uuid") { cmd = "cat /proc/sys/kernel/random/uuid"; label = "UUID v4"; }
         else if (kind === "b64e") { cmd = "printf '%s' " + root.shellQuote(arg) + " | base64 -w0"; label = "Base64"; }
         else if (kind === "b64d") { cmd = "printf '%s' " + root.shellQuote(arg) + " | base64 -d 2>/dev/null"; label = "Base64 decodificado"; }
-        else {
-            cmd = "printf '%s' " + root.shellQuote(arg) + " | " + kind + "sum | cut -d' ' -f1";
-            label = kind.toUpperCase();
-        }
+        else { cmd = "printf '%s' " + root.shellQuote(arg) + " | " + kind + "sum | cut -d' ' -f1"; label = kind.toUpperCase(); }
         root._devQ = q;
         root._devLabel = label;
         const id = ++root._devReq;
@@ -1114,9 +1278,6 @@ PanelWindow {
         root.checkDev();
     }
 
-    // ════════════════════════════════════════════════════════════════
-    // PREVIEW
-    // ════════════════════════════════════════════════════════════════
     function resetPreview() {
         audioPlayer.stop();
         root.previewThumbPath = "";
@@ -1132,16 +1293,13 @@ PanelWindow {
         root.previewThumbPath = "";
         root.previewNatW = 0;
         root.previewNatH = 0;
-
         const ext = p.split(".").pop().toLowerCase();
         const imgExts = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
         const textExts = ["txt", "md", "json", "qml", "js", "ts", "py", "sh", "conf", "yaml", "yml", "xml", "html", "css", "c", "cpp", "h", "lua", "toml", "ini", "log"];
         const videoExts = ["mp4", "mkv", "webm", "avi", "mov", "m4v", "flv"];
         const audioExts = ["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac"];
-
-        if (isDirectory) {
-            root.previewKind = ""; root.previewPath = ""; root.previewText = "";
-        } else if (imgExts.indexOf(ext) !== -1) {
+        if (isDirectory) { root.previewKind = ""; root.previewPath = ""; root.previewText = ""; }
+        else if (imgExts.indexOf(ext) !== -1) {
             root.previewKind = "image";
             root.previewPath = p;
             root.previewText = "";
@@ -1154,19 +1312,13 @@ PanelWindow {
             root.previewPath = p;
             const thumbPath = "/tmp/spotlight_thumb_" + Date.now() + ".jpg";
             root._pendingPreview = { for: p, path: thumbPath, kind: "video" };
-            _videoThumb.exec(["bash", "-c",
-                "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + root.shellQuote(p) +
-                " -o " + root.shellQuote(thumbPath) + " -s 400 2>/dev/null"
-            ]);
+            _videoThumb.exec(["bash", "-c", "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + root.shellQuote(p) + " -o " + root.shellQuote(thumbPath) + " -s 400 2>/dev/null"]);
         } else if (audioExts.indexOf(ext) !== -1) {
             root.previewKind = "audio";
             root.previewPath = p;
             const coverPath = "/tmp/spotlight_cover_" + Date.now() + ".jpg";
             root._pendingPreview = { for: p, path: coverPath, kind: "audio" };
-            _audioCover.exec(["bash", "-c",
-                "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + root.shellQuote(p) +
-                " -an -frames:v 1 " + root.shellQuote(coverPath) + " 2>/dev/null"
-            ]);
+            _audioCover.exec(["bash", "-c", "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + root.shellQuote(p) + " -an -frames:v 1 " + root.shellQuote(coverPath) + " 2>/dev/null"]);
         } else if (ext === "pdf") {
             root.previewKind = "pdf";
             root.previewPath = p;
@@ -1178,9 +1330,7 @@ PanelWindow {
                 "f=$(ls " + root.shellQuote(thumbBase) + "*.jpg 2>/dev/null | head -1); " +
                 "[ -n \"$f\" ] && mv \"$f\" " + root.shellQuote(thumbBase + ".jpg")
             ]);
-        } else {
-            root.previewKind = ""; root.previewPath = ""; root.previewText = "";
-        }
+        } else { root.previewKind = ""; root.previewPath = ""; root.previewText = ""; }
     }
 
     function previewClipText(id) {
@@ -1203,23 +1353,25 @@ PanelWindow {
         const key = root.selectedKey;
         if (key === root._previewKeyShown) return;
         root._previewKeyShown = key;
-
         const it = root.selectedItem;
-
-        if (it && it.kind === "file") {
-            root.previewFile(it.path, !!it.isDirectory);
-            return;
-        }
-
+        if (it && it.kind === "file") { root.previewFile(it.path, !!it.isDirectory); return; }
         if (it && it.kind === "clip") {
             if (it.isImage && it.imagePath) { root.previewFile(it.imagePath, false); return; }
             if (/^\d+$/.test(it.id || "")) { root.previewClipText(it.id); return; }
         }
-
         root.resetPreview();
     }
 
-    Timer { id: _previewDeb; interval: 120; repeat: false; onTriggered: root.updatePreview() }
+    Timer {
+        id: _previewDeb; interval: 120; repeat: false; onTriggered: root.updatePreview()
+    }
+    Timer {
+        id: _screenshotDeb
+        interval: 150
+        repeat: false
+        property bool useSelectArea: true
+        onTriggered: SpotlightActions.runScreenshotOcr(useSelectArea)
+    }
 
     function computeResultsHeight() {
         const maxH = Math.round(root.screen.height * 0.65);
@@ -1286,7 +1438,6 @@ PanelWindow {
 
     function sortFileResults(arr, q) {
         const ql = q.trim().toLowerCase();
-
         let targetDir = null;
         for (const f of arr) {
             if (!f.isDirectory) continue;
@@ -1294,7 +1445,6 @@ PanelWindow {
             if (n === ql) { targetDir = f; break; }
             if (!targetDir && n.startsWith(ql)) targetDir = f;
         }
-
         if (!targetDir) {
             return arr.slice().sort((a, b) => {
                 const da = a.isDirectory ? 1 : 0;
@@ -1305,16 +1455,13 @@ PanelWindow {
                 return root.naturalCompare(a.name, b.name);
             });
         }
-
         const targetPath = targetDir.path;
         const prefix = targetPath + "/";
-
         const groupOf = (f) => {
             if (f === targetDir) return 0;
             if (f.path.startsWith(prefix)) return 1;
             return 2;
         };
-
         return arr.slice().sort((a, b) => {
             const ga = groupOf(a), gb = groupOf(b);
             if (ga !== gb) return ga - gb;
@@ -1351,25 +1498,17 @@ PanelWindow {
             return true;
         }
         if (cmdName === "emoji") {
-            const filter = cmdArgs.toLowerCase()
-            let list = root.emojiList
+            const filter = cmdArgs.toLowerCase();
+            let list = root.emojiList;
             if (filter.length > 0) {
-                list = list.filter(function (x) {
-                    return x.n.indexOf(filter) !== -1 || x.e.indexOf(filter) !== -1
-                })
+                list = list.filter(function (x) { return x.n.indexOf(filter) !== -1 || x.e.indexOf(filter) !== -1; });
             }
             const shown = list.slice(0, 100).map(function (x) {
-                return {
-                    kind: "emoji",
-                    name: x.e + "  " + x.n,
-                    raw: x.e,
-                    category: "Emoji — Enter to copy"
-                }
-            })
-            _addItems(items, disp, shown, filter ? "EMOJI: " + filter : "EMOJI")
-            return true
+                return { kind: "emoji", name: x.e + "  " + x.n, raw: x.e, category: "Emoji — Enter to copy" };
+            });
+            _addItems(items, disp, shown, filter ? "EMOJI: " + filter : "EMOJI");
+            return true;
         }
-
         if ((cmdName === "todo" || cmdName === "notes") && cmdArgs.length > 0) {
             const orig = root.query.trim().slice(1);
             const t = root.parseTodoInput(orig.slice(spaceIdx + 1));
@@ -1386,7 +1525,6 @@ PanelWindow {
             }], "TODO");
             return true;
         }
-
         if ((cmdName === "calendar" || cmdName === "cal" || cmdName === "evento" || cmdName === "event") && cmdArgs.length > 0) {
             const orig = root.query.trim().slice(1);
             const ev = root.parseEventInput(orig.slice(spaceIdx + 1));
@@ -1396,8 +1534,7 @@ PanelWindow {
             }
             _addItems(items, disp, [{
                 kind: "action",
-                name: "Add event: \u201c" + ev.text + "\u201d \u00b7 " + ev.dueLabel +
-                    (ev.remindAt ? " \u00b7 " + ev.duration + " min" : " \u00b7 dia inteiro"),
+                name: "Add event: \u201c" + ev.text + "\u201d \u00b7 " + ev.dueLabel + (ev.remindAt ? " \u00b7 " + ev.duration + " min" : " \u00b7 dia inteiro"),
                 action: "addevent:",
                 evText: ev.text,
                 evDate: ev.dueStr,
@@ -1410,6 +1547,14 @@ PanelWindow {
             }], "EVENTO");
             return true;
         }
+        if (cmdName === "nota" && cmdArgs.length > 0) {
+            _addItems(items, disp, [{ kind: "action", name: "📝 Criar nota: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTA");
+            return true;
+        }
+        if (cmdName === "email" && cmdArgs.length > 0) {
+            _addItems(items, disp, [{ kind: "action", name: "📧 Enviar email: \u201c" + cmdArgs + "\u201d", action: "aiintent:email:" + cmdArgs, iconKey: "message", category: "Email" }], "EMAIL");
+            return true;
+        }
 
         const allCmds = [
             { kind: "cmd", name: "/apps",       category: "Switch to Applications",         action: "mode:apps" },
@@ -1419,7 +1564,9 @@ PanelWindow {
             { kind: "cmd", name: "/wallpaper",  category: "Change wallpaper (ii)",          action: "ipc:wallpaperSelector:toggle" },
             { kind: "cmd", name: "/tema",       category: "Toggle light/dark theme (ii)",   action: "ipc:theme:toggleLightDark" },
             { kind: "cmd", name: "/barra",      category: "Show/hide bar (ii)",             action: "ipc:bar:toggle" },
-            { kind: "cmd", name: "/screenshot", category: "Take screenshot (ii)",           action: "ipc:region:screenshot" },
+            { kind: "cmd", name: "/screen",     category: "Hermes reads everything on screen (OCR + windows)", action: "screen:" },
+            { kind: "cmd", name: "/screenshot", category: "Analyze screen with OCR + AI",   action: "screenshot:" },
+            { kind: "cmd", name: "/traduzir",   category: "Translate screen area (OCR + Hermes)", action: "ocrtr:" },
             { kind: "cmd", name: "/record",     category: "Record screen (ii)",             action: "ipc:region:record" },
             { kind: "cmd", name: "/ocr",        category: "Screen OCR (ii)",                action: "ipc:region:ocr" },
             { kind: "cmd", name: "/cor",        category: "Color picker (copies hex)",      action: "colorpick:" },
@@ -1428,7 +1575,16 @@ PanelWindow {
             { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
             { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
             { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
-            { kind: "cmd", name: "/nova",       category: "New AI conversation (clears history)", action: "ai-new:" },
+            { kind: "cmd", name: "/nova",       category: "New AI conversation",            action: "ai-new:" },
+            { kind: "cmd", name: "/nota",       category: "Create Obsidian note",           action: "aiintent:note:" },
+            { kind: "cmd", name: "/email",      category: "Send email",                     action: "aiintent:email:" },
+            { kind: "cmd", name: "/foco",       category: "Focus mode",                     action: "focus:" },
+            { kind: "cmd", name: "/reuniao",    category: "Meeting mode",                   action: "meeting:" },
+            { kind: "cmd", name: "/briefing",   category: "Morning briefing",               action: "briefing:" },
+            { kind: "cmd", name: "/git",        category: "Generate git commit message",    action: "git:" },
+            { kind: "cmd", name: "/sum",        category: "Summarize a web page or PDF",    action: "sum:" },
+            { kind: "cmd", name: "/memoria-on", category: "Enable persistent AI history",   action: "mem-on:" },
+            { kind: "cmd", name: "/memoria-off",category: "Disable persistent AI history",  action: "mem-off:" },
             { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
             { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
             { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
@@ -1461,12 +1617,10 @@ PanelWindow {
         else src = root.recentItems.filter(f => f.name.toLowerCase().indexOf(ql) !== -1);
         const fitems = ql ? root.sortFileResults(src, ql) : src;
         const home = root.browseDir.replace(/^\/home\/[^\/]+/, "~");
-        _addItems(items, disp,
-            fitems.map(f => ({
-                kind: "file", name: f.name, path: f.path,
-                dir: f.dir, category: f.dir, isDirectory: f.isDirectory
-            })),
-            ql ? "FILES" : (home || "~"));
+        _addItems(items, disp, fitems.map(f => ({
+            kind: "file", name: f.name, path: f.path,
+            dir: f.dir, category: f.dir, isDirectory: f.isDirectory
+        })), ql ? "FILES" : (home || "~"));
     }
 
     function _buildClipboardMode(items, disp) {
@@ -1522,74 +1676,55 @@ PanelWindow {
         if (!ql && root.nowPlayingText.length > 0) {
             _addItems(items, disp, [{ kind: "media", name: root.nowPlayingText, category: root.nowPlayingStatus === "Playing" ? "Now playing" : "Paused" }], "NOW PLAYING");
         }
-
         if (ql) {
             const aiItems = root._aiResultItems();
             if (aiItems.length) _addItems(items, disp, aiItems, "AI");
         }
-
         if (ql) {
             const urlT = root.urlTarget(q);
-            if (urlT) {
-                _addItems(items, disp, [{ kind: "action", name: "Open " + q.trim(), action: "open:" + urlT, iconKey: "web", category: "Website" }], "OPEN WEBSITE");
-            }
-
+            if (urlT) _addItems(items, disp, [{ kind: "action", name: "Open " + q.trim(), action: "open:" + urlT, iconKey: "web", category: "Website" }], "OPEN WEBSITE");
             const bang = root.bangItem(q);
             if (bang) _addItems(items, disp, [bang], "ATALHO DE SITE");
-
             const sc = root.sysControlItems(ql);
             if (sc.length) _addItems(items, disp, sc, "CONTROLES");
-
             if (root.procItems.length && /^(kill|matar|encerrar|pkill)\s/i.test(q)) {
                 _addItems(items, disp, root.procItems.map(pr => ({
                     kind: "proc", name: pr.name, pid: pr.pid,
-                    category: "PID " + pr.pid + " \u00b7 " + pr.mb + " MB \u00b7 Enter = encerrar \u00b7 \u21e7Enter = for\u00e7ar (SIGKILL)"
+                    category: "PID " + pr.pid + " \u00b7 " + pr.mb + " MB \u00b7 Enter = encerrar \u00b7 \u21e7Enter = for\u00e7ar"
                 })), "PROCESSOS");
             }
-
             if (root.timeText && /^(?:que\s+)?(?:hora|horas|time)\s/.test(ql)) {
                 _addItems(items, disp, [{ kind: "info", name: root.timeText, category: "Hora" }], "HORA");
             }
-
             const colorIt = root.colorItem(q);
             if (colorIt) _addItems(items, disp, [colorIt], "COR");
-
             if (root.devResult.q === q && root.devResult.text) {
-                _addItems(items, disp, [{ kind: "calc", name: root.devResult.text, raw: root.devResult.text,
-                                          category: root.devResult.label + " \u2014 clique para copiar", iconKey: "calc" }], "FERRAMENTAS");
+                _addItems(items, disp, [{ kind: "calc", name: root.devResult.text, raw: root.devResult.text, category: root.devResult.label + " \u2014 clique para copiar", iconKey: "calc" }], "FERRAMENTAS");
             }
-
             const apps = SpotlightApps.search(q);
             apps.sort((a, b) => (root.usageCounts["app:" + b.exec] || 0) - (root.usageCounts["app:" + a.exec] || 0));
             _addItems(items, disp, apps.map(a => ({ kind: "app", name: a.name, icon: a.icon, exec: a.exec, category: a.category || "Application" })), "APPLICATIONS");
         }
         if (ql && root.fileItems.length) {
             const fitems = root.sortFileResults(root.fileItems, q);
-            _addItems(items, disp,
-                fitems.map(f => ({
-                    kind: "file", name: f.name, path: f.path,
-                    dir: f.dir, category: f.dir, isDirectory: f.isDirectory
-                })),
-                "FILES");
+            _addItems(items, disp, fitems.map(f => ({
+                kind: "file", name: f.name, path: f.path,
+                dir: f.dir, category: f.dir, isDirectory: f.isDirectory
+            })), "FILES");
         }
-
         if (ql && (ql.startsWith("clima") || ql.startsWith("weather")) && root.weatherText) {
             _addItems(items, disp, [{ kind: "info", name: root.weatherText, category: "Weather" }], "WEATHER");
         }
         if (ql && (ql.startsWith("define ") || ql.startsWith("significado ") || ql.startsWith("meaning ")) && root.dictText) {
             _addItems(items, disp, [{ kind: "info", name: root.dictText, category: "Definition" }], "DEFINITION");
         }
-
         if (/^(senha|password)\s*(\d+)?$/.test(ql) && root.passText) {
-            _addItems(items, disp, [{ kind: "calc", name: root.passText, raw: root.passText, category: "Generated password — click to copy", iconKey: "lock" }], "PASSWORD");
+            _addItems(items, disp, [{ kind: "calc", name: root.passText, raw: root.passText, category: "Senha gerada — clique para copiar", iconKey: "lock" }], "PASSWORD");
         }
-
         const todoMatch = q.match(/^(todo|tarefa|afazer)\s+(.+)$/i);
         if (todoMatch) {
             let text = todoMatch[2].trim();
-            let dueStr = "";
-            let dueLabel = "";
-
+            let dueStr = "", dueLabel = "";
             const dm = text.match(/\s+(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?)$/);
             if (dm) {
                 const iso = !!dm[1];
@@ -1598,7 +1733,6 @@ PanelWindow {
                 const today = new Date();
                 let y = iso ? parseInt(dm[1]) : (dm[6] ? parseInt(dm[6]) : today.getFullYear());
                 if (!iso && !dm[6] && new Date(y, mo - 1, d, 23, 59) < today) y += 1;
-
                 const check = new Date(Date.UTC(y, mo - 1, d, 12));
                 if (mo >= 1 && mo <= 12 && check.getUTCMonth() === mo - 1 && check.getUTCDate() === d) {
                     const pad = n => (n < 10 ? "0" : "") + n;
@@ -1608,7 +1742,6 @@ PanelWindow {
                     if (rest) text = rest;
                 }
             }
-
             _addItems(items, disp, [{
                 kind: "action",
                 name: "Add to ToDo: \u201c" + text + "\u201d" + (dueLabel ? " \u00b7 " + dueLabel : ""),
@@ -1619,7 +1752,6 @@ PanelWindow {
                 category: "ToDo"
             }], "TODO");
         }
-
         if (ql && (ql === "bateria" || ql === "battery") && root.batteryText) {
             _addItems(items, disp, [{ kind: "info", name: root.batteryText, category: "Battery" }], "BATTERY");
         }
@@ -1629,12 +1761,10 @@ PanelWindow {
         if (ql && root.currencyText) {
             _addItems(items, disp, [{ kind: "calc", name: root.currencyText, raw: root.currencyText, category: "Currency", iconKey: "calc" }], "CURRENCY");
         }
-
         const playMatch = q.match(/^(toque|tocar|play)\s+(.+)$/i);
         if (playMatch) {
             _addItems(items, disp, [{ kind: "action", name: "Play \u201c" + playMatch[2] + "\u201d on Spotify", action: "spotifyplay:" + playMatch[2], iconKey: "music", category: "Spotify" }], "SPOTIFY");
         }
-
         const timerMatch = ql.match(/^timer\s+(\d+)\s*(min|m|s|sec|seg|h)?$/);
         if (timerMatch) {
             const n = parseInt(timerMatch[1]);
@@ -1644,7 +1774,6 @@ PanelWindow {
             else if (unit === "h") secs = n * 3600;
             _addItems(items, disp, [{ kind: "action", name: "Start " + n + " " + unit + " timer", action: "realtimer:" + secs + ":" + n + " " + unit, iconKey: "timer", category: "Timer" }], "TIMER");
         }
-
         const sys = [];
         if (ql && "lock screen sleep restart shut down log out".includes(ql)) {
             sys.push({ kind: "action", name: "Lock Screen", action: "lock", iconKey: "lock", category: "System" });
@@ -1654,7 +1783,6 @@ PanelWindow {
             sys.push({ kind: "action", name: "Log Out", action: "logout", iconKey: "logout", category: "System" });
         }
         _addItems(items, disp, sys, "SYSTEM");
-
         if (ql) {
             const mm = /^-?[\d.]+$/.test(q) ? null : root.evalMath(q);
             if (mm !== null) {
@@ -1663,7 +1791,6 @@ PanelWindow {
                 const cv = root.convertUnits(q);
                 if (cv !== null) _addItems(items, disp, [{ kind: "calc", name: "= " + cv, raw: cv, category: "Conversion", iconKey: "calc" }], "CONVERSION");
             }
-
             const searchActions = [];
             searchActions.push({ kind: "action", name: "Search the Web for \u201c" + q + "\u201d", action: "web:" + q, iconKey: "web", category: "Search" });
             searchActions.push({ kind: "action", name: "Search in Files", action: "filesearch:" + q, iconKey: "finder", category: "Search" });
@@ -1677,10 +1804,8 @@ PanelWindow {
         const items = [];
         const disp = [];
         const m = root.mode;
-
         const prevKey = root.itemKey(root.items[root.selectedIndex]);
         const sig = m + "|" + q;
-
         if (ql.startsWith("/")) {
             root._buildSlashMode(items, disp, ql);
         } else if (m === "apps") {
@@ -1700,10 +1825,8 @@ PanelWindow {
         } else {
             root._buildSearchMode(items, disp, q, ql);
         }
-
         root.items = items;
         root.results = disp;
-
         let idx = 0;
         if (sig === root._buildSig && prevKey && root._userNavigated) {
             const f = items.findIndex(i => root.itemKey(i) === prevKey);
@@ -1711,16 +1834,13 @@ PanelWindow {
         }
         root._buildSig = sig;
         root.selectedIndex = idx;
-
         if (idx === 0) {
             if (resultList) resultList.positionViewAtBeginning();
             if (resultGrid) resultGrid.positionViewAtBeginning();
         }
     }
 
-    function scheduleRebuild() {
-        _rebuildDeb.restart();
-    }
+    function scheduleRebuild() { _rebuildDeb.restart(); }
 
     function setMode(m) {
         root.mode = m;
@@ -1746,13 +1866,8 @@ PanelWindow {
         ]);
     }
 
-    function runClip() {
-        _clip.running = true;
-    }
-
-    function clearClipboard() {
-        _clipClear.running = true;
-    }
+    function runClip() { _clip.running = true; }
+    function clearClipboard() { _clipClear.running = true; }
 
     function runInTerminal(command) {
         terminalProcess.commandText = command;
@@ -1773,13 +1888,11 @@ PanelWindow {
 
     function openSelected(alt) {
         const queryText = root.query.trim();
-
         if (queryText.startsWith(">")) {
             const command = queryText.slice(1).trim();
             if (command.length > 0) root.runInTerminal(command);
             return;
         }
-
         const aiPrompt = root.aiPromptFor(queryText);
         const sel = root.items[root.selectedIndex];
         const aiOk = !(queryText.startsWith("/") && !/^\/ai\s/i.test(queryText));
@@ -1788,10 +1901,8 @@ PanelWindow {
             root.runHermes(aiPrompt);
             return;
         }
-
         const e = root.items[root.selectedIndex];
         if (!e) return;
-
         let keepOpen = false;
 
         if (e.kind === "app") { root.recordUsage("app:" + e.exec); SpotlightApps.launch(e.exec); }
@@ -1820,9 +1931,7 @@ PanelWindow {
             if (/^\d+$/.test(e.id || "")) SpotlightController.run("cliphist decode " + e.id + " | wl-copy 2>/dev/null || true");
         }
         else if (e.kind === "calc") root.copyText(e.raw);
-        else if (e.kind === "emoji") {
-            root.copyText(e.raw)
-        }
+        else if (e.kind === "emoji") root.copyText(e.raw);
         else if (e.kind === "media") { SpotlightController.run("playerctl play-pause"); keepOpen = true; }
         else if (e.kind === "info") {
             if (e.isAi) {
@@ -1832,38 +1941,41 @@ PanelWindow {
                 root.copyText(e.name);
             }
         }
-        else if (e.kind === "window") { root.focusWindow(e.address); }
-        else if (e.kind === "wifi") { SpotlightController.run("nmcli connection up id " + root.shellQuote(e.name) + " 2>/dev/null || nmcli device wifi connect " + root.shellQuote(e.name) + " 2>/dev/null"); }
-        else if (e.kind === "bt") { SpotlightController.run("bluetoothctl connect " + root.shellQuote(e.address)); }
+        else if (e.kind === "window") root.focusWindow(e.address);
+        else if (e.kind === "wifi") SpotlightController.run("nmcli connection up id " + root.shellQuote(e.name) + " 2>/dev/null || nmcli device wifi connect " + root.shellQuote(e.name) + " 2>/dev/null");
+        else if (e.kind === "bt") SpotlightController.run("bluetoothctl connect " + root.shellQuote(e.address));
         else if (e.kind === "action") {
             if (e.action === "shell") {
                 SpotlightController.run(e.cmd);
-            }
-            else if (e.action.startsWith("open:")) {
+            } else if (e.action.startsWith("open:")) {
                 root.openUrl(e.action.slice(5));
-            }
-            else if (e.action.startsWith("web:")) {
+            } else if (e.action.startsWith("web:")) {
                 root.openUrl("https://www.google.com/search?q=" + encodeURIComponent(e.action.slice(4)));
-            }
-            else if (e.action.startsWith("filesearch:")) {
+            } else if (e.action.startsWith("filesearch:")) {
                 root.circlesLocked = true;
                 root.setMode("files");
                 root.runFd();
                 keepOpen = true;
-            }
-            else if (e.action.startsWith("spotifyplay:")) {
+            } else if (e.action.startsWith("aiintent:")) {
+                const rest = e.action.slice(9);
+                const colon = rest.indexOf(":");
+                const kind = colon >= 0 ? rest.slice(0, colon) : rest;
+                const arg = colon >= 0 ? rest.slice(colon + 1) : "";
+                const promptMap = { note: "crie uma nota: " + arg, email: "mande um email " + arg };
+                root.runHermes(promptMap[kind] || arg);
+                keepOpen = true;
+            
+            } else if (e.action.startsWith("spotifyplay:")) {
                 const term = e.action.slice(12);
                 SpotlightController.run(
                     "pgrep -x spotify >/dev/null || (setsid flatpak run com.spotify.Client </dev/null >/dev/null 2>&1 &); " +
                     "sleep 1; " + root.xdgOpenCmd("spotify:search:" + root.urlq(term)) + "; " +
                     "sleep 1; wtype -k Return 2>/dev/null || true"
                 );
-            }
-            else if (e.action.startsWith("realtimer:")) {
+            } else if (e.action.startsWith("realtimer:")) {
                 const parts = e.action.slice(10).split(":");
                 root.startTimer(parts[0], parts[1] || (parts[0] + "s"));
-            }
-            else if (e.action === "addtodo:") {
+            } else if (e.action === "addtodo:") {
                 let due = undefined;
                 if (e.todoDue) {
                     const p = e.todoDue.split("-").map(Number);
@@ -1876,33 +1988,102 @@ PanelWindow {
                 } else {
                     SpotlightController.run("notify-send 'Spotlight' 'Added to ToDo'");
                 }
-            }
-            else if (e.action === "addevent:") {
+            } else if (e.action === "addevent:") {
                 if (!e.evText || !e.evDate) return;
                 _addEvent.title = e.evText;
                 _addEvent.command = ["python3", Quickshell.shellPath("scripts/calendar/eds-add-event.py"),
                                     e.evText, e.evDate, e.evTime, String(e.evDuration)];
                 _addEvent.running = true;
                 if (e.evRemind && e.evRemindMs > Date.now()) root.scheduleReminder(e.evRemind, e.evText);
-            }
-            else if (e.action.startsWith("action:")) {
+            } else if (e.action.startsWith("action:")) {
                 const sub = e.action.slice(7);
                 if (sub === "msg") root.xdgOpen("https://messages.google.com/web");
                 else if (sub === "note") root.xdgOpen("obsidian://new");
                 else if (sub === "timer") root.startTimer(300, "5 min");
                 else if (sub === "shortcut") root.xdgOpen("shortcuts://");
                 else SpotlightController.requestAction(e.action);
-            }
-            else if (e.action === "clipboard:clear") {
+            } else if (e.action === "clipboard:clear") {
                 root.clearClipboard();
                 keepOpen = true;
-            }
-            else {
+            } else {
                 SpotlightController.requestAction(e.action);
             }
         }
         else if (e.kind === "cmd") {
-            if (e.action.startsWith("mode:")) {
+            if (e.action === "screen:") {
+                // /screen                -> explica a tela
+                // /screen <pergunta>     -> responde sobre a tela
+                root._screenQuestion = root.query.replace(/^\/screen\s*/i, "").trim();
+                root.aiText = "🖥️ Capturando a tela…";
+                root._capturing = true;          // some com o Spotlight antes do print
+                _captureGuard.restart();
+                SpotlightActions.runScreenContext();
+                keepOpen = true;
+                return;
+            } else if (e.action === "ocrtr:") {
+                // /traduzir      -> português
+                // /traduzir en   -> inglês, etc.
+                root._ocrLang = root.query.replace(/^\/traduzir\s*/i, "").trim().toLowerCase() || "pt";
+                root._ocrMode = "translate";
+                root._screenshotSelecting = true;
+                root.aiText = "📸 Selecione o texto a traduzir…";
+                _screenshotDeb.useSelectArea = true;
+                _screenshotDeb.restart();
+                keepOpen = true;
+                return;
+            } else if (e.action === "screenshot:") {
+                root._ocrMode = "analyze";
+                root._screenshotSelecting = true;
+                root.aiText = "📸 Selecione a área…";
+                _screenshotDeb.useSelectArea = true;
+                _screenshotDeb.restart();
+                keepOpen = true;
+                return;
+            } else if (e.action === "sum:") {
+                const arg = root.query.replace(/^\/sum\s*/i, "").trim();
+                if (!arg) return;
+
+                // URL → scrape + resumo
+                if (root.looksLikeUrl(arg) || /^https?:\/\//i.test(arg) || /^www\./i.test(arg)) {
+                    const url = /^https?:\/\//i.test(arg) ? arg : "https://" + arg;
+                    root.aiText = "🌐 Baixando…";
+                    SpotlightActions.scrapeUrl(url);
+                    keepOpen = true;
+                } else {
+                    // Caminho de arquivo (PDF, etc.) → summarizePdf
+                    root.aiText = "📄 Lendo…";
+                    SpotlightActions.summarizePdf(arg);
+                    keepOpen = true;
+                }
+                return;
+            } else if (e.action === "mem-on:") {
+                root.aiPersistentHistory = true;
+                root.aiText = "💾 Memória persistente ATIVADA";
+                root.scheduleRebuild();
+                keepOpen = true;
+                return;
+            } else if (e.action === "mem-off:") {
+                root.aiPersistentHistory = false;
+                root.aiText = "💾 Memória persistente DESATIVADA";
+                root.scheduleRebuild();
+                keepOpen = true;
+                return;
+            } else if (e.action.startsWith("focus:")) {
+                const mins = parseInt(e.action.slice(6)) || 120;
+                SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote(SpotlightActions.enterFocusMode(mins)));
+                return;
+            } else if (e.action.startsWith("meeting:")) {
+                SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote(SpotlightActions.enterMeetingMode()));
+                return;
+            } else if (e.action.startsWith("briefing:")) {
+                SpotlightActions.runBriefing();
+                keepOpen = true;
+                return;
+            } else if (e.action.startsWith("git:")) {
+                SpotlightActions.runGitCommit();
+                keepOpen = true;
+                return;
+            } else if (e.action.startsWith("mode:")) {
                 searchField.text = "";
                 root.query = "";
                 root.setMode(e.action.slice(5));
@@ -1934,13 +2115,102 @@ PanelWindow {
                 return;
             }
         }
-
         if (!keepOpen) SpotlightController.spotlightOpen = false;
     }
 
     property var selectedItem: (root.items.length ? root.items[root.selectedIndex] : null)
     readonly property string selectedKey: root.itemKey(root.selectedItem)
     onSelectedKeyChanged: _previewDeb.restart()
+
+    Connections {
+        target: SpotlightActions
+        function onScreenshotOcrReady(ocrText) {
+            root._screenshotSelecting = false;
+            const mode = root._ocrMode;
+            root._ocrMode = "analyze";          // não deixa o modo "grudar"
+
+            if (!ocrText || ocrText === "Nenhuma imagem capturada") {
+                root.aiText = "❌ OCR não retornou texto (tela vazia?)";
+                root.aiLoading = false;
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root._lastAiQuery = "";             // permite repetir o mesmo texto
+            if (mode === "translate") {
+                root.runHermes("Translate the following text to " + root.langName(root._ocrLang)
+                    + ". Reply with ONLY the translation, without quotes or explanations. Preserve line breaks.\n\n"
+                    + ocrText.slice(0, 3000));
+                return;
+            }
+            root.runHermes("Analise este texto extraído de uma screenshot e responda de forma útil:\n\n" + ocrText.slice(0, 3000));
+        }
+        function onPageReady(page) {
+            const focus = root._resumeFocus;
+            root._resumeFocus = "";
+            if (!page || !page.ok) {
+                root.aiText = "❌ " + ((page && page.error) || "Não consegui ler o link");
+                root.aiLoading = false;
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root._lastAiQuery = "";
+            root.runHermes(root.buildResumePrompt(page, focus), false,
+                           "🌐 Resumir: " + (page.title || page.url));
+        }
+        function onScreenContextReady(windows, ocr) {
+            _captureGuard.stop();
+            root._capturing = false;
+            Qt.callLater(() => searchField.forceActiveFocus());
+            const q = root._screenQuestion;
+            root._screenQuestion = "";
+            if (!windows && !ocr) {
+                root.aiText = "❌ Não consegui capturar a tela (grim/hyprctl)";
+                root.aiLoading = false;
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root._lastAiQuery = "";
+            root.runHermes(root.buildScreenPrompt(windows, ocr, q), false,
+                           "🖥️ " + (q || "O que está na minha tela?"));
+        }
+        function onScrapeReady(text) {
+            if (!text) {
+                root.aiText = "❌ Não consegui baixar o link";
+                root.aiLoading = false;
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root.runHermes("Resuma este conteúdo de página web de forma concisa:\n\n" + text.slice(0, 5000));
+        }
+        function onPdfReady(text) {
+            if (!text) {
+                root.aiText = "❌ Não consegui ler o PDF";
+                root.aiLoading = false;
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root.runHermes("Resuma este PDF de forma concisa:\n\n" + text.slice(0, 6000));
+        }
+        function onGitDiffReady(diff) {
+            if (!diff) {
+                root.aiText = "📭 Nada pra commitar";
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root.runHermes("Gere mensagem de commit (Conventional Commits) para:\n\n" + diff);
+        }
+        function onBriefingReady(text) {
+            if (!text) {
+                root.aiText = "❌ Briefing indisponível";
+                if (root._shown) root.scheduleRebuild();
+                return;
+            }
+            root.runHermes("Formate este briefing matinal de forma bonita:\n\n" + text);
+        }
+        function onHistoryReady(history) {
+            if (Array.isArray(history) && history.length > 0) root.aiHistory = history;
+        }
+    }
 
     Connections {
         target: SpotlightController
@@ -1956,7 +2226,11 @@ PanelWindow {
                 root.circlesVisible = false;
                 root.circlesLocked = false;
                 root.clearAi();
-                root.aiHistory = [];
+                if (!root.aiPersistentHistory) {
+                    root.aiHistory = [];
+                } else {
+                    SpotlightActions.loadHistory();
+                }
                 root.passText = "";
                 root._passKey = "";
                 root.timeText = "";
@@ -1986,7 +2260,6 @@ PanelWindow {
 
     IpcHandler {
         target: "spotlightMode"
-
         function openMode(mode: string): void {
             if (SpotlightController.spotlightOpen) {
                 if (root.mode === mode) SpotlightController.spotlightOpen = false;
@@ -2000,7 +2273,6 @@ PanelWindow {
 
     IpcHandler {
         target: "todoReminder"
-
         function fire(text: string): void {
             Quickshell.execDetached(["notify-send", "Lembrete", text, "-a", "Shell"]);
             Quickshell.execDetached(["bash", "-c",
@@ -2047,6 +2319,7 @@ PanelWindow {
 
     MouseArea {
         anchors.fill: parent
+        enabled: !root._screenshotSelecting
         onClicked: SpotlightController.spotlightOpen = false
     }
 
@@ -2061,9 +2334,7 @@ PanelWindow {
         scale: root.panelScale
         opacity: root.panelOpacity
 
-        Behavior on height {
-            NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-        }
+        Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
         Rectangle {
             id: panelChrome
@@ -2076,11 +2347,7 @@ PanelWindow {
             border.color: root.glassBorder
             border.width: 1
             z: 0
-
-            Behavior on height {
-                NumberAnimation { duration: 160; easing.type: Easing.OutCubic }
-            }
-
+            Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
@@ -2172,7 +2439,14 @@ PanelWindow {
                         Keys.onDownPressed: (event) => { root.moveSelection(1); event.accepted = true }
                         Keys.onReturnPressed: (event) => { root.openSelected(!!(event.modifiers & Qt.ShiftModifier)); event.accepted = true }
                         Keys.onEnterPressed: (event) => { root.openSelected(!!(event.modifiers & Qt.ShiftModifier)); event.accepted = true }
-                        Keys.onEscapePressed: (event) => { SpotlightController.spotlightOpen = false; event.accepted = true }
+                        Keys.onEscapePressed: (event) => {
+                            if (root._screenshotSelecting) {
+                                event.accepted = true;
+                                return;
+                            }
+                            SpotlightController.spotlightOpen = false;
+                            event.accepted = true;
+                        }
                         Keys.onTabPressed: (event) => { root.circlesVisible = !root.circlesVisible; event.accepted = true }
                         Keys.onPressed: (event) => {
                             if (event.key === Qt.Key_Backspace && searchField.text === ""
@@ -2184,7 +2458,6 @@ PanelWindow {
                                 event.accepted = true;
                                 return;
                             }
-
                             if (event.modifiers & Qt.ControlModifier) {
                                 if (event.key === Qt.Key_1) { root.setMode("apps"); event.accepted = true; }
                                 else if (event.key === Qt.Key_2) { root.setMode("files"); event.accepted = true; }
@@ -2195,8 +2468,10 @@ PanelWindow {
                                     SpotlightController.spotlightOpen = false;
                                     event.accepted = true;
                                 }
-                                else if (event.key === Qt.Key_R && root.aiHistory.length > 0) {
-                                    root.runHermes(root._lastAiQuery, false);
+                                else if (event.key === Qt.Key_R && root.aiHistory.length > 0 && root._lastAiQuery) {
+                                    const p = root._lastAiQuery;
+                                    root._lastAiQuery = "";
+                                    root.runHermes(p);
                                     event.accepted = true;
                                     return;
                                 }
@@ -2238,7 +2513,6 @@ PanelWindow {
                         { m: "actions",   tip: "Actions",      icon: Quickshell.shellPath("assets/Shortcuts.png") },
                         { m: "clipboard", tip: "Clipboard",    icon: Quickshell.shellPath("assets/clipboard.png") }
                     ]
-
                     delegate: Item {
                         id: circleBtn
                         width: root.circleSize; height: root.circleSize
@@ -2246,93 +2520,44 @@ PanelWindow {
                         property real iconAlpha: morphSurface.iconProgress(index)
                         property bool isActive: root.mode === modelData.m
                         property bool isHover: circleMA.containsMouse
-
                         x: morphSurface.buttonCenterX(index) - root.circleSize / 2
                         y: morphSurface.shapeCenterY - root.circleSize / 2
                         scale: growth
                         opacity: iconAlpha
-
                         Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: 2
-                            radius: width / 2
-                            color: root.glassBg
-                            border.width: 1
-                            border.color: root.glassBorder
+                            anchors.fill: parent; anchors.margins: 2; radius: width / 2
+                            color: root.glassBg; border.width: 1; border.color: root.glassBorder
                         }
-
                         Rectangle {
-                            anchors.fill: parent
-                            anchors.margins: 4
-                            radius: width / 2
-                            color: "transparent"
-                            border.width: 1
-                            border.color: circleBtn.isActive ? Qt.rgba(1, 1, 1, 0.28)
-                                        : circleBtn.isHover ? Qt.rgba(1, 1, 1, 0.14)
-                                        : Qt.rgba(1, 1, 1, 0.0)
-
-                            gradient: Gradient {
-                                GradientStop {
-                                    position: 0.0
-                                    color: circleBtn.isActive ? Qt.rgba(1, 1, 1, 0.22)
-                                        : circleBtn.isHover ? Qt.rgba(1, 1, 1, 0.14)
-                                        : Qt.rgba(1, 1, 1, 0.0)
-                                }
-                                GradientStop {
-                                    position: 1.0
-                                    color: circleBtn.isActive ? Qt.rgba(1, 1, 1, 0.08)
-                                        : circleBtn.isHover ? Qt.rgba(1, 1, 1, 0.05)
-                                        : Qt.rgba(1, 1, 1, 0.0)
-                                }
-                            }
-
+                            anchors.fill: parent; anchors.margins: 4; radius: width / 2
+                            color: "transparent"; border.width: 1
+                            border.color: circleBtn.isActive ? Qt.rgba(1, 1, 1, 0.28) : circleBtn.isHover ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.0)
                             Behavior on border.color { ColorAnimation { duration: 140 } }
                         }
-
-                        Rectangle {
-                            anchors.centerIn: parent
-                            width: 38; height: 38
-                            radius: 11
-                            color: Qt.rgba(0, 0, 0, 0.28)
-                            visible: !!modelData.icon
-                            z: -1
-                        }
-
                         Image {
                             anchors.centerIn: parent
                             width: 34; height: 34
                             source: modelData.icon
                             fillMode: Image.PreserveAspectFit
                             smooth: true
-                            mipmap: true
                         }
-
                         Rectangle {
                             id: tipBox
-                            anchors.top: parent.bottom
-                            anchors.topMargin: 10
+                            anchors.top: parent.bottom; anchors.topMargin: 10
                             anchors.horizontalCenter: parent.horizontalCenter
-                            width: tipText.implicitWidth + 24
-                            height: 30
-                            radius: 8
-                            color: root.glassBg
-                            border.color: root.glassBorder
-                            border.width: 1
+                            width: tipText.implicitWidth + 24; height: 30; radius: 8
+                            color: root.glassBg; border.color: root.glassBorder; border.width: 1
                             visible: circleBtn.isHover
                             opacity: circleBtn.isHover ? 1.0 : 0.0
-                            scale: circleBtn.isHover ? 1.0 : 0.85
                             Behavior on opacity { NumberAnimation { duration: 120 } }
-                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
-
                             Text {
                                 id: tipText
                                 anchors.centerIn: parent
                                 text: modelData.tip
                                 color: root.sFgDim
-                                font { family: "SF Pro Display"; pixelSize: 13; weight: Font.Normal }
+                                font { family: "SF Pro Display"; pixelSize: 13 }
                             }
                         }
-
                         MouseArea {
                             id: circleMA
                             anchors.fill: parent
@@ -2344,9 +2569,7 @@ PanelWindow {
                                 else if (modelData.m === "actions") root.placeholderText = "Actions"
                                 else if (modelData.m === "clipboard") root.placeholderText = "Clipboard"
                             }
-                            onExited: {
-                                root.placeholderText = "Search or Ask"
-                            }
+                            onExited: root.placeholderText = "Search or Ask"
                             onClicked: {
                                 root.circlesLocked = true
                                 root.circlesVisible = false
@@ -2370,10 +2593,6 @@ PanelWindow {
                 property real startMouseX: 0
                 property real startProgress: 0
                 property bool isDragging: false
-
-                onEntered: { }
-                onExited: { }
-
                 onPressed: (mouse) => {
                     startMouseX = mouse.x
                     startProgress = root.railProgress
@@ -2430,47 +2649,24 @@ PanelWindow {
             id: modesToggle
             x: morphSurface.mainWidth - width - 10
             y: (searchHeader.height - height) / 2
-            width: 28
-            height: 28
-            radius: 8
+            width: 28; height: 28; radius: 8
             z: 120
-
             visible: root.query.length === 0
-
-            color: modesToggleMA.containsMouse || root.circlesVisible
-                ? Qt.rgba(1, 1, 1, 0.14)
-                : "transparent"
+            color: modesToggleMA.containsMouse || root.circlesVisible ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
             border.width: 1
-            border.color: root.circlesVisible
-                        ? Qt.rgba(1, 1, 1, 0.28)
-                        : Qt.rgba(1, 1, 1, 0.12)
-
+            border.color: root.circlesVisible ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12)
             Canvas {
-                id: toggleArrow
                 anchors.centerIn: parent
-                width: 14
-                height: 14
+                width: 14; height: 14
                 rotation: root.circlesVisible ? 0 : 180
-
-                Behavior on rotation {
-                    NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-                }
-
+                Behavior on rotation { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
                 onPaint: {
-                    var ctx = getContext("2d")
-                    ctx.reset()
-                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9)
-                    ctx.lineWidth = 1.8
-                    ctx.lineCap = "round"
-                    ctx.lineJoin = "round"
-                    ctx.beginPath()
-                    ctx.moveTo(5, 3)
-                    ctx.lineTo(10, 7)
-                    ctx.lineTo(5, 11)
-                    ctx.stroke()
+                    var ctx = getContext("2d"); ctx.reset()
+                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9); ctx.lineWidth = 1.8
+                    ctx.lineCap = "round"; ctx.lineJoin = "round"
+                    ctx.beginPath(); ctx.moveTo(5, 3); ctx.lineTo(10, 7); ctx.lineTo(5, 11); ctx.stroke()
                 }
             }
-
             MouseArea {
                 id: modesToggleMA
                 anchors.fill: parent
@@ -2480,63 +2676,6 @@ PanelWindow {
                     root.circlesVisible = !root.circlesVisible
                     root.circlesLocked = true
                 }
-            }
-        }
-
-        Rectangle {
-            id: clearClipBtn
-            x: morphSurface.mainWidth - 36
-            y: root.searchH + 4
-            width: 24
-            height: 24
-            radius: 7
-            z: 120
-            visible: root.mode === "clipboard" && root.query.length === 0 && root.clipItems.length > 0
-
-            color: clearClipMA.containsMouse ? Qt.rgba(1, 0.27, 0.23, 0.28) : Qt.rgba(1, 0.27, 0.23, 0.12)
-            border.width: 1
-            border.color: Qt.rgba(1, 0.27, 0.23, 0.25)
-            Behavior on color { ColorAnimation { duration: 100 } }
-
-            Canvas {
-                anchors.centerIn: parent
-                width: 14; height: 14
-                onPaint: {
-                    var ctx = getContext("2d"); ctx.reset()
-                    ctx.strokeStyle = "#FF6961"; ctx.lineWidth = 1.4
-                    ctx.lineCap = "round"; ctx.lineJoin = "round"
-                    ctx.beginPath(); ctx.moveTo(2, 3.5); ctx.lineTo(12, 3.5); ctx.stroke()
-                    ctx.beginPath(); ctx.moveTo(5.2, 3.5); ctx.lineTo(5.2, 2); ctx.lineTo(8.8, 2); ctx.lineTo(8.8, 3.5); ctx.stroke()
-                    ctx.beginPath(); ctx.moveTo(3.5, 3.5); ctx.lineTo(4.2, 12); ctx.lineTo(9.8, 12); ctx.lineTo(10.5, 3.5); ctx.stroke()
-                }
-            }
-
-            Rectangle {
-                anchors.right: parent.left
-                anchors.rightMargin: 8
-                anchors.verticalCenter: parent.verticalCenter
-                width: clearTipText.implicitWidth + 16
-                height: 24
-                radius: 7
-                color: root.glassBg
-                border.color: root.glassBorder
-                border.width: 1
-                visible: clearClipMA.containsMouse
-                Text {
-                    id: clearTipText
-                    anchors.centerIn: parent
-                    text: "Clear history"
-                    color: root.sFgDim
-                    font { family: "SF Pro Display"; pixelSize: 12 }
-                }
-            }
-
-            MouseArea {
-                id: clearClipMA
-                anchors.fill: parent
-                hoverEnabled: true
-                cursorShape: Qt.PointingHandCursor
-                onClicked: root.clearClipboard()
             }
         }
 
@@ -2550,9 +2689,7 @@ PanelWindow {
             visible: root.hasBody && height > 0
             z: 1
             clip: true
-
             Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-
             MouseArea { anchors.fill: parent }
 
             ColumnLayout {
@@ -2574,21 +2711,15 @@ PanelWindow {
                         width: 26; height: 26; radius: 13
                         color: prevMA.containsMouse ? root.hoverBg : "transparent"
                         Text { anchors.centerIn: parent; text: "\u23ee"; color: root.sFg; font.pixelSize: 13 }
-                        MouseArea {
-                            id: prevMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        MouseArea { id: prevMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl previous"]; _mediaCmd.running = true; }
                         }
                     }
                     Rectangle {
                         width: 28; height: 28; radius: 14
                         color: playPauseMA.containsMouse ? root.hoverBg : "transparent"
-                        Text {
-                            anchors.centerIn: parent
-                            text: root.nowPlayingStatus === "Playing" ? "\u23f8" : "\u25b6"
-                            color: root.sFg
-                        }
-                        MouseArea {
-                            id: playPauseMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        Text { anchors.centerIn: parent; text: root.nowPlayingStatus === "Playing" ? "\u23f8" : "\u25b6"; color: root.sFg }
+                        MouseArea { id: playPauseMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl play-pause"]; _mediaCmd.running = true; }
                         }
                     }
@@ -2596,8 +2727,7 @@ PanelWindow {
                         width: 26; height: 26; radius: 13
                         color: nextMA.containsMouse ? root.hoverBg : "transparent"
                         Text { anchors.centerIn: parent; text: "\u23ed"; color: root.sFg; font.pixelSize: 13 }
-                        MouseArea {
-                            id: nextMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                        MouseArea { id: nextMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
                             onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl next"]; _mediaCmd.running = true; }
                         }
                     }
@@ -2635,23 +2765,15 @@ PanelWindow {
 
                         ScrollBar.vertical: ScrollBar {
                             id: resultScrollBar
-                            policy: resultList.contentHeight > resultList.height
-                                    ? ScrollBar.AlwaysOn
-                                    : ScrollBar.AlwaysOff
+                            policy: resultList.contentHeight > resultList.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
                             width: 8
-
                             contentItem: Rectangle {
-                                implicitWidth: 6
-                                radius: 3
+                                implicitWidth: 6; radius: 3
                                 color: Qt.rgba(1, 1, 1, 0.35)
                                 opacity: resultScrollBar.pressed ? 0.85 : 0.5
                                 Behavior on opacity { NumberAnimation { duration: 120 } }
                             }
-
-                            background: Rectangle {
-                                implicitWidth: 6
-                                color: "transparent"
-                            }
+                            background: Rectangle { implicitWidth: 6; color: "transparent" }
                         }
 
                         delegate: Item {
@@ -2659,7 +2781,6 @@ PanelWindow {
                             readonly property bool isDanger: modelData.action === "clipboard:clear"
                             width: resultList.width
                             height: modelData.isHeader === true ? root.headerH : root.rowH
-
                             Text {
                                 visible: modelData.isHeader === true
                                 anchors.left: parent.left; anchors.leftMargin: 10; anchors.bottom: parent.bottom; anchors.bottomMargin: 2
@@ -2667,7 +2788,6 @@ PanelWindow {
                                 font { family: "SF Pro Display"; pixelSize: 11; weight: Font.DemiBold }
                                 color: root.headerFg
                             }
-
                             Rectangle {
                                 visible: modelData.isHeader !== true
                                 anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4
@@ -2681,15 +2801,11 @@ PanelWindow {
                                     if (rowHover.containsMouse) return root.hoverBg;
                                     return "transparent";
                                 }
-                                border.width: isDanger ? 1 : 0
-                                border.color: Qt.rgba(1, 0.27, 0.23, 0.22)
                                 Behavior on color { ColorAnimation { duration: 80 } }
                             }
-
                             RowLayout {
                                 visible: modelData.isHeader !== true
                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
-
                                 Image {
                                     visible: modelData.kind === "app"
                                     Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize; Layout.alignment: Qt.AlignVCenter
@@ -2697,28 +2813,18 @@ PanelWindow {
                                     sourceSize { width: root.iconSize * 2; height: root.iconSize * 2 }
                                     asynchronous: true; smooth: true
                                 }
-
                                 Image {
                                     visible: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
                                     Layout.preferredWidth: 60; Layout.preferredHeight: 44; Layout.alignment: Qt.AlignVCenter
                                     source: visible ? ("file://" + modelData.imagePath) : ""
                                     sourceSize { width: 120; height: 88 }
                                     fillMode: Image.PreserveAspectCrop
-                                    asynchronous: true; smooth: true
-                                    mipmap: true
-                                    Rectangle {
-                                        anchors.fill: parent
-                                        radius: 5
-                                        color: "transparent"
-                                        border.color: Qt.rgba(1, 1, 1, 0.18)
-                                        border.width: 1
-                                    }
+                                    asynchronous: true; smooth: true; mipmap: true
+                                    Rectangle { anchors.fill: parent; radius: 5; color: "transparent"; border.color: Qt.rgba(1, 1, 1, 0.18); border.width: 1 }
                                 }
-
                                 Item {
                                     visible: modelData.kind !== "app" && !(modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath)
                                     Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize; Layout.alignment: Qt.AlignVCenter
-
                                     Rectangle {
                                         anchors.centerIn: parent
                                         width: 18; height: 18; radius: 5
@@ -2726,83 +2832,7 @@ PanelWindow {
                                         color: modelData.swatch || "transparent"
                                         border.color: Qt.rgba(1, 1, 1, 0.4); border.width: 1
                                     }
-
-                                    Canvas {
-                                        anchors.centerIn: parent
-                                        width: 20; height: 20
-                                        visible: modelData.kind === "file" && modelData.isDirectory === true
-                                        onPaint: {
-                                            var ctx = getContext("2d")
-                                            ctx.reset()
-                                            ctx.lineWidth = 1.6
-                                            ctx.lineCap = "round"
-                                            ctx.lineJoin = "round"
-                                            ctx.fillStyle = Qt.rgba(1, 1, 1, 0.18)
-                                            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.75)
-                                            ctx.beginPath()
-                                            ctx.moveTo(2, 6)
-                                            ctx.lineTo(2, 16)
-                                            ctx.quadraticCurveTo(2, 17.5, 3.5, 17.5)
-                                            ctx.lineTo(16.5, 17.5)
-                                            ctx.quadraticCurveTo(18, 17.5, 18, 16)
-                                            ctx.lineTo(18, 8)
-                                            ctx.quadraticCurveTo(18, 6.5, 16.5, 6.5)
-                                            ctx.lineTo(9.5, 6.5)
-                                            ctx.lineTo(8, 4.5)
-                                            ctx.lineTo(3.5, 4.5)
-                                            ctx.quadraticCurveTo(2, 4.5, 2, 6)
-                                            ctx.closePath()
-                                            ctx.fill()
-                                            ctx.stroke()
-                                            ctx.fillStyle = Qt.rgba(1, 1, 1, 0.28)
-                                            ctx.beginPath()
-                                            ctx.moveTo(2, 8)
-                                            ctx.lineTo(18, 8)
-                                            ctx.lineTo(18, 7)
-                                            ctx.quadraticCurveTo(18, 5.8, 16.8, 5.8)
-                                            ctx.lineTo(9.2, 5.8)
-                                            ctx.lineTo(7.8, 4)
-                                            ctx.lineTo(3.2, 4)
-                                            ctx.quadraticCurveTo(2, 4, 2, 5.2)
-                                            ctx.closePath()
-                                            ctx.fill()
-                                        }
-                                    }
-
-                                    Canvas {
-                                        anchors.centerIn: parent
-                                        width: 18; height: 20
-                                        visible: modelData.kind === "file" && modelData.isDirectory !== true
-                                        onPaint: {
-                                            var ctx = getContext("2d")
-                                            ctx.reset()
-                                            ctx.lineWidth = 1.5
-                                            ctx.lineCap = "round"
-                                            ctx.lineJoin = "round"
-                                            ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.75)
-                                            ctx.fillStyle = Qt.rgba(1, 1, 1, 0.12)
-                                            ctx.beginPath()
-                                            ctx.moveTo(4, 1.5)
-                                            ctx.lineTo(11, 1.5)
-                                            ctx.lineTo(14.5, 5)
-                                            ctx.lineTo(14.5, 18.5)
-                                            ctx.quadraticCurveTo(14.5, 19.5, 13.5, 19.5)
-                                            ctx.lineTo(4.5, 19.5)
-                                            ctx.quadraticCurveTo(3.5, 19.5, 3.5, 18.5)
-                                            ctx.lineTo(3.5, 2.5)
-                                            ctx.quadraticCurveTo(3.5, 1.5, 4.5, 1.5)
-                                            ctx.closePath()
-                                            ctx.fill()
-                                            ctx.stroke()
-                                            ctx.beginPath()
-                                            ctx.moveTo(11, 1.5)
-                                            ctx.lineTo(11, 5)
-                                            ctx.lineTo(14.5, 5)
-                                            ctx.stroke()
-                                        }
-                                    }
                                 }
-
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 0; Layout.alignment: Qt.AlignVCenter
                                     Text {
@@ -2813,25 +2843,46 @@ PanelWindow {
                                         wrapMode: modelData.kind === "info" ? Text.Wrap : Text.NoWrap
                                     }
                                     Text {
-                                        Layout.fillWidth: true; visible: !!modelData.category && modelData.category.length > 0
+                                        Layout.fillWidth: true
+                                        visible: !!modelData.category && modelData.category.length > 0
                                         text: modelData.category || ""
-                                        font { family: "SF Pro Text"; pixelSize: 11; weight: Font.Normal }
+                                        font { family: "SF Pro Text"; pixelSize: 11 }
                                         color: root.sFgDim
                                         elide: Text.ElideRight; maximumLineCount: 1
                                     }
                                 }
                             }
-
                             MouseArea {
-                                visible: modelData.isHeader !== true; id: rowHover
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                visible: modelData.isHeader !== true
+                                id: rowHover
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+
                                 onPositionChanged: {
                                     if (root.selectedIndex !== modelData._idx) {
-                                        root._userNavigated = true;
-                                        root.selectedIndex = modelData._idx;
+                                        root._userNavigated = true
+                                        root.selectedIndex = modelData._idx
                                     }
                                 }
-                                onClicked: { root.selectedIndex = modelData._idx; root.openSelected() }
+
+                                onClicked: (mouse) => {
+                                    root.selectedIndex = modelData._idx
+
+                                    // Ctrl + clique → copia o caminho do arquivo
+                                    if (mouse.modifiers & Qt.ControlModifier) {
+                                        const it = root.items[root.selectedIndex]
+                                        if (it && it.kind === "file" && it.path) {
+                                            root.copyText(it.path)
+                                            SpotlightController.spotlightOpen = false
+                                        }
+                                        return
+                                    }
+
+                                    // Shift + clique → abre a pasta
+                                    // Clique normal → abre o arquivo
+                                    root.openSelected(!!(mouse.modifiers & Qt.ShiftModifier))
+                                }
                             }
                         }
                         onCountChanged: { if (root.selectedIndex >= root.items.length) root.selectedIndex = 0 }
@@ -2846,14 +2897,11 @@ PanelWindow {
                         currentIndex: root.selectedIndex
                         reuseItems: true
                         ScrollBar.vertical: ScrollBar {
-                            policy: resultGrid.contentHeight > resultGrid.height
-                                    ? ScrollBar.AlwaysOn
-                                    : ScrollBar.AlwaysOff
+                            policy: resultGrid.contentHeight > resultGrid.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
                             width: 8
                             contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Qt.rgba(1,1,1,0.35) }
                             background: Rectangle { implicitWidth: 6; color: "transparent" }
                         }
-
                         delegate: Item {
                             required property var modelData
                             required property int index
@@ -2866,7 +2914,6 @@ PanelWindow {
                                     if (gridHover.containsMouse) return root.hoverBg;
                                     return "transparent";
                                 }
-                                border.width: 0
                                 Behavior on color { ColorAnimation { duration: 80 } }
                             }
                             RowLayout {
@@ -2879,7 +2926,7 @@ PanelWindow {
                                 Text {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter
                                     text: modelData.name || ""
-                                    font { family: "SF Pro Display"; pixelSize: 13; weight: Font.Normal }
+                                    font { family: "SF Pro Display"; pixelSize: 13 }
                                     color: root.sFg
                                     elide: Text.ElideRight; maximumLineCount: 1
                                 }
@@ -2891,14 +2938,17 @@ PanelWindow {
                                         root.selectedIndex = index;
                                     }
                                 }
-                                onClicked: { root.selectedIndex = index; root.openSelected() }
+                                onClicked: (mouse) => {
+                                    root.selectedIndex = index;
+                                    root.openSelected(!!(mouse.modifiers & Qt.ShiftModifier));
+                                }
                             }
                         }
                     }
 
                     Text {
                         anchors.centerIn: parent; text: "No Results Found"
-                        font { family: "SF Pro Display"; pixelSize: 14; weight: Font.Normal }
+                        font { family: "SF Pro Display"; pixelSize: 14 }
                         color: root.sFgDim
                         visible: root.query.length > 0 && root.items.length === 0
                     }
@@ -2925,46 +2975,35 @@ PanelWindow {
             clip: true
             Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
             Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-
             MouseArea { anchors.fill: parent; z: -1 }
 
             Image {
                 id: previewImg
                 visible: root.previewKind === "image"
-                anchors.fill: parent
-                anchors.margins: 10
+                anchors.fill: parent; anchors.margins: 10
                 source: root.previewKind === "image" && root.previewPath ? root.fileUrl(root.previewPath) : ""
                 fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                cache: true
-                sourceSize.width: 1400
-                sourceSize.height: 1400
+                asynchronous: true; cache: true
+                sourceSize.width: 1400; sourceSize.height: 1400
                 onStatusChanged: {
                     if (status === Image.Ready) { root.previewNatW = implicitWidth; root.previewNatH = implicitHeight; }
-                    else if (status === Image.Error) console.warn("[spotlight] Falha ao carregar imagem:", root.previewPath);
                 }
             }
-
             Text {
                 anchors.centerIn: parent
                 visible: root.previewKind === "image" && previewImg.status === Image.Error
-                text: "Não foi possível carregar esta imagem\n(formato não suportado ou arquivo corrompido)"
+                text: "Não foi possível carregar esta imagem"
                 horizontalAlignment: Text.AlignHCenter
                 color: root.sFgDim
                 font { family: "SF Pro Text"; pixelSize: 12 }
             }
-
             Flickable {
                 id: previewTextFlick
                 visible: root.previewKind === "text"
-                anchors.fill: parent
-                anchors.margins: 12
-                anchors.rightMargin: 22
+                anchors.fill: parent; anchors.margins: 12; anchors.rightMargin: 22
                 clip: true
-                contentWidth: width
-                contentHeight: previewTextItem.implicitHeight
+                contentWidth: width; contentHeight: previewTextItem.implicitHeight
                 boundsBehavior: Flickable.StopAtBounds
-
                 Text {
                     id: previewTextItem
                     width: previewTextFlick.width
@@ -2972,43 +3011,19 @@ PanelWindow {
                     color: root.sFgDim
                     font { family: "JetBrains Mono"; pixelSize: 16 }
                     wrapMode: Text.Wrap
-                    lineHeight: 1.35
-                    lineHeightMode: Text.ProportionalHeight
                 }
-
                 ScrollBar.vertical: ScrollBar {
-                    id: previewScrollBar
-                    policy: previewTextFlick.contentHeight > previewTextFlick.height
-                        ? ScrollBar.AlwaysOn
-                        : ScrollBar.AlwaysOff
+                    policy: previewTextFlick.contentHeight > previewTextFlick.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
                     width: 6
-
-                    contentItem: Rectangle {
-                        implicitWidth: 6
-                        radius: 3
-                        color: Qt.rgba(1, 1, 1, 0.35)
-                        opacity: previewScrollBar.pressed ? 0.8 : 0.5
-                        Behavior on opacity { NumberAnimation { duration: 120 } }
-                    }
-
-                    background: Rectangle {
-                        implicitWidth: 6
-                        color: "transparent"
-                    }
+                    contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Qt.rgba(1,1,1,0.35) }
                 }
             }
-
             Flickable {
                 id: previewMdFlick
                 visible: root.previewKind === "markdown"
-                anchors.fill: parent
-                anchors.margins: 12
-                anchors.rightMargin: 22
+                anchors.fill: parent; anchors.margins: 12; anchors.rightMargin: 22
                 clip: true
-                contentWidth: width
-                contentHeight: previewMdItem.implicitHeight
-                boundsBehavior: Flickable.StopAtBounds
-
+                contentWidth: width; contentHeight: previewMdItem.implicitHeight
                 Text {
                     id: previewMdItem
                     width: previewMdFlick.width
@@ -3017,49 +3032,24 @@ PanelWindow {
                     color: root.sFg
                     font { family: "SF Pro Text"; pixelSize: 15 }
                     wrapMode: Text.Wrap
-                    lineHeight: 1.4
-                    lineHeightMode: Text.ProportionalHeight
-                }
-
-                ScrollBar.vertical: ScrollBar {
-                    policy: previewMdFlick.contentHeight > previewMdFlick.height
-                        ? ScrollBar.AlwaysOn
-                        : ScrollBar.AlwaysOff
-                    width: 6
-                    contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Qt.rgba(1,1,1,0.35) }
-                    background: Rectangle { implicitWidth: 6; color: "transparent" }
                 }
             }
-
             Image {
                 visible: root.previewKind === "pdf"
-                anchors.fill: parent
-                anchors.margins: 10
+                anchors.fill: parent; anchors.margins: 10
                 source: root.previewKind === "pdf" && root.previewThumbPath ? root.fileUrl(root.previewThumbPath) : ""
                 fillMode: Image.PreserveAspectFit
-                asynchronous: true
-                cache: true
-                sourceSize.width: 1400
-                sourceSize.height: 1400
-                onStatusChanged: {
-                    if (status === Image.Ready) { root.previewNatW = implicitWidth; root.previewNatH = implicitHeight; }
-                    else if (status === Image.Error) console.warn("[spotlight] Falha ao carregar thumbnail do PDF:", root.previewThumbPath);
-                }
+                asynchronous: true; cache: true
+                sourceSize.width: 1400; sourceSize.height: 1400
             }
-
             Item {
                 visible: root.previewKind === "video"
-                anchors.fill: parent
-                anchors.margins: 10
-
+                anchors.fill: parent; anchors.margins: 10
                 MediaPlayer {
                     id: videoPlayer
-                    source: root.previewKind === "video" && root.previewPath
-                            ? root.fileUrl(root.previewPath) : ""
+                    source: root.previewKind === "video" && root.previewPath ? root.fileUrl(root.previewPath) : ""
                     videoOutput: videoOut
                     audioOutput: AudioOutput { volume: 0.7 }
-                    onErrorOccurred: console.log("Video error:", errorString)
-
                     onMetaDataChanged: {
                         const r = metaData.resolution;
                         if (root.previewKind === "video" && r && r.width > 0 && r.height > 0) {
@@ -3068,62 +3058,39 @@ PanelWindow {
                         }
                     }
                 }
-
-                VideoOutput {
-                    id: videoOut
-                    anchors.fill: parent
-                    fillMode: VideoOutput.PreserveAspectFit
-                    onSourceRectChanged: {
-                        if (root.previewKind === "video" && sourceRect.width > 0 && sourceRect.height > 0) {
-                            root.previewNatW = sourceRect.width;
-                            root.previewNatH = sourceRect.height;
-                        }
-                    }
-                }
-
+                VideoOutput { id: videoOut; anchors.fill: parent; fillMode: VideoOutput.PreserveAspectFit }
                 Image {
                     anchors.fill: parent
                     source: root.previewThumbPath ? root.fileUrl(root.previewThumbPath) : ""
                     fillMode: Image.PreserveAspectFit
-                    sourceSize.width: 1000
-                    sourceSize.height: 1000
+                    sourceSize.width: 1000; sourceSize.height: 1000
                     visible: videoPlayer.playbackState !== MediaPlayer.PlayingState
                             && videoPlayer.playbackState !== MediaPlayer.PausedState
                     asynchronous: true
                 }
-
                 Rectangle {
                     anchors.centerIn: parent
                     width: 48; height: 48; radius: 24
                     color: Qt.rgba(0, 0, 0, 0.45)
                     visible: videoPlayer.playbackState !== MediaPlayer.PlayingState
                     Text { anchors.centerIn: parent; text: "▶"; color: "#ffffff"; font.pixelSize: 20 }
-                    MouseArea {
-                        anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: videoPlayer.play()
-                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: videoPlayer.play() }
                 }
-
                 MouseArea {
                     anchors.fill: parent
                     enabled: videoPlayer.playbackState === MediaPlayer.PlayingState
                     onClicked: videoPlayer.pause()
                 }
             }
-
             Item {
                 visible: root.previewKind === "audio"
-                anchors.fill: parent
-                anchors.margins: 10
+                anchors.fill: parent; anchors.margins: 10
                 Image {
                     id: audioCoverImgPopup
-                    anchors.fill: parent
-                    anchors.bottomMargin: 40
+                    anchors.fill: parent; anchors.bottomMargin: 40
                     source: root.previewThumbPath ? root.fileUrl(root.previewThumbPath) : ""
                     fillMode: Image.PreserveAspectFit
-                    sourceSize.width: 800
-                    sourceSize.height: 800
+                    sourceSize.width: 800; sourceSize.height: 800
                     asynchronous: true
                     visible: status === Image.Ready
                     onStatusChanged: if (status === Image.Ready) { root.previewNatW = implicitWidth; root.previewNatH = implicitHeight + 40; }
@@ -3154,13 +3121,10 @@ PanelWindow {
                         }
                     }
                 }
-
                 MediaPlayer {
                     id: audioPlayer
-                    source: root.previewKind === "audio" && root.previewPath
-                            ? root.fileUrl(root.previewPath) : ""
+                    source: root.previewKind === "audio" && root.previewPath ? root.fileUrl(root.previewPath) : ""
                     audioOutput: AudioOutput { volume: 0.8 }
-                    onErrorOccurred: console.log("[spotlight] Audio error:", errorString)
                 }
             }
         }
@@ -3171,20 +3135,39 @@ PanelWindow {
             anchors.left: searchHeader.right
             anchors.leftMargin: 16
             anchors.top: searchHeader.top
+
             width: 460
-            height: 480
+
+            readonly property real aiMinH: 160
+            readonly property real aiMaxH: 700
+            readonly property real aiPad: 28
+            readonly property real aiExtra: 8
+
+            height: Math.min(
+                aiMaxH,
+                Math.max(aiMinH, aiBody.implicitHeight + aiPad + aiExtra)
+            )
+
             radius: root.panelRadius
             color: root.glassBg
             border.color: root.glassBorder
             border.width: 1
             clip: true
-            Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
-            Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+
+            Behavior on height {
+                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
+            }
+            Behavior on width {
+                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
+            }
 
             MouseArea { anchors.fill: parent; z: -1 }
 
             ColumnLayout {
-                anchors.fill: parent
+                id: aiBody
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.top: parent.top
                 anchors.margins: 14
                 spacing: 8
 
@@ -3216,12 +3199,26 @@ PanelWindow {
 
                     Rectangle {
                         width: 24; height: 24; radius: 6
+                        visible: !root.aiLoading && root.aiText.length > 0 && !root.aiErrored
+                        color: copyMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                        border.width: 1
+                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                        Text { anchors.centerIn: parent; text: "\u29c9"; color: root.sFg; font.pixelSize: 13 }
+                        MouseArea {
+                            id: copyMA
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.copyText(root.aiText)
+                        }
+                    }
+
+                    Rectangle {
+                        width: 24; height: 24; radius: 6
                         color: newConvMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
                         border.width: 1
                         border.color: Qt.rgba(1, 1, 1, 0.12)
                         visible: root.aiHistory.length > 0
-                        Behavior on color { ColorAnimation { duration: 100 } }
-
                         Canvas {
                             anchors.centerIn: parent
                             width: 12; height: 12
@@ -3235,7 +3232,6 @@ PanelWindow {
                                 ctx.stroke()
                             }
                         }
-
                         MouseArea {
                             id: newConvMA
                             anchors.fill: parent
@@ -3250,91 +3246,75 @@ PanelWindow {
                     }
                 }
 
-                Rectangle { Layout.fillWidth: true; Layout.preferredHeight: 1; color: root.divider }
+                Rectangle {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 1
+                    color: root.divider
+                }
 
                 ScrollView {
                     id: aiScroll
                     Layout.fillWidth: true
-                    Layout.fillHeight: true
+                    Layout.preferredHeight: {
+                        const headerish = 40 + 1 + 8
+                        const inputish = 40 + 8 + 18
+                        const maxBody = aiPopup.aiMaxH - aiPopup.aiPad - headerish - inputish
+                        const natural = aiMessages.implicitHeight
+                        return Math.min(Math.max(natural, 40), maxBody)
+                    }
                     clip: true
                     contentWidth: availableWidth
-
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ScrollBar.vertical: ScrollBar {
                         width: 6
-                        policy: aiScroll.contentHeight > aiScroll.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
-                        contentItem: Rectangle { implicitWidth: 6; radius: 3; color: Qt.rgba(1, 1, 1, 0.35) }
+                        policy: aiScroll.contentHeight > aiScroll.height
+                                ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                        contentItem: Rectangle {
+                            implicitWidth: 6; radius: 3
+                            color: Qt.rgba(1, 1, 1, 0.35)
+                        }
                         background: Rectangle { implicitWidth: 6; color: "transparent" }
                     }
 
                     ColumnLayout {
+                        id: aiMessages
                         width: aiScroll.availableWidth
                         spacing: 8
 
                         Repeater {
                             model: root.aiHistory
-
                             delegate: Item {
                                 id: bubbleItem
                                 required property var modelData
                                 required property int index
                                 Layout.fillWidth: true
                                 Layout.preferredHeight: bubble.implicitHeight + 22
-
                                 readonly property bool isUser: modelData.role === "user"
-
                                 property real anim: 0
-                                property string ts: ""
-
+                                readonly property string ts: modelData.ts || ""
                                 Component.onCompleted: {
-                                    ts = Qt.formatTime(new Date(), "hh:mm")
-                                    enterAnim.start()
+                                    if (index === root.aiHistory.length - 1) enterAnim.start()
+                                    else anim = 1
                                 }
-
                                 SequentialAnimation {
                                     id: enterAnim
-                                    NumberAnimation {
-                                        target: bubbleItem
-                                        property: "anim"
-                                        from: 0; to: 1.08
-                                        duration: 200
-                                        easing.type: Easing.OutCubic
-                                    }
-                                    NumberAnimation {
-                                        target: bubbleItem
-                                        property: "anim"
-                                        to: 1.0
-                                        duration: 140
-                                        easing.type: Easing.OutBack
-                                    }
+                                    NumberAnimation { target: bubbleItem; property: "anim"; from: 0; to: 1.08; duration: 200; easing.type: Easing.OutCubic }
+                                    NumberAnimation { target: bubbleItem; property: "anim"; to: 1.0; duration: 140; easing.type: Easing.OutBack }
                                 }
-
-                                Rectangle {
+                                SiriOrb {
                                     id: avatar
                                     visible: !isUser
                                     anchors.left: parent.left
                                     anchors.top: parent.top
-                                    width: 22; height: 22; radius: 11
-                                    color: Qt.rgba(0.37, 0.36, 0.90, 0.6)
-                                    border.width: 1
-                                    border.color: Qt.rgba(1, 1, 1, 0.15)
-
-                                    SiriOrb {
-                                        anchors.centerIn: parent
-                                        width: 16
-                                        height: 16
-                                        size: 16
-                                        active: false
-                                        showRing: false
-                                    }
+                                    width: 22; height: 22; size: 22
+                                    active: false
+                                    showRing: false
                                 }
-
                                 Rectangle {
                                     id: bubble
                                     anchors.right: isUser ? parent.right : undefined
                                     anchors.left: isUser ? undefined : avatar.right
                                     anchors.leftMargin: 8
-
                                     transform: [
                                         Translate { y: (1 - bubbleItem.anim) * 12 },
                                         Scale {
@@ -3345,68 +3325,35 @@ PanelWindow {
                                         }
                                     ]
                                     opacity: Math.min(1, bubbleItem.anim)
-
                                     radius: 18
-
                                     width: Math.min(parent.width * (isUser ? 0.78 : 0.85), implicitWidth)
                                     implicitWidth: bubbleText.implicitWidth + 24
                                     implicitHeight: bubbleText.implicitHeight + 20
-
                                     gradient: Gradient {
                                         orientation: Gradient.Diagonal
-                                        GradientStop {
-                                            position: 0.0
-                                            color: isUser
-                                                ? Qt.rgba(0.20, 0.55, 1.0, 0.95)
-                                                : Qt.rgba(1, 1, 1, 0.12)
-                                        }
-                                        GradientStop {
-                                            position: 1.0
-                                            color: isUser                                                ? Qt.rgba(0.10, 0.40, 0.95, 0.95)
-                                                : Qt.rgba(1, 1, 1, 0.06)
-                                        }
+                                        GradientStop { position: 0.0; color: isUser ? Qt.rgba(0.20, 0.55, 1.0, 0.95) : Qt.rgba(1, 1, 1, 0.12) }
+                                        GradientStop { position: 1.0; color: isUser ? Qt.rgba(0.10, 0.40, 0.95, 0.95) : Qt.rgba(1, 1, 1, 0.06) }
                                     }
-
                                     border.width: 1
-                                    border.color: isUser
-                                        ? Qt.rgba(0.40, 0.70, 1.0, 0.35)
-                                        : Qt.rgba(1, 1, 1, 0.14)
-
-
+                                    border.color: isUser ? Qt.rgba(0.40, 0.70, 1.0, 0.35) : Qt.rgba(1, 1, 1, 0.14)
                                     Text {
                                         id: bubbleText
-                                        anchors.left: parent.left
-                                        anchors.right: parent.right
-                                        anchors.top: parent.top
+                                        anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
                                         anchors.margins: 12
-                                        text: modelData.content
+                                        text: modelData.label || modelData.content
                                         textFormat: isUser ? Text.PlainText : Text.MarkdownText
                                         color: "#ffffff"
                                         font { family: "SF Pro Text"; pixelSize: 14 }
                                         wrapMode: Text.Wrap
-                                        lineHeight: 1.4
-                                        lineHeightMode: Text.ProportionalHeight
                                     }
                                 }
-
                                 Row {
-                                    anchors.top: bubble.bottom
-                                    anchors.topMargin: 3
+                                    anchors.top: bubble.bottom; anchors.topMargin: 3
                                     anchors.right: isUser ? bubble.right : undefined
                                     anchors.left: isUser ? undefined : bubble.left
                                     spacing: 4
-
-                                    Text {
-                                        text: bubbleItem.ts
-                                        color: Qt.rgba(1, 1, 1, 0.28)
-                                        font { family: "SF Pro Text"; pixelSize: 9 }
-                                    }
-                                    Text {
-                                        visible: isUser
-                                        text: "✓✓"
-                                        color: Qt.rgba(0.4, 0.75, 1.0, 0.7)
-                                        font { family: "SF Pro Text"; pixelSize: 9; weight: Font.Bold }
-                                    }
+                                    Text { text: bubbleItem.ts; color: Qt.rgba(1, 1, 1, 0.28); font { family: "SF Pro Text"; pixelSize: 9 } }
+                                    Text { visible: isUser; text: "✓✓"; color: Qt.rgba(0.4, 0.75, 1.0, 0.7); font { family: "SF Pro Text"; pixelSize: 9; weight: Font.Bold } }
                                 }
                             }
                         }
@@ -3415,31 +3362,16 @@ PanelWindow {
                             Layout.fillWidth: true
                             Layout.preferredHeight: root.aiLoading ? 30 : 0
                             visible: root.aiLoading
-
                             SequentialAnimation on opacity {
-                                running: root.aiLoading
-                                loops: Animation.Infinite
+                                running: root.aiLoading; loops: Animation.Infinite
                                 NumberAnimation { to: 0.4; duration: 600; easing.type: Easing.InOutSine }
                                 NumberAnimation { to: 1.0; duration: 600; easing.type: Easing.InOutSine }
                             }
-
                             Row {
-                                anchors.left: parent.left
-                                anchors.verticalCenter: parent.verticalCenter
+                                anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                 spacing: 6
-
-                                Text {
-                                    text: "Hermes está digitando"
-                                    color: root.sFgDim
-                                    font { family: "SF Pro Text"; pixelSize: 12; italic: true }
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
-                                Text {
-                                    text: ".".repeat((_dotsTimer.tick % 3) + 1)
-                                    color: root.sFgDim
-                                    font { family: "SF Pro Text"; pixelSize: 12; italic: true }
-                                    anchors.verticalCenter: parent.verticalCenter
-                                }
+                                Text { text: "Hermes está digitando"; color: root.sFgDim; font { family: "SF Pro Text"; pixelSize: 12; italic: true } }
+                                Text { text: ".".repeat((_dotsTimer.tick % 3) + 1); color: root.sFgDim; font { family: "SF Pro Text"; pixelSize: 12; italic: true } }
                             }
                         }
 
@@ -3471,23 +3403,18 @@ PanelWindow {
                     border.width: 1
                     border.color: chatInput.activeFocus ? root.accent : Qt.rgba(1, 1, 1, 0.12)
                     Behavior on border.color { ColorAnimation { duration: 120 } }
-
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 6
+                        anchors.leftMargin: 12; anchors.rightMargin: 6
                         spacing: 8
-
                         TextInput {
                             id: chatInput
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
                             color: root.sFg
                             font { family: "SF Pro Text"; pixelSize: 14 }
-                            selectByMouse: true
-                            clip: true
+                            selectByMouse: true; clip: true
                             enabled: !root.aiLoading
-
                             Text {
                                 anchors.fill: parent
                                 text: root.aiLoading ? "Aguarde…" : "Continuar a conversa…"
@@ -3496,7 +3423,6 @@ PanelWindow {
                                 verticalAlignment: Text.AlignVCenter
                                 visible: chatInput.text.length === 0
                             }
-
                             Keys.onReturnPressed: (event) => {
                                 const t = chatInput.text.trim();
                                 if (t.length === 0 || root.aiLoading) return;
@@ -3512,7 +3438,6 @@ PanelWindow {
                                 event.accepted = true;
                             }
                         }
-
                         Rectangle {
                             Layout.preferredWidth: 30
                             Layout.preferredHeight: 30
@@ -3523,8 +3448,6 @@ PanelWindow {
                                 if (sendMA.containsMouse) return Qt.rgba(0.0, 0.48, 1.0, 0.55);
                                 return Qt.rgba(0.0, 0.48, 1.0, 0.35);
                             }
-                            Behavior on color { ColorAnimation { duration: 100 } }
-
                             Canvas {
                                 anchors.centerIn: parent
                                 width: 14; height: 14
@@ -3538,7 +3461,6 @@ PanelWindow {
                                     ctx.stroke()
                                 }
                             }
-
                             MouseArea {
                                 id: sendMA
                                 anchors.fill: parent
@@ -3570,6 +3492,18 @@ PanelWindow {
     Timer { id: _fdDeb; interval: 140; repeat: false; onTriggered: root.runFd() }
     Timer { id: _sideEffectsDeb; interval: 250; repeat: false; onTriggered: root.runSideEffects() }
     Timer { id: _rebuildDeb; interval: 30; repeat: false; onTriggered: root.buildResults() }
+    Timer {
+        id: _captureGuard
+        interval: 45000; repeat: false
+        onTriggered: {
+            if (!root._capturing) return;
+            root._capturing = false;
+            root._screenQuestion = "";
+            root.aiText = "❌ A captura da tela demorou demais";
+            root.aiLoading = false;
+            if (root._shown) root.scheduleRebuild();
+        }
+    }
     Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runHermes(root._pendingAiPrompt) }
     Timer {
         id: _aiRetryTimer
@@ -3621,13 +3555,7 @@ PanelWindow {
         id: terminalProcess
         running: false
         property string commandText: ""
-        command: [
-            root.terminal,
-            "--",
-            "bash",
-            "-lc",
-            commandText + "; echo; read -n 1 -s -r -p 'Pressione qualquer tecla para fechar...'"
-        ]
+        command: [root.terminal, "--", "bash", "-lc", commandText + "; echo; read -n 1 -s -r -p 'Pressione qualquer tecla para fechar...'"]
     }
 
     Process {
@@ -3670,8 +3598,7 @@ PanelWindow {
                     const mime = isImage ? (parts[3] || "image") : "";
                     const t = isImage ? (mime + " image") : (parts.slice(3).join("\t") || parts[1] || "").trim();
                     if (!id) continue;
-                    out.push({ id: id, text: t.length > 120 ? t.slice(0, 120) + "\u2026" : t,
-                               isImage: isImage, imagePath: imagePath });
+                    out.push({ id: id, text: t.length > 120 ? t.slice(0, 120) + "\u2026" : t, isImage: isImage, imagePath: imagePath });
                 }
                 root.clipItems = out; if (root.mode === "clipboard") root.scheduleRebuild();
             }
@@ -3686,9 +3613,6 @@ PanelWindow {
             if (exitCode === 0) {
                 root.clipItems = [];
                 if (root.mode === "clipboard") root.scheduleRebuild();
-                console.log("Clipboard history cleared");
-            } else {
-                console.warn("Failed to clear clipboard history. Exit code:", exitCode);
             }
         }
     }
@@ -3731,15 +3655,12 @@ PanelWindow {
         id: _addEvent
         running: false
         property string title: ""
-        stderr: StdioCollector {
-            onStreamFinished: { if (text.trim()) console.warn("[spotlight] eds-add-event:", text.trim()); }
-        }
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 CalendarEvents.refresh();
                 SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote("Event added: " + title));
             } else {
-                SpotlightController.run("notify-send -u critical 'Spotlight' 'Could not add event (see qs log)'");
+                SpotlightController.run("notify-send -u critical 'Spotlight' 'Could not add event'");
             }
         }
     }
@@ -3937,9 +3858,7 @@ PanelWindow {
 
     Process {
         id: _preview; running: false
-        stdout: StdioCollector {
-            onStreamFinished: { root.previewText = text; }
-        }
+        stdout: StdioCollector { onStreamFinished: { root.previewText = text; } }
     }
 
     Process {
