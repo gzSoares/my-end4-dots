@@ -74,7 +74,7 @@ Scope {
             Rectangle {
                 anchors.fill: parent
                 color: Appearance.colors.colLayer0Base
-                opacity: 0.90
+                opacity: 0.3   // era 0.90: tint leve para um blur suave
             }
         }
     }

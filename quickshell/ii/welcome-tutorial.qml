@@ -16,6 +16,8 @@ import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import QtQuick.Window
+import QtQuick.Shapes
+import QtQuick.Effects
 import Qt5Compat.GraphicalEffects
 import Quickshell
 import Quickshell.Io
@@ -46,15 +48,51 @@ ApplicationWindow {
     title: Translation.tr("Welcome to Mainstream")
 
     property int currentCard: 0
-    readonly property int cardCount: 10   // bump as you add more cards
-
-    // Install page (card 1): which apps the user ticked to install in the background.
-    readonly property int installCardIndex: 1
-    property var installSelections: ({ "gaming": false, "gamescope": false, "resolve": false, "resolve-studio": false, "obs": false,
-                                        "gimp": false, "krita": false, "libreoffice": false, "onlyoffice": false, "sunshine": false, "moonlight": false, "blender": false, "vr": false, "vr-streaming": false })
-    readonly property int installCount: {
-        var n = 0; for (var k in installSelections) if (installSelections[k]) n++; return n;
+    readonly property int cardCount: 13   // bump as you add more cards
+    // The window's own title doubles as each page's heading, so a page that
+    // names itself does not spend a line of its own saying so.
+    readonly property string cardTitle: {
+        switch (root.currentCard) {
+        case 0: return Translation.tr("Welcome! Let's start with the basics");
+        case 1: return Translation.tr("Pick your desktop's style");
+        case 2: return Translation.tr("Pick how your windows look");
+        case root.installCardIndex: return Translation.tr("Get set up for what you do");
+        case root.cardCount - 1: return Translation.tr("One last thing");
+        }
+        // The tour pages carry their own headline in the card, so the window
+        // only needs to say which part of the welcome this is.
+        return Translation.tr("Getting around");
     }
+
+    // The footer shows the walkthrough as three parts, since the full list of
+    // steps reads as a long way to go to someone new. The ranges come from the
+    // apps page and the page count, so a tour page added later lands in Tour.
+    readonly property var sections: [
+        { label: Translation.tr("Setup"),  first: 0, count: root.installCardIndex + 1 },
+        { label: Translation.tr("Tour"),   first: root.installCardIndex + 1, count: root.cardCount - root.installCardIndex - 2 },
+        { label: Translation.tr("Finish"), first: root.cardCount - 1, count: 1 }
+    ]
+    readonly property int currentSection: currentCard <= installCardIndex ? 0 : (currentCard < cardCount - 1 ? 1 : 2)
+    // Pages seen rather than the page shown, so a part jumped over still looks
+    // unfinished and going back never empties one.
+    property var visitedCards: [true]
+    function sectionSeen(section) {
+        var n = 0;
+        for (var i = section.first; i < section.first + section.count; i++) if (visitedCards[i]) n++;
+        return n;
+    }
+    // Every way of turning the page goes through here, so moving past the
+    // apps page starts what was ticked there whether it was Next or a jump.
+    function goToCard(index) {
+        if (index === currentCard || index < 0 || index >= cardCount) return;
+        if (currentCard <= installCardIndex && index > installCardIndex) runInstalls();
+        currentCard = index;
+    }
+
+    // Install page (card 2): which apps the user ticked to install in the background.
+    readonly property int installCardIndex: 3
+    property var installSelections: ({ "gaming": false, "gamescope": false, "resolve": false, "resolve-studio": false, "obs": false,
+                                        "gimp": false, "krita": false, "libreoffice": false, "onlyoffice": false, "sunshine": false, "moonlight": false, "blender": false, "vr": false })
     function toggleInstall(key) {
         if (installLocked(key)) return;
         var s = Object.assign({}, installSelections); s[key] = !s[key];
@@ -63,6 +101,12 @@ ApplicationWindow {
         if (s[key] && (key === "gaming" || key === "gamescope"))
             s[key === "gaming" ? "gamescope" : "gaming"] = false;
         installSelections = s;
+        // Whatever ends up unticked, by hand or by picking its partner,
+        // forgets that it was sent, so ticking it again retries it after a
+        // dismissed password prompt.
+        var l = Object.assign({}, launchedInstalls), forgot = false;
+        for (var k in l) if (!s[k]) { delete l[k]; forgot = true; }
+        if (forgot) launchedInstalls = l;
     }
 
     // Which install row, if any, the installed Resolve package occupies. Prefix
@@ -85,12 +129,28 @@ ApplicationWindow {
             return Translation.tr("Update to %1").arg(Updates.resolveLatest);
         return Translation.tr("Installed");
     }
-    function runInstalls() {
-        if (installCount === 0) return;
+    // What has already gone to the installer, so moving past the apps page
+    // again does not ask for the password twice for the same apps.
+    property var launchedInstalls: ({})
+    function pendingInstalls() {
         var opts = [];
-        for (var k in installSelections) if (installSelections[k] && !installLocked(k)) opts.push(k);
+        for (var k in installSelections)
+            if (installSelections[k] && !installLocked(k) && !launchedInstalls[k]) opts.push(k);
+        return opts;
+    }
+    function runInstalls() {
+        var opts = pendingInstalls();
         if (opts.length === 0) return;
-        Quickshell.execDetached(["sh", "-c", "pkexec /usr/bin/mainstream-welcome-install \"$@\"; :", "sh"].concat(opts));
+        var launched = Object.assign({}, launchedInstalls);
+        for (var i = 0; i < opts.length; i++) launched[opts[i]] = true;
+        launchedInstalls = launched;
+        // The installer runs on after this window closes and is not safe to run
+        // twice at once: two runs fight over the package database, and one
+        // finishing removes the sudo grant the other's Resolve build still
+        // needs. A later batch waits its turn behind the lock instead.
+        Quickshell.execDetached(["sh", "-c",
+            "flock \"${XDG_RUNTIME_DIR:-/tmp}/mainstream-welcome-install.lock\" pkexec /usr/bin/mainstream-welcome-install \"$@\"; :",
+            "sh"].concat(opts));
     }
 
     // Shared asset dir for the cards' screenshots/icons.
@@ -110,6 +170,20 @@ ApplicationWindow {
         Quickshell.execDetached(["python3", "-c",
             "import sys\nopen(sys.argv[2], 'w').write(sys.argv[1] + '\\n')\n",
             value, Quickshell.env("HOME") + "/.config/hypr/custom/scrolloverview.layout"]);
+    }
+    // Starts from what is saved, as Settings does: shown as Vertical over a
+    // saved Horizontal, picking Vertical would look like no change and write
+    // nothing.
+    Process {
+        running: true
+        command: ["cat", Quickshell.env("HOME") + "/.config/hypr/custom/scrolloverview.layout"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const saved = this.text.trim();
+                if (saved === "vertical" || saved === "horizontal")
+                    root.scrollOverviewLayout = saved;
+            }
+        }
     }
 
     // Shared mockup geometry — the feature cards render the same
@@ -165,6 +239,11 @@ ApplicationWindow {
     property string firstRunFileContent: "This file is just here to confirm you've been greeted :>"
     property bool showNextStartup: false
 
+    // Closing hides the window straight away, and the process goes once a page
+    // has finished what it started, such as a theme apply or a new wallpaper.
+    onClosing: quitWhenIdle.request()
+    QuitWhenIdle { id: quitWhenIdle }
+
     Component.onCompleted: {
         MaterialThemeLoader.reapplyTheme()
         // No file work here: the marker is already written by the
@@ -178,6 +257,7 @@ ApplicationWindow {
         // the weekly notifier uses. Asynchronous and best-effort: until it
         // answers (or if it never does) every row reads as it did before.
         Updates.refreshResolve()
+        layerBlurReader.running = true
     }
 
     // ── Frame ────────────────────────────────────────────────────────────
@@ -206,7 +286,7 @@ ApplicationWindow {
                     leftMargin: 12
                 }
                 color: Appearance.colors.colOnLayer0
-                text: Translation.tr("Hi there! First things first...")
+                text: root.cardTitle
                 font {
                     family: Appearance.font.family.title
                     pixelSize: Appearance.font.pixelSize.title
@@ -270,10 +350,12 @@ ApplicationWindow {
 
                 // Cards are built lazily — only the visited ones are
                 // instantiated, so the welcome paints card 0 immediately
-                // instead of constructing all eight (with their timers and
+                // instead of constructing every card (with their timers and
                 // animations) up front. Once shown, a card stays loaded so
                 // navigating back to it is instant.
                 LazyCard { sourceComponent: card0Comp }
+                LazyCard { sourceComponent: cardStyleComp }
+                LazyCard { sourceComponent: cardWindowsComp }
                 LazyCard { sourceComponent: cardInstallComp }
                 LazyCard { sourceComponent: card1Comp }
                 LazyCard { sourceComponent: card2Comp }
@@ -281,12 +363,15 @@ ApplicationWindow {
                 LazyCard { sourceComponent: card4Comp }
                 LazyCard { sourceComponent: card5Comp }
                 LazyCard { sourceComponent: card6Comp }
+                LazyCard { sourceComponent: cardDesktopMenuComp }
                 LazyCard { sourceComponent: card7Comp }
                 LazyCard { sourceComponent: card8Comp }
                 // add more LazyCard { sourceComponent: cardNComp } here
             }
 
             Component { id: card0Comp; Card0Setup {} }
+            Component { id: cardStyleComp; CardStyle {} }
+            Component { id: cardWindowsComp; CardWindows {} }
             Component { id: cardInstallComp; Card1Install {} }
             Component { id: card1Comp; Card1BarTour {} }
             Component { id: card2Comp; Card2Workspaces {} }
@@ -294,26 +379,26 @@ ApplicationWindow {
             Component { id: card4Comp; Card4MoveBetweenWorkspaces {} }
             Component { id: card5Comp; Card5FileDragViaBar {} }
             Component { id: card6Comp; Card6DockPreview {} }
+            Component { id: cardDesktopMenuComp; CardDesktopMenu {} }
             Component { id: card7Comp; Card7AppShowcaseTabs {} }
             Component { id: card8Comp; Card8Contribute {} }
         }
 
-        // Footer
-        RowLayout {
+        // Footer. Back and Next hold the two ends and the three parts sit in
+        // the middle of the whole width, so they stay put when Next grows to
+        // fit "Install / Next".
+        Item {
             Layout.fillWidth: true
-            spacing: 12
+            implicitHeight: 38
 
             RippleButton {
-                // Keep the slot in the layout so the page indicator
-                // stays centred — `visible: false` would have RowLayout
-                // exclude it entirely and pull the indicator left. Use
-                // opacity + enabled instead.
-                opacity: root.currentCard > 0 ? 1 : 0
-                enabled: root.currentCard > 0
+                anchors.left: parent.left
+                anchors.verticalCenter: parent.verticalCenter
+                visible: root.currentCard > 0
                 buttonRadius: Appearance.rounding.normal
                 implicitWidth: 110
                 implicitHeight: 38
-                onClicked: root.currentCard--
+                onClicked: root.goToCard(root.currentCard - 1)
                 contentItem: StyledText {
                     anchors.centerIn: parent
                     horizontalAlignment: Text.AlignHCenter
@@ -322,41 +407,93 @@ ApplicationWindow {
                     color: Appearance.colors.colOnLayer0
                 }
             }
-            Item { Layout.fillWidth: true }
 
-            // Page indicator dots
-            RowLayout {
+            // Each part fills as its pages are seen, and any part other than
+            // the open one takes you to its first page.
+            Row {
+                anchors.centerIn: parent
                 spacing: 8
+
                 Repeater {
-                    model: root.cardCount
-                    delegate: Rectangle {
+                    model: root.sections
+                    delegate: MouseArea {
+                        id: sectionTab
+                        required property var modelData
                         required property int index
-                        readonly property bool active: index === root.currentCard
-                        implicitWidth: active ? 28 : 10
-                        implicitHeight: 10
-                        radius: 5
-                        color: active
-                            ? Appearance.m3colors.m3primary
-                            : Appearance.colors.colOutlineVariant
-                        Behavior on implicitWidth { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-                        Behavior on color        { ColorAnimation  { duration: 220 } }
+                        readonly property bool current: index === root.currentSection
+                        readonly property real fill: root.sectionSeen(modelData) / modelData.count
+                        readonly property bool finished: fill >= 1 && !current
+                        width: 136
+                        height: 38
+                        enabled: !current
+                        hoverEnabled: true
+                        cursorShape: current ? Qt.ArrowCursor : Qt.PointingHandCursor
+                        onClicked: root.goToCard(modelData.first)
+
+                        Rectangle {
+                            anchors.fill: parent
+                            radius: Appearance.rounding.small
+                            color: sectionTab.containsMouse ? Appearance.colors.colLayer1Hover : "transparent"
+                            Behavior on color { ColorAnimation { duration: 150 } }
+                        }
+
+                        Column {
+                            id: sectionColumn
+                            anchors.centerIn: parent
+                            width: parent.width - 16
+                            spacing: 6
+
+                            Row {
+                                anchors.horizontalCenter: parent.horizontalCenter
+                                spacing: 3
+                                MaterialSymbol {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    visible: sectionTab.finished
+                                    text: "check"
+                                    iconSize: 14
+                                    color: Appearance.m3colors.m3primary
+                                }
+                                StyledText {
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    width: Math.min(implicitWidth, sectionColumn.width - (sectionTab.finished ? 17 : 0))
+                                    elide: Text.ElideRight
+                                    text: sectionTab.modelData.label
+                                    font.pixelSize: Appearance.font.pixelSize.smallie
+                                    font.variableAxes: sectionTab.current ? Appearance.font.variableAxes.title : Appearance.font.variableAxes.main
+                                    color: sectionTab.current ? Appearance.m3colors.m3primary : Appearance.colors.colSubtext
+                                }
+                            }
+
+                            Rectangle {
+                                width: parent.width
+                                height: 4
+                                radius: 2
+                                color: Appearance.m3colors.m3secondaryContainer
+                                Rectangle {
+                                    width: parent.width * sectionTab.fill
+                                    height: parent.height
+                                    radius: parent.radius
+                                    color: Appearance.m3colors.m3primary
+                                    Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+                                }
+                            }
+                        }
                     }
                 }
             }
 
-            Item { Layout.fillWidth: true }
-
             RippleButton {
                 id: nextBtn
-                readonly property bool installMode: root.currentCard === root.installCardIndex && root.installCount > 0
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                readonly property bool installMode: root.currentCard === root.installCardIndex && root.pendingInstalls().length > 0
                 buttonRadius: Appearance.rounding.normal
                 implicitWidth: installMode ? 152 : 110
                 implicitHeight: 38
                 colBackground: Appearance.m3colors.m3primary
                 colBackgroundHover: Appearance.m3colors.m3primary
                 onClicked: {
-                    if (nextBtn.installMode) root.runInstalls()
-                    if (root.currentCard < root.cardCount - 1) root.currentCard++
+                    if (root.currentCard < root.cardCount - 1) root.goToCard(root.currentCard + 1)
                     else root.close()
                 }
                 contentItem: StyledText {
@@ -373,309 +510,730 @@ ApplicationWindow {
     }
 
 
-    // ---- Install page (card 1) ----
-    // A selectable, checkbox-style option card, styled like the Calamares
-    // installmethod cards; toggles an entry in root.installSelections.
-    component InstallOption : Rectangle {
-        id: optRoot
-        property string optKey
-        property string optTitle
-        property string optDesc
-        // An icon theme name, or a file path for an app the theme has no icon for.
-        property string optIcon
-        // Already installed and current: nothing to do, so the row reports state
-        // instead of offering an install that would be a no-op.
-        readonly property bool locked: root.installLocked(optKey)
-        readonly property string status: root.installStatus(optKey)
-        readonly property bool selected: !locked && (root.installSelections[optKey] === true)
-        Layout.fillWidth: true
-        // Follows the text rather than a fixed 74: a narrower tile, or a
-        // translation that runs longer than the English, wraps to another line
-        // and would otherwise spill out of the card.
-        Layout.preferredHeight: Math.max(74, optContent.implicitHeight + 24)
-        radius: Appearance.rounding.normal
-        opacity: locked ? 0.6 : 1
-        color: selected
-            ? ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.85)
-            : Appearance.colors.colLayer1
-        border.width: selected ? 2 : 1
-        border.color: selected ? Appearance.m3colors.m3primary : Appearance.colors.colOutlineVariant
-        Behavior on border.color { ColorAnimation { duration: 150 } }
-        Behavior on color { ColorAnimation { duration: 150 } }
-        Behavior on opacity { NumberAnimation { duration: 150 } }
-
-        MouseArea {
-            anchors.fill: parent
-            enabled: !optRoot.locked
-            cursorShape: Qt.PointingHandCursor
-            onClicked: root.toggleInstall(optRoot.optKey)
-        }
-        RowLayout {
-            anchors.fill: parent
-            anchors.margins: 12
-            spacing: 12
-            AppIcon {
-                source: optRoot.optIcon
-                fallback: "application-x-executable"
-                implicitSize: 32
-            }
-            ColumnLayout {
-                id: optContent
-                spacing: 1
-                Layout.fillWidth: true
-                StyledText {
-                    text: optRoot.optTitle
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    font.weight: Font.Medium
-                    color: Appearance.colors.colOnLayer0
-                }
-                StyledText {
-                    // The version check replaces the sales pitch once it has
-                    // something more useful to say about this row.
-                    text: optRoot.status.length > 0 ? optRoot.status : optRoot.optDesc
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: optRoot.status.length > 0 && !optRoot.locked
-                        ? Appearance.m3colors.m3primary
-                        : Appearance.colors.colSubtext
-                    wrapMode: Text.WordWrap
-                    Layout.fillWidth: true
-                }
-            }
-            MaterialSymbol {
-                text: optRoot.locked ? "check_circle"
-                    : (optRoot.selected ? "check_circle" : "radio_button_unchecked")
-                fill: (optRoot.selected || optRoot.locked) ? 1 : 0
-                iconSize: 24
-                color: optRoot.selected ? Appearance.m3colors.m3primary
-                    : (optRoot.locked ? Appearance.colors.colSubtext : Appearance.colors.colOutlineVariant)
+    // Whether the compositor frosts what sits behind the bar and the dock.
+    // Read again on arriving at the two pages that draw it, since the windows
+    // page can turn blur off.
+    property bool layerBlur: true
+    Process {
+        id: layerBlurReader
+        command: root.decorationsCommand("read")
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const values = JSON.parse(text || "{}");
+                    if (values.blur !== undefined) root.layerBlur = values.blur;
+                } catch (e) {}
             }
         }
     }
+    onCurrentCardChanged: {
+        if (currentCard <= 1) {
+            layerBlurReader.running = false;
+            layerBlurReader.running = true;
+        }
+        if (!visitedCards[currentCard]) {
+            var v = visitedCards.slice(); v[currentCard] = true; visitedCards = v;
+        }
+    }
 
-    component InstallCategory : StyledText {
-        font.pixelSize: Appearance.font.pixelSize.large
-        font.weight: Font.Medium
-        color: Appearance.colors.colOnLayer0
-        Layout.topMargin: 2
+    // ---- Style page (card 1) ----
+    // One pick sets both halves, so a tile reads the bar and speaks for the
+    // pair. Settings can still move each on its own, and the bar carries a
+    // fourth style, Rect, which none of these tiles offers and none lights.
+    readonly property string barDockStyle: {
+        switch (Config.options.bar.cornerStyle) {
+        case 0: return "hug";
+        case 1: return "float";
+        case 3: return "notch";
+        }
+        return "";
+    }
+
+    // Only ever called from a click. Nothing here may run on load: the tour
+    // opens while the first-boot theme pass may still be writing, and a write
+    // from here would land in the middle of it.
+    function applyBarStyle(v) {
+        // A pinned roundness or width outranks whatever a style would draw, so
+        // without this the shapes could all come out the same.
+        Config.options.bar.floatRadius = -1;
+        Config.options.bar.floatWidth = -1;
+        Config.options.bar.notchWidth = -1;
+        Config.options.bar.floatSplit = false;
+        RoundedCorners.pickBarStyle(v);
+    }
+
+    function applyDockStyle(v) {
+        Config.options.dock.radius = -1;
+        Config.options.dock.topRadius = -1;
+        // The dock hands each style back the roundness it last had the next
+        // time Settings moves between them, which would undo this later on.
+        Config.options.dock.radiusFloat = -2;
+        Config.options.dock.radiusNotch = -2;
+        Config.options.dock.topRadiusRect = -2;
+        Config.options.dock.topRadiusNotch = -2;
+        // Through the rule the Dock page uses, which sets a Hug dock down on
+        // the edge facing the bar, the only edge it can run the length of.
+        Appearance.sizes.setDockStyle(v);
+    }
+
+    // The pair a tile stands for. Each half is set through its own call above
+    // so the roundness each one pins is let go of the same way either route in.
+    // The Hug dock is stored as "span", since "hug" names the notch.
+    function applyBarDockStyle(name) {
+        if (name === "hug") {
+            root.applyBarStyle(0);
+            root.applyDockStyle("span");
+        } else if (name === "notch") {
+            root.applyBarStyle(3);
+            root.applyDockStyle("hug");
+        } else {
+            root.applyBarStyle(1);
+            root.applyDockStyle("float");
+        }
+        root.fitWindowsToHug(name === "hug");
+    }
+
+    // ---- Window corners under Hug ----
+    // The Hug bar and dock carry the screen's rounding round where they meet
+    // the desktop, and a window sits inside that curve by the outer gap. A
+    // window corner of the screen's radius less that gap, drawn as a circle
+    // (rounding power 2) rather than the stock squircle, reads as running
+    // alongside it; taking the border off as well looks tighter than the bar.
+    // Picking Hug writes that once as the user's own saved setting, the way
+    // the windows page writes one, so Settings goes on moving it freely.
+    // What the corners were before is kept for this session, so that leaving
+    // Hug for another tile puts them back, but only where each still holds what
+    // Hug set: anything changed since, here or in Settings, is the user's.
+    property var hugFit: null // { before, set } while a fit is in place
+    property bool hugFitWanted: false
+    property bool hugFitBusy: false
+    property bool hugFitAgain: false
+    readonly property var hugFitKeys: ["rounding", "roundingPower"]
+    // What the compositor draws for a key general.lua never names, which is
+    // what the screen showed before Hug wrote it, and so what leaving Hug puts
+    // back.
+    readonly property var hugFitBuiltIn: ({ rounding: 0, roundingPower: 2 })
+    // The rounding the latest Hug fit switched on from off, or -1. Kept after
+    // leaving Hug switches it off again, so the windows page can tell Hug's
+    // radius apart from one the user chose for Rounded Corners.
+    property int hugFitRoundingOn: -1
+    // The windows page reads its values once, so it is told when they move.
+    signal decorationsRewritten()
+
+    function decorationsCommand(verb, extra) {
+        const config = FileUtils.trimFileProtocol(Directories.config);
+        return ["python3", `${config}/quickshell/ii/scripts/themes/decorations.py`, verb,
+                `${config}/hypr/hyprland/general.lua`, "--flag-dir", `${config}/hypr/custom`].concat(extra ?? []);
+    }
+
+    // One pick at a time: a tile clicked while the last one is still reading
+    // or writing is taken up once it has finished, as the latest pick.
+    function fitWindowsToHug(wanted) {
+        root.hugFitWanted = wanted;
+        if (root.hugFitBusy) {
+            root.hugFitAgain = true;
+            return;
+        }
+        if (!wanted && root.hugFit === null) return;
+        root.hugFitBusy = true;
+        hugFitReader.running = true;
+    }
+
+    // What to write for the latest pick, given the settings as they are now.
+    function hugFitChanges(now) {
+        const fitted = root.hugFit;
+        const shown = k => now[k] ?? root.hugFitBuiltIn[k];
+        if (!root.hugFitWanted) {
+            root.hugFit = null;
+            if (fitted === null) return [];
+            return root.hugFitKeys
+                .filter(k => shown(k) === fitted.set[k] && fitted.before[k] !== fitted.set[k])
+                .map(k => `${k}=${fitted.before[k]}`);
+        }
+        // Without the gap there is nothing to measure from, and with no room
+        // left for a curve the windows keep the corners they have rather than
+        // a bar style switching their rounding off.
+        if (typeof now.gapsOut !== "number") return [];
+        const radius = Math.max(0, Appearance.rounding.screenRounding - now.gapsOut);
+        if (radius === 0) return [];
+        const set = { rounding: radius, roundingPower: 2 };
+        // Hug picked again while its fit is still in place: what came before
+        // that fit is still what leaving Hug puts back.
+        const before = {};
+        for (const k of root.hugFitKeys)
+            before[k] = (fitted !== null && shown(k) === fitted.set[k]) ? fitted.before[k] : shown(k);
+        root.hugFit = { before: before, set: set };
+        root.hugFitRoundingOn = before.rounding > 0 ? -1 : set.rounding;
+        return root.hugFitKeys.filter(k => shown(k) !== set[k]).map(k => `${k}=${set[k]}`);
+    }
+
+    function hugFitDone() {
+        root.hugFitBusy = false;
+        if (!root.hugFitAgain) return;
+        root.hugFitAgain = false;
+        root.fitWindowsToHug(root.hugFitWanted);
+    }
+
+    // Read at the moment of the pick, so the fit follows the gap and the border
+    // the windows have now.
+    Process {
+        id: hugFitReader
+        command: root.decorationsCommand("read")
+        stdout: StdioCollector { id: hugFitRead }
+        onExited: (exitCode, exitStatus) => {
+            let now = null;
+            try { now = JSON.parse(hugFitRead.text); } catch (e) {}
+            const pairs = (exitCode === 0 && now) ? root.hugFitChanges(now) : [];
+            if (pairs.length === 0) {
+                root.hugFitDone();
+                return;
+            }
+            hugFitWriter.command = root.decorationsCommand("set", pairs);
+            hugFitWriter.running = true;
+        }
+    }
+
+    // The same set call the windows page makes, which saves the file and hands
+    // the values to the compositor together.
+    Process {
+        id: hugFitWriter
+        onExited: (exitCode, exitStatus) => {
+            root.decorationsRewritten();
+            root.hugFitDone();
+        }
+    }
+
+    // The bar and the dock each keep their own color and transparency, and the
+    // app list draws on the dock's, so one move here reaches all three. The
+    // dock's values stand for the set when reading back.
+    readonly property real styleOpacity: Math.max(Appearance.colors.surfaceOpacityFloor,
+        Config.options.dock.backgroundOpacity < 0
+            ? Appearance.colors.layer0StockAlpha : Config.options.dock.backgroundOpacity)
+    readonly property string styleColor: Appearance.colors.dockPick
+
+    function applyStyleOpacity(v) {
+        Config.options.bar.backgroundOpacity = v;
+        Config.options.dock.backgroundOpacity = v;
+    }
+
+    // Written into the slot for the mode on screen, the way the settings pages
+    // do it, so the other mode keeps whatever it was given.
+    function applyStyleColor(v) {
+        if (Appearance.m3colors.darkmode) {
+            Config.options.bar.backgroundColorDark = v;
+            Config.options.dock.backgroundColorDark = v;
+        } else {
+            Config.options.bar.backgroundColorLight = v;
+            Config.options.dock.backgroundColorLight = v;
+        }
+    }
+
+    // A way home is only worth showing while there is somewhere to go back
+    // from, the same as the settings sections.
+    readonly property bool styleIsCustom: Config.options.bar.backgroundOpacity >= 0
+        || Config.options.dock.backgroundOpacity >= 0
+        || Config.options.bar.backgroundColorDark !== ""
+        || Config.options.bar.backgroundColorLight !== ""
+        || Config.options.dock.backgroundColorDark !== ""
+        || Config.options.dock.backgroundColorLight !== ""
+
+    // Both modes rather than the one on screen. The other mode's slot is still
+    // a color chosen here, and leaving it filled would hand the custom look
+    // straight back the first time the mode flips.
+    function resetStyleAppearance() {
+        Config.options.bar.backgroundOpacity = -1;
+        Config.options.dock.backgroundOpacity = -1;
+        Config.options.bar.backgroundColorDark = "";
+        Config.options.bar.backgroundColorLight = "";
+        Config.options.dock.backgroundColorDark = "";
+        Config.options.dock.backgroundColorLight = "";
+    }
+
+    // ---- Apps page ----
+    // One app to pick, lit and ticked when picked the way the other pages'
+    // picture cards are, and dimmed with a badge when there is nothing left to
+    // install. The short line fits the tile, and the full one waits in a
+    // tooltip for anyone who rests on it.
+    component InstallTile : MouseArea {
+        id: tile
+        required property var app
+        readonly property bool locked: root.installLocked(tile.app.key)
+        readonly property string status: root.installStatus(tile.app.key)
+        readonly property bool selected: !tile.locked && root.installSelections[tile.app.key] === true
+
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        Layout.preferredWidth: 1
+        hoverEnabled: true
+        cursorShape: tile.locked ? Qt.ArrowCursor : Qt.PointingHandCursor
+        onClicked: if (!tile.locked) root.toggleInstall(tile.app.key)
+
+        // Held a moment before the tooltip opens, so sweeping across the grid
+        // does not flash one over every tile on the way.
+        property bool dwelled: false
+        onContainsMouseChanged: if (!containsMouse) dwelled = false
+        Timer {
+            interval: 600
+            running: tile.containsMouse && !tile.dwelled
+            onTriggered: tile.dwelled = true
+        }
+
+        Item {
+            anchors.fill: parent
+            opacity: tile.locked ? 0.6 : 1
+
+            PickFrame {
+                anchors.fill: parent
+                radius: Appearance.rounding.small
+                selected: tile.selected
+                hovered: tile.containsMouse && !tile.locked
+            }
+
+            // Only on a picked tile. A lit tile already reads as picked, and an
+            // empty circle on every other one was noise.
+            MaterialSymbol {
+                anchors { top: parent.top; right: parent.right; margins: 6 }
+                visible: tile.selected
+                text: "check_circle"
+                fill: 1
+                iconSize: 18
+                color: Appearance.colors.colPrimary
+            }
+
+            ColumnLayout {
+                anchors.centerIn: parent
+                width: parent.width - 16
+                spacing: 4
+
+                AppIcon {
+                    Layout.alignment: Qt.AlignHCenter
+                    source: tile.app.icon
+                    fallback: "application-x-executable"
+                    implicitSize: 32
+                }
+                StyledText {
+                    id: tileName
+                    Layout.fillWidth: true
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    maximumLineCount: 2
+                    elide: Text.ElideRight
+                    text: tile.app.name
+                    font.pixelSize: Appearance.font.pixelSize.smallie
+                    font.variableAxes: Appearance.font.variableAxes.title
+                    color: Appearance.colors.colOnLayer1
+                }
+                // The version check, once it has something to say, stands in
+                // for the line about the app.
+                Rectangle {
+                    id: statusPill
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.maximumWidth: parent.width
+                    visible: tile.status.length > 0
+                    implicitWidth: statusText.implicitWidth + 14
+                    implicitHeight: statusText.implicitHeight + 4
+                    radius: height / 2
+                    color: tile.locked ? Appearance.colors.colLayer3 : Appearance.colors.colPrimaryContainer
+                    StyledText {
+                        id: statusText
+                        anchors.centerIn: parent
+                        width: Math.min(implicitWidth, statusPill.width - 14)
+                        elide: Text.ElideRight
+                        text: tile.status
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: tile.locked ? Appearance.colors.colSubtext : Appearance.colors.colOnPrimaryContainer
+                    }
+                }
+                StyledText {
+                    Layout.fillWidth: true
+                    visible: tile.status.length === 0
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    // The tile's height is set by the grid, so a name that
+                    // takes two lines leaves room for only one here.
+                    maximumLineCount: tileName.lineCount > 1 ? 1 : 2
+                    elide: Text.ElideRight
+                    text: tile.app.blurb
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colSubtext
+                }
+            }
+        }
+
+        StyledToolTip {
+            extraVisibleCondition: tile.dwelled
+            maximumTextWidth: 280
+            text: tile.app.desc
+        }
     }
 
     component Card1Install : Item {
         id: installCard
-        // Six categories outgrow the fixed window, so the list scrolls, and a
-        // pill over the bottom edge says so until the end is reached.
-        StyledFlickable {
-            id: installFlick
-            anchors.fill: parent
-            anchors.margins: 28
-            clip: true
-            contentWidth: width
-            contentHeight: installColumn.implicitHeight
-            ColumnLayout {
-                id: installColumn
-                width: installFlick.width
-                spacing: 8
 
-                StyledText {
-                    text: Translation.tr("Set up your apps")
-                    font.pixelSize: Appearance.font.pixelSize.huge
-                    font.weight: Font.Medium
-                    color: Appearance.colors.colOnLayer0
+        // Every app on the page, in the three rows it is shown in. A pair marked
+        // either is one choice between two, which toggleInstall keeps to.
+        readonly property var groups: [
+            { title: Translation.tr("Play"), items: [
+                { either: true, apps: [
+                    { key: "gaming", icon: "steam", name: Translation.tr("Desktop Gaming"),
+                      blurb: Translation.tr("Steam and Proton"),
+                      desc: Translation.tr("Steam, Proton and GPU drivers — play on your desktop.") },
+                    { key: "gamescope", icon: "steamdeck-gaming-return", name: Translation.tr("Desktop + Big Picture"),
+                      blurb: Translation.tr("Adds a console mode"),
+                      desc: Translation.tr("Everything in Desktop Gaming, plus a console style session on Super <font face='JetBrains Mono NF'>(󰖳)</font> + G.") }
+                ] },
+                { apps: [
+                    { key: "sunshine", icon: root.imageDir + "/sunshine.svg", name: Translation.tr("Sunshine"),
+                      blurb: Translation.tr("Stream this PC's games"),
+                      desc: Translation.tr("Stream this PC's games to your other devices.") }
+                ] },
+                { apps: [
+                    { key: "moonlight", icon: "com.moonlight_stream.Moonlight", name: Translation.tr("Moonlight"),
+                      blurb: Translation.tr("Play another PC's games"),
+                      desc: Translation.tr("Play games streamed from another PC.") }
+                ] },
+                { apps: [
+                    { key: "vr", icon: "steamvr", name: Translation.tr("Extra VR Headset Support"),
+                      blurb: Translation.tr("Quest, Pico and Vive Focus"),
+                      desc: Translation.tr("Adds headsets SteamVR cannot reach on its own: standalone ones like Quest, Pico and Vive Focus. Wired headsets still use SteamVR.") }
+                ] }
+            ] },
+            { title: Translation.tr("Create"), items: [
+                { either: true, apps: [
+                    { key: "resolve", icon: "davinci-resolve", name: Translation.tr("DaVinci Resolve"),
+                      blurb: Translation.tr("Free, large download"),
+                      desc: Translation.tr("Free edition. Large download.") },
+                    { key: "resolve-studio", icon: "davinci-resolve", name: Translation.tr("DaVinci Resolve Studio"),
+                      blurb: Translation.tr("Paid, needs a license"),
+                      desc: Translation.tr("Paid edition (needs your license). Large download.") }
+                ] },
+                { apps: [
+                    { key: "obs", icon: "com.obsproject.Studio", name: Translation.tr("OBS Studio"),
+                      blurb: Translation.tr("Record and stream"),
+                      desc: Translation.tr("mainstream-obs — record and stream.") }
+                ] },
+                { apps: [
+                    { key: "blender", icon: "blender", name: Translation.tr("Blender"),
+                      blurb: Translation.tr("3D and animation"),
+                      desc: Translation.tr("3D modeling, animation and video editing.") }
+                ] },
+                { apps: [
+                    { key: "gimp", icon: "gimp", name: Translation.tr("GIMP"),
+                      blurb: Translation.tr("Photo editing"),
+                      desc: Translation.tr("Photo editing and retouching.") }
+                ] },
+                { apps: [
+                    { key: "krita", icon: "org.kde.krita", name: Translation.tr("Krita"),
+                      blurb: Translation.tr("Digital painting"),
+                      desc: Translation.tr("Digital painting and illustration.") }
+                ] }
+            ] },
+            { title: Translation.tr("Work"), items: [
+                { apps: [
+                    { key: "libreoffice", icon: "libreoffice-startcenter", name: Translation.tr("LibreOffice"),
+                      blurb: Translation.tr("Opens Office files"),
+                      desc: Translation.tr("Writer, Calc and Impress. Opens Word, Excel and PowerPoint files.") }
+                ] },
+                { apps: [
+                    { key: "onlyoffice", icon: "org.onlyoffice.desktopeditors", name: Translation.tr("OnlyOffice"),
+                      blurb: Translation.tr("A Microsoft Office look"),
+                      desc: Translation.tr("Editors with a familiar Microsoft Office look. Installs from Flathub.") }
+                ] }
+            ] }
+        ]
+        readonly property var picks: {
+            const out = [];
+            for (const g of installCard.groups)
+                for (const item of g.items)
+                    for (const a of item.apps)
+                        if (root.installSelections[a.key] === true && !root.installLocked(a.key)) out.push(a);
+            return out;
+        }
+
+        // Every tile is the same width, set by the fullest row, so the rows
+        // line up as one grid and a short row simply ends early.
+        readonly property real slotSpacing: 8
+        readonly property real orGap: orMeasure.implicitWidth + 16
+        readonly property real tileWidth: {
+            const room = installCard.width - 48;
+            let w = room;
+            for (const g of installCard.groups) {
+                let tiles = 0, gaps = (g.items.length - 1) * installCard.slotSpacing;
+                for (const item of g.items) {
+                    tiles += item.apps.length;
+                    if (item.either) gaps += installCard.orGap;
                 }
-                StyledText {
-                    text: Translation.tr("Pick anything you'd like installed — you can always add these later.")
-                    font.pixelSize: Appearance.font.pixelSize.normal
-                    color: Appearance.colors.colSubtext
-                    wrapMode: Text.WordWrap
+                w = Math.min(w, (room - gaps) / tiles);
+            }
+            return Math.floor(w);
+        }
+        StyledText {
+            id: orMeasure
+            visible: false
+            text: Translation.tr("or")
+            font.pixelSize: Appearance.font.pixelSize.smaller
+        }
+
+        ColumnLayout {
+            anchors.fill: parent
+            anchors.margins: 24
+            spacing: 12
+
+            Repeater {
+                model: installCard.groups
+                delegate: ColumnLayout {
+                    id: groupRow
+                    required property var modelData
                     Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    Layout.preferredHeight: 1
+                    spacing: 6
+
+                    StyledText {
+                        Layout.leftMargin: 2
+                        text: groupRow.modelData.title
+                        font.pixelSize: Appearance.font.pixelSize.smallie
+                        color: Appearance.colors.colSubtext
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.fillHeight: true
+                        spacing: installCard.slotSpacing
+
+                        Repeater {
+                            model: groupRow.modelData.items
+                            delegate: Item {
+                                id: slot
+                                required property var modelData
+                                Layout.fillHeight: true
+                                Layout.preferredWidth: slot.modelData.apps.length * installCard.tileWidth
+                                    + (slot.modelData.either ? installCard.orGap : 0)
+
+                                RowLayout {
+                                    anchors.fill: parent
+                                    spacing: slot.modelData.either ? installCard.orGap : 0
+                                    Repeater {
+                                        model: slot.modelData.apps
+                                        delegate: InstallTile {
+                                            required property var modelData
+                                            app: modelData
+                                        }
+                                    }
+                                }
+                                // Sits in the gap between the two, which are
+                                // one choice: picking either clears the other.
+                                StyledText {
+                                    anchors.centerIn: parent
+                                    visible: slot.modelData.either === true
+                                    text: Translation.tr("or")
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: Appearance.colors.colSubtext
+                                }
+                            }
+                        }
+                        Item { Layout.fillWidth: true }
+                    }
                 }
+            }
+
+            // Where the picks collect, on one line under the grid: what the
+            // page is for until something is picked, then what is coming and
+            // that nobody has to wait for it.
+            Rectangle {
+                Layout.fillWidth: true
+                implicitHeight: 1
+                color: Appearance.colors.colOutlineVariant
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Layout.minimumHeight: 28
+                spacing: 10
 
                 Rectangle {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: noteRow.implicitHeight + 18
-                    radius: Appearance.rounding.normal
-                    color: ColorUtils.transparentize(Appearance.m3colors.m3primary, 0.9)
-                    RowLayout {
-                        id: noteRow
-                        anchors.fill: parent
-                        anchors.margins: 10
-                        spacing: 10
-                        MaterialSymbol { text: "info"; iconSize: 22; color: Appearance.m3colors.m3primary; Layout.alignment: Qt.AlignTop }
-                        StyledText {
-                            text: Translation.tr("These install in the background — feel free to keep going through the tour. You'll get a notification when each one finishes.")
-                            font.pixelSize: Appearance.font.pixelSize.smaller
-                            color: Appearance.colors.colOnLayer0
-                            wrapMode: Text.WordWrap
-                            Layout.fillWidth: true
+                    visible: installCard.picks.length > 0
+                    implicitWidth: Math.max(implicitHeight, countText.implicitWidth + 12)
+                    implicitHeight: 22
+                    radius: height / 2
+                    color: Appearance.colors.colPrimary
+                    StyledText {
+                        id: countText
+                        anchors.centerIn: parent
+                        text: installCard.picks.length
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: Appearance.colors.colOnPrimary
+                    }
+                }
+                Row {
+                    visible: installCard.picks.length > 0
+                    spacing: 6
+                    Repeater {
+                        model: installCard.picks
+                        delegate: AppIcon {
+                            required property var modelData
+                            source: modelData.icon
+                            fallback: "application-x-executable"
+                            implicitSize: 22
                         }
                     }
                 }
-
-                InstallCategory { text: Translation.tr("Gaming") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "gaming"; optIcon: "steam"
-                        optTitle: Translation.tr("Desktop Gaming")
-                        optDesc: Translation.tr("Steam, Proton and GPU drivers — play on your desktop.")
-                    }
-                    InstallOption {
-                        optKey: "gamescope"; optIcon: "steamdeck-gaming-return"
-                        optTitle: Translation.tr("Desktop + Big Picture")
-                        optDesc: Translation.tr("Everything in Desktop Gaming, plus a console style session on Super <font face='JetBrains Mono NF'>(󰖳)</font> + G.")
-                    }
-                }
-
-                InstallCategory { text: Translation.tr("Video Editing") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "resolve"; optIcon: "davinci-resolve"
-                        optTitle: Translation.tr("DaVinci Resolve")
-                        optDesc: Translation.tr("Free edition. Large download.")
-                    }
-                    InstallOption {
-                        optKey: "resolve-studio"; optIcon: "davinci-resolve"
-                        optTitle: Translation.tr("DaVinci Resolve Studio")
-                        optDesc: Translation.tr("Paid edition (needs your license). Large download.")
-                    }
-                }
-
-                InstallCategory { text: Translation.tr("Content Creation") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "obs"; optIcon: "com.obsproject.Studio"
-                        optTitle: Translation.tr("OBS Studio")
-                        optDesc: Translation.tr("mainstream-obs — record and stream.")
-                    }
-                    InstallOption {
-                        optKey: "blender"; optIcon: "blender"
-                        optTitle: Translation.tr("Blender")
-                        optDesc: Translation.tr("3D modeling, animation and video editing.")
-                    }
-                }
-
-                InstallCategory { text: Translation.tr("Office") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "libreoffice"; optIcon: "libreoffice-startcenter"
-                        optTitle: Translation.tr("LibreOffice")
-                        optDesc: Translation.tr("Writer, Calc and Impress. Opens Word, Excel and PowerPoint files.")
-                    }
-                    InstallOption {
-                        optKey: "onlyoffice"; optIcon: "org.onlyoffice.desktopeditors"
-                        optTitle: Translation.tr("OnlyOffice")
-                        optDesc: Translation.tr("Editors with a familiar Microsoft Office look. Installs from Flathub.")
-                    }
-                }
-
-                InstallCategory { text: Translation.tr("Image Editing") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "gimp"; optIcon: "gimp"
-                        optTitle: Translation.tr("GIMP")
-                        optDesc: Translation.tr("Photo editing and retouching.")
-                    }
-                    InstallOption {
-                        optKey: "krita"; optIcon: "org.kde.krita"
-                        optTitle: Translation.tr("Krita")
-                        optDesc: Translation.tr("Digital painting and illustration.")
-                    }
-                }
-
-                InstallCategory { text: Translation.tr("Game Streaming") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "sunshine"; optIcon: root.imageDir + "/sunshine.svg"
-                        optTitle: Translation.tr("Sunshine")
-                        optDesc: Translation.tr("Stream this PC's games to your other devices.")
-                    }
-                    InstallOption {
-                        optKey: "moonlight"; optIcon: "com.moonlight_stream.Moonlight"
-                        optTitle: Translation.tr("Moonlight")
-                        optDesc: Translation.tr("Play games streamed from another PC.")
-                    }
-                }
-
-                InstallCategory { text: Translation.tr("VR Headsets") }
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 12
-                    InstallOption {
-                        optKey: "vr"; optIcon: "steamvr"
-                        optTitle: Translation.tr("VR Headset Support")
-                        optDesc: Translation.tr("Your desktop and apps inside a headset, via SteamVR or Steam Link.")
-                    }
-                    InstallOption {
-                        optKey: "vr-streaming"; optIcon: "network-wireless"
-                        optTitle: Translation.tr("Wireless VR Streaming")
-                        optDesc: Translation.tr("Play on a Quest, Pico or Vive Focus over Wi-Fi or USB.")
-                    }
-                }
-            }
-        }
-        ScrollEdgeFade {
-            target: installFlick
-            color: Appearance.m3colors.m3surfaceContainerLow
-        }
-        RippleButton {
-            id: moreBelow
-            readonly property bool atEnd: installFlick.contentHeight <= installFlick.height || installFlick.atYEnd
-            anchors { bottom: installFlick.bottom; horizontalCenter: parent.horizontalCenter; bottomMargin: 10 }
-            z: 100
-            opacity: atEnd ? 0 : 1
-            scale: atEnd ? 0.7 : 1
-            visible: opacity > 0
-            Behavior on opacity { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }
-            Behavior on scale { animation: Appearance.animation.elementResize.numberAnimation.createObject(this) }
-            implicitWidth: moreBelowRow.implicitWidth + 12 * 2
-            implicitHeight: moreBelowRow.implicitHeight + 5 * 2
-            colBackground: Appearance.colors.colSecondary
-            colBackgroundHover: Appearance.colors.colSecondaryHover
-            colRipple: Appearance.colors.colSecondaryActive
-            buttonRadius: Appearance.rounding.full
-            downAction: () => {
-                pageDown.to = Math.min(installFlick.contentY + installFlick.height * 0.8, installFlick.contentHeight - installFlick.height);
-                pageDown.restart();
-            }
-            NumberAnimation {
-                id: pageDown
-                target: installFlick
-                property: "contentY"
-                duration: 300
-                easing.type: Easing.OutCubic
-            }
-            contentItem: Row {
-                id: moreBelowRow
-                spacing: 4
-                MaterialSymbol {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: "keyboard_arrow_down"
-                    iconSize: Appearance.font.pixelSize.larger
-                    color: Appearance.colors.colOnSecondary
-                }
                 StyledText {
-                    anchors.verticalCenter: parent.verticalCenter
-                    text: Translation.tr("More apps below")
+                    Layout.fillWidth: true
+                    wrapMode: Text.WordWrap
+                    text: installCard.picks.length > 0
+                        ? Translation.tr("These install in the background — feel free to keep going through the tour. You'll get a notification when each one finishes.")
+                        : Translation.tr("Pick anything you'd like installed — you can always add these later.")
                     font.pixelSize: Appearance.font.pixelSize.smallie
-                    color: Appearance.colors.colOnSecondary
+                    color: Appearance.colors.colSubtext
                 }
             }
         }
     }
 
-    // Faint pill background shared by every bar section in card 2 —
-    // matches the real shell's BarGroup.qml (colLayer1 with a touch
-    // of transparency, soft rounding, no border).
+    // A little screen carrying the bar and the dock in one style, so a tile
+    // shows the pair it sets.
+    //
+    // Every measurement is a literal on purpose: the interface's own roundness
+    // tokens answer to whichever style is selected right now, so reading them
+    // would make every picture change together and show one shape many times.
+    component StyleMockup : Item {
+        id: mock
+        property string styleName: "float"   // "float" | "hug" | "notch"
+
+        readonly property bool isFloat: styleName === "float"
+        readonly property bool isNotch: styleName === "notch"
+        readonly property bool isHug: styleName === "hug"
+
+        readonly property color screenColor: Appearance.m3colors.m3surfaceContainerLowest
+        readonly property color surfaceColor: Appearance.m3colors.m3surfaceContainerHighest
+        readonly property color markColor: ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.45)
+
+        // A screen's own shape, so the picture reads as one rather than as a
+        // letterbox with a strip in it.
+        readonly property int gridW: 224
+        readonly property int gridH: 126
+
+        implicitWidth: gridW
+        implicitHeight: gridH
+
+        Rectangle {
+            id: screen
+            width: mock.gridW
+            height: mock.gridH
+            anchors.centerIn: parent
+            scale: Math.min(mock.width / mock.gridW, mock.height / mock.gridH)
+            radius: 8
+            // No outline of its own: the tile around it is the frame, and a
+            // second one inside it only doubles every edge on the page.
+            color: mock.screenColor
+
+            // ── The bar, along the top ──────────────────────────────────
+            Rectangle {
+                id: barBody
+                readonly property int sideInset: mock.isFloat ? 8 : (mock.isNotch ? 28 : 0)
+                x: sideInset
+                y: mock.isFloat ? 8 : 0
+                width: parent.width - sideInset * 2
+                height: 15
+                color: mock.surfaceColor
+                // Hug reaches the sides, so its top pair is the screen's own
+                // corners. Notch stops short of them and the pieces beside it
+                // make that turn instead, so its top pair is square: rounding
+                // it as well would cut a wedge out of where the two meet.
+                topLeftRadius: mock.isFloat ? 6 : (mock.isNotch ? 0 : screen.radius)
+                topRightRadius: topLeftRadius
+                bottomLeftRadius: mock.isFloat ? 6 : (mock.isNotch ? 8 : 0)
+                bottomRightRadius: bottomLeftRadius
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 7
+                    Repeater {
+                        model: 3
+                        delegate: Rectangle {
+                            width: 20; height: 4; radius: 2
+                            color: mock.markColor
+                        }
+                    }
+                }
+            }
+
+            // Notch curves back into the edge with a piece at each end.
+            NotchSwoops { piece: barBody; size: 8; color: mock.surfaceColor; visible: mock.isNotch }
+
+            // Hug rounds the desktop's corners under it with the screen's own
+            // radius, one at each end, the way the Hug bar does on screen.
+            Repeater {
+                model: mock.isHug ? 2 : 0
+                delegate: RoundCorner {
+                    required property int index
+                    implicitSize: screen.radius
+                    color: mock.surfaceColor
+                    y: barBody.y + barBody.height
+                    x: index === 0 ? 0 : screen.width - implicitSize
+                    corner: index === 0 ? RoundCorner.CornerEnum.TopLeft
+                        : RoundCorner.CornerEnum.TopRight
+                }
+            }
+
+            // ── The dock, along the bottom ──────────────────────────────
+            Rectangle {
+                id: dockBody
+                width: mock.isHug ? parent.width : 118
+                height: 18
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: parent.height - height - (mock.isFloat ? 9 : 0)
+                color: mock.surfaceColor
+                topLeftRadius: mock.isFloat ? 6 : (mock.isNotch ? 8 : 0)
+                topRightRadius: topLeftRadius
+                // Hug runs the whole edge, so its bottom pair is the screen's
+                // own corners, as the bar's top pair is.
+                bottomLeftRadius: mock.isFloat ? 6 : (mock.isHug ? screen.radius : 0)
+                bottomRightRadius: bottomLeftRadius
+
+                Row {
+                    anchors.centerIn: parent
+                    spacing: 6
+                    Repeater {
+                        model: 5
+                        delegate: Rectangle {
+                            width: 9; height: 9; radius: 2.5
+                            color: mock.markColor
+                        }
+                    }
+                }
+            }
+
+            Repeater {
+                model: mock.isNotch ? 2 : 0
+                delegate: RoundCorner {
+                    required property int index
+                    implicitSize: 8
+                    color: mock.surfaceColor
+                    y: dockBody.y + dockBody.height - implicitSize
+                    x: index === 0 ? dockBody.x - implicitSize : dockBody.x + dockBody.width
+                    corner: index === 0 ? RoundCorner.CornerEnum.BottomRight
+                        : RoundCorner.CornerEnum.BottomLeft
+                }
+            }
+
+            Repeater {
+                model: mock.isHug ? 2 : 0
+                delegate: RoundCorner {
+                    required property int index
+                    implicitSize: screen.radius
+                    color: mock.surfaceColor
+                    y: dockBody.y - implicitSize
+                    x: index === 0 ? 0 : screen.width - implicitSize
+                    corner: index === 0 ? RoundCorner.CornerEnum.BottomLeft
+                        : RoundCorner.CornerEnum.BottomRight
+                }
+            }
+        }
+    }
+
+    // The filled pill behind each group in the tour's bar, after the real
+    // shell's BarGroup.qml.
     component PillBg : Rectangle {
         // The bar sets its groups apart by giving each one a filled pill. At a
         // third transparent they washed into the strip and the grouping, which
@@ -866,8 +1424,6 @@ ApplicationWindow {
         }
     }
 
-    // The "now playing" pill that sits just right of the active-window
-    // text in the bar. Shared by every card that renders the bar.
     // The monochrome glyphs apps publish for the tray, which is what the bar
     // shows. Taken by path because the active icon theme inherits from
     // Papirus-Dark, and only plain Papirus carries these panel icons. They are
@@ -880,15 +1436,10 @@ ApplicationWindow {
         color: Appearance.colors.colOnLayer1
     }
 
+    // The "now playing" pill at the head of the bar's right-hand group, where
+    // a Row places it. Shared by every card that renders the bar.
     component MediaPill : PillBg {
-        // The shipped layout puts this in the right-hand group, where a Row
-        // owns x, so anchoring it there would fight the layout. anchorLeftTo
-        // stays for the mockups that still place the pill by hand.
-        property Item anchorLeftTo: null
-        property bool inRow: false
         required property var card
-        anchors.left: inRow ? undefined : (anchorLeftTo ? anchorLeftTo.right : parent.left)
-        anchors.leftMargin: anchorLeftTo ? 8 : 10
         anchors.verticalCenter: parent.verticalCenter
         height: card.barPillH
         width: mediaRow.implicitWidth + 12
@@ -915,6 +1466,195 @@ ApplicationWindow {
                 color: Appearance.colors.colOnLayer1
                 elide: Text.ElideRight
                 width: 70
+            }
+        }
+    }
+
+    // The inside of the tour's bar, in the order the shipped layout uses: the
+    // workspaces and the tray on the left, the utilities, clock and weather in
+    // the middle, and what is playing with the status icons on the right.
+    component MockBarContents : Item {
+        id: mockBar
+        required property var card
+        property bool showAppIcon: true
+        property alias workspacePill: wsPill
+        property alias sysTrayPill: trayPill
+        property alias barRight: rightRow
+        property alias mediaPill: playingPill
+        anchors.fill: parent
+
+        PillBg {
+            id: wsPill
+            anchors.left: parent.left
+            anchors.leftMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            height: mockBar.card.barPillH
+            width: barWsStrip.implicitWidth + 10
+            Item {
+                id: barWsStrip
+                anchors.centerIn: parent
+                implicitWidth: mockBar.card.barSlotW * mockBar.card.totalWs
+                implicitHeight: mockBar.card.barSlotH
+
+                WorkspaceIndicator { anchors.fill: parent; z: 1; card: mockBar.card }
+
+                Row {
+                    z: 2
+                    anchors.fill: parent
+                    Repeater {
+                        model: mockBar.card.totalWs
+                        delegate: Item {
+                            required property int index
+                            width: mockBar.card.barSlotW
+                            height: mockBar.card.barSlotH
+                            Rectangle {
+                                anchors.centerIn: parent
+                                width: mockBar.card.barSlotR * 2
+                                height: mockBar.card.barSlotR * 2
+                                radius: width / 2
+                                color: Appearance.colors.colOnLayer0
+                                opacity: 0.35
+                            }
+                        }
+                    }
+                }
+
+                IconImage {
+                    z: 3
+                    readonly property string primary: mockBar.showAppIcon ? mockBar.card.primaryAppFor(mockBar.card.currentWs) : ""
+                    visible: primary !== ""
+                    implicitSize: mockBar.card.barIconSize
+                    x: mockBar.card.currentWs * mockBar.card.barSlotW + (mockBar.card.barSlotW - implicitSize) / 2
+                    y: (mockBar.card.barSlotH - implicitSize) / 2
+                    source: primary !== ""
+                        ? Quickshell.iconPath(primary, "image-missing")
+                        : ""
+                }
+            }
+        }
+
+        PillBg {
+            id: trayPill
+            anchors.left: wsPill.right
+            anchors.leftMargin: 3
+            anchors.verticalCenter: parent.verticalCenter
+            height: mockBar.card.barPillH
+            width: trayRow.implicitWidth + 12
+            Row {
+                id: trayRow
+                anchors.centerIn: parent
+                spacing: 6
+                TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "discord-tray.svg" }
+                TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "steam_tray_mono.svg" }
+            }
+        }
+
+        // Center: the utility buttons, the clock, and the
+        // weather beside it.
+        Row {
+            id: barCenter
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 4
+            PillBg {
+                height: mockBar.card.barPillH
+                width: utilRow.implicitWidth + 12
+                anchors.verticalCenter: parent.verticalCenter
+                Row {
+                    id: utilRow
+                    anchors.centerIn: parent
+                    spacing: 5
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "screenshot_region"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "videocam"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "mic"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                }
+            }
+            PillBg {
+                height: mockBar.card.barPillH
+                width: clockText.implicitWidth + 16
+                anchors.verticalCenter: parent.verticalCenter
+                StyledText {
+                    id: clockText
+                    anchors.centerIn: parent
+                    text: "9:41 AM"
+                    font.pixelSize: 10
+                    color: Appearance.colors.colOnLayer1
+                }
+            }
+            PillBg {
+                height: mockBar.card.barPillH
+                width: weatherRow.implicitWidth + 10
+                anchors.verticalCenter: parent.verticalCenter
+                Row {
+                    id: weatherRow
+                    anchors.centerIn: parent
+                    spacing: 2
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "clear_day"
+                        iconSize: 11
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    StyledText {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "73°F"
+                        font.pixelSize: 9
+                        color: Appearance.colors.colOnLayer1
+                    }
+                }
+            }
+        }
+
+        // Right: what is playing, then the status icons
+        // against the screen edge.
+        Row {
+            id: rightRow
+            anchors.right: parent.right
+            anchors.rightMargin: 10
+            anchors.verticalCenter: parent.verticalCenter
+            spacing: 3
+            MediaPill { id: playingPill; card: mockBar.card }
+            PillBg {
+                height: mockBar.card.barPillH
+                width: indicatorRow.implicitWidth + 12
+                anchors.verticalCenter: parent.verticalCenter
+                Row {
+                    id: indicatorRow
+                    anchors.centerIn: parent
+                    spacing: 6
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "volume_up"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "lan"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "bluetooth"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                    MaterialSymbol {
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "settings"; iconSize: 10
+                        color: Appearance.colors.colOnLayer1
+                    }
+                }
             }
         }
     }
@@ -963,6 +1703,2431 @@ ApplicationWindow {
         Item { Layout.fillHeight: true }
     }
 
+
+    // ── Card 1: Style ───────────────────────────────────────────────────
+    // One tile sets the bar and the dock together, with the color the two
+    // share underneath. Nothing is written until a tile is pressed, and the
+    // lit one is read back from the settings.
+
+    // The grouping the setup card beside this one uses, so the page reads as
+    // part of the same tour rather than as its own thing.
+    component StyleSection : Rectangle {
+        id: section
+        default property alias content: sectionColumn.data
+        // Anything the section wants on its header line rather than under it,
+        // held at the far end. A control that only sometimes applies belongs
+        // here: it can come and go without the group changing height around it.
+        property alias headerTrailing: headerTrailingRow.data
+        property string title
+        property string symbol
+
+        Layout.fillWidth: true
+        Layout.fillHeight: true
+        // Sized to its contents when it is not taking the leftover height, or
+        // it collapses onto whatever sits below it.
+        implicitHeight: sectionColumn.implicitHeight + 24
+        color: Appearance.colors.colLayer1
+        radius: Appearance.rounding.normal
+        border.width: 1
+        border.color: Appearance.colors.colOutlineVariant
+
+        ColumnLayout {
+            id: sectionColumn
+            anchors.fill: parent
+            anchors.margins: 12
+            spacing: 8
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 8
+                MaterialSymbol {
+                    text: section.symbol
+                    iconSize: 18
+                    color: Appearance.colors.colOnLayer1
+                }
+                StyledText {
+                    text: section.title
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    font.weight: Font.Medium
+                    color: Appearance.colors.colOnLayer1
+                }
+
+                Item { Layout.fillWidth: true }
+
+                RowLayout {
+                    id: headerTrailingRow
+                    spacing: 6
+                }
+            }
+        }
+    }
+
+    // The radio Settings → Layouts marks its picked card with.
+    component RadioMark : Rectangle {
+        property bool selected: false
+        implicitWidth: 16
+        implicitHeight: 16
+        radius: 8
+        border.width: 2
+        border.color: selected ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+        color: selected ? Appearance.colors.colPrimary : "transparent"
+        Rectangle {
+            anchors.centerIn: parent
+            width: 6; height: 6; radius: 3
+            visible: parent.selected
+            color: Appearance.colors.colOnPrimary
+        }
+    }
+
+    // The card Settings → Layouts draws around a choice: tinted and outlined
+    // in the accent when picked, lifted on hover otherwise.
+    component PickFrame : Rectangle {
+        property bool selected: false
+        property bool hovered: false
+        color: selected ? ColorUtils.applyAlpha(Appearance.colors.colPrimary, 0.1)
+            : (hovered ? Appearance.colors.colLayer2Hover : Appearance.colors.colLayer2)
+        border.width: selected ? 2 : 1
+        border.color: selected ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+        Behavior on color { ColorAnimation { duration: 120 } }
+        Behavior on border.color { ColorAnimation { duration: 120 } }
+    }
+
+    // One of the style page's three pictures, in the card Settings → Layouts
+    // puts around each of its own: the picture framed, lit when picked, with
+    // a radio and the style's name under it.
+    component StyleTile : MouseArea {
+        id: tile
+        required property string styleName
+        required property string label
+        required property bool selected
+
+        Layout.fillWidth: true
+        Layout.preferredWidth: 1
+        implicitHeight: tileColumn.implicitHeight
+        hoverEnabled: true
+        cursorShape: Qt.PointingHandCursor
+        onClicked: tile.picked()
+
+        signal picked()
+
+        ColumnLayout {
+            id: tileColumn
+            width: parent.width
+            spacing: 6
+
+            PickFrame {
+                Layout.fillWidth: true
+                implicitHeight: 92
+                radius: Appearance.rounding.normal
+                selected: tile.selected
+                hovered: tile.containsMouse
+
+                StyleMockup {
+                    anchors.fill: parent
+                    anchors.margins: 8
+                    styleName: tile.styleName
+                }
+            }
+
+            RowLayout {
+                Layout.fillWidth: true
+                spacing: 6
+                RadioMark { selected: tile.selected }
+                StyledText {
+                    Layout.fillWidth: true
+                    text: tile.label
+                    font.pixelSize: Appearance.font.pixelSize.normal
+                    color: Appearance.colors.colOnLayer1
+                }
+            }
+        }
+    }
+
+    // A window layout's picture, lifted 1:1 from the cards Settings → Layouts
+    // picks between, so the two show a layout the same way.
+    component LayoutPicture : PickFrame {
+        id: layoutPicture
+        property string layout: "dwindle"
+        selected: true
+        // Tighter than the page's other cards: at this size the standard
+        // rounding turns a small card into a pill.
+        radius: Appearance.rounding.verysmall
+
+        // Drawn at the size Settings → Layouts draws it and scaled to fit, so
+        // a small card shows the same picture rather than a squeezed one.
+        Item {
+            width: 200
+            height: 110
+            anchors.centerIn: parent
+            scale: Math.min((layoutPicture.width - 12) / width, (layoutPicture.height - 12) / height)
+
+            // Dwindle
+            Item {
+                visible: layoutPicture.layout === "dwindle"
+                anchors.fill: parent
+                Rectangle {
+                    x: 0; y: 0; width: parent.width * 0.54; height: parent.height
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
+                        Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
+                    }
+                    Column { x: 7; y: 15; spacing: 4
+                        Repeater { model: [38, 28, 40, 24]
+                            Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
+                        }
+                    }
+                    StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
+                        text: "1"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
+                }
+                Rectangle {
+                    x: parent.width * 0.54 + 3; y: 0
+                    width: parent.width * 0.46 - 3; height: parent.height * 0.5 - 2
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
+                    StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
+                        text: "2"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
+                }
+                Rectangle {
+                    x: parent.width * 0.54 + 3; y: parent.height * 0.5 + 2
+                    width: (parent.width * 0.46 - 3) * 0.54; height: parent.height * 0.5 - 2
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
+                    StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
+                        text: "3"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
+                }
+                Rectangle {
+                    x: parent.width * 0.54 + 3 + (parent.width * 0.46 - 3) * 0.54 + 2
+                    y: parent.height * 0.5 + 2
+                    width: (parent.width * 0.46 - 3) * 0.46 - 2; height: parent.height * 0.5 - 2
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
+                    StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
+                        text: "4"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
+                }
+            }
+
+            // Master
+            Item {
+                visible: layoutPicture.layout === "master"
+                anchors.fill: parent
+                Rectangle {
+                    x: 0; y: 0; width: parent.width * 0.57; height: parent.height
+                    radius: 3
+                    color: layoutPicture.layout === "master" ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.08) : Appearance.colors.colLayer3
+                    border.width: 1
+                    border.color: layoutPicture.layout === "master" ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.5) : Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
+                        Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
+                    }
+                    Column { x: 7; y: 15; spacing: 4
+                        Repeater { model: [38, 26, 42, 20, 36]
+                            Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
+                        }
+                    }
+                    StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
+                        text: "M"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.45 }
+                }
+                Rectangle {
+                    x: parent.width * 0.57 + 3; y: 0
+                    width: parent.width * 0.43 - 3; height: parent.height / 3 - 2
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
+                }
+                Rectangle {
+                    x: parent.width * 0.57 + 3; y: parent.height / 3 + 1
+                    width: parent.width * 0.43 - 3; height: parent.height / 3 - 2
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
+                }
+                Rectangle {
+                    x: parent.width * 0.57 + 3; y: parent.height * 2 / 3 + 2
+                    width: parent.width * 0.43 - 3; height: parent.height / 3 - 2
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
+                }
+            }
+
+            // Scrolling
+            Item {
+                visible: layoutPicture.layout === "scrolling"
+                anchors.fill: parent
+                clip: true
+                Rectangle {
+                    x: -18; y: 4; width: 24; height: parent.height - 8
+                    radius: 3; opacity: 0.45; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                }
+                Row {
+                    x: 10; y: 0; width: parent.width - 14; height: parent.height; spacing: 4
+                    Repeater {
+                        model: 3
+                        Rectangle {
+                            width: (parent.width - 8) / 3; height: parent.height
+                            radius: 3; color: Appearance.colors.colLayer3
+                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
+                                Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.3 }
+                            }
+                            Column { x: 5; y: 14; spacing: 3
+                                Repeater { model: [20, 14, 22, 12]
+                                    Rectangle { width: modelData; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
+                                }
+                            }
+                        }
+                    }
+                }
+                Rectangle {
+                    x: parent.width - 6; y: 4; width: 20; height: parent.height - 8
+                    radius: 3; opacity: 0.5; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                }
+                MaterialSymbol {
+                    x: -2; anchors.verticalCenter: parent.verticalCenter
+                    text: "chevron_left"; iconSize: 16; z: 3
+                    color: layoutPicture.layout === "scrolling" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext; opacity: 0.75
+                }
+                MaterialSymbol {
+                    anchors.right: parent.right; anchors.rightMargin: -2
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "chevron_right"; iconSize: 16; z: 3
+                    color: layoutPicture.layout === "scrolling" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext; opacity: 0.75
+                }
+            }
+
+            // Monocle
+            Item {
+                visible: layoutPicture.layout === "monocle"
+                anchors.fill: parent
+                Rectangle {
+                    x: 10; y: 8; width: parent.width - 20; height: parent.height - 18
+                    radius: 3; opacity: 0.38; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                }
+                Rectangle {
+                    x: 5; y: 4; width: parent.width - 10; height: parent.height - 10
+                    radius: 3; opacity: 0.65; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                }
+                Rectangle {
+                    x: 0; y: 0; width: parent.width; height: parent.height
+                    radius: 3; color: Appearance.colors.colLayer3
+                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
+                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
+                        Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
+                    }
+                    Column { x: 8; y: 15; spacing: 4
+                        Repeater { model: [55, 38, 60, 28, 50]
+                            Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
+                        }
+                    }
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        anchors.bottom: parent.bottom; anchors.bottomMargin: 6
+                        spacing: 5
+                        Repeater {
+                            model: 4
+                            Rectangle {
+                                width: index === 0 ? 16 : 6; height: 4; radius: 2
+                                color: index === 0 ? (layoutPicture.layout === "monocle" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext) : Appearance.colors.colSubtext
+                                opacity: index === 0 ? 0.85 : 0.3
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Float — scattered windows at their own
+            // sizes, overlapping rather than tiled.
+            Item {
+                visible: layoutPicture.layout === "float"
+                anchors.fill: parent
+                Repeater {
+                    model: [
+                        { fx: 0.02, fy: 0.10, fw: 0.46, fh: 0.52, n: "1" },
+                        { fx: 0.40, fy: 0.00, fw: 0.40, fh: 0.44, n: "2" },
+                        { fx: 0.22, fy: 0.46, fw: 0.44, fh: 0.50, n: "3" },
+                        { fx: 0.62, fy: 0.38, fw: 0.36, fh: 0.46, n: "4" }
+                    ]
+                    Rectangle {
+                        x: parent.width * modelData.fx
+                        y: parent.height * modelData.fy
+                        width: parent.width * modelData.fw
+                        height: parent.height * modelData.fh
+                        radius: 3
+                        color: Appearance.colors.colLayer3
+                        border.width: 1
+                        border.color: Appearance.colors.colOutlineVariant
+                        Rectangle {
+                            width: parent.width; height: 9; radius: 2
+                            color: Appearance.colors.colLayer2
+                            Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
+                        }
+                        StyledText {
+                            anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
+                            text: modelData.n
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: Appearance.colors.colSubtext
+                            opacity: 0.4
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // One workspace in the scrolling overview's strip: a whole desktop, with
+    // the wallpaper, the bar and the dock, drawn at full size so it shrinks as
+    // one piece the way the overview shrinks the real screen.
+    component WorkspaceThumb : Item {
+        id: thumb
+        property Item wallpaperSource
+        property int arrangement: 0
+        property bool showWindows: true
+        property string barShape: "float"
+        property string dockShape: "float"
+        clip: true
+
+        ShaderEffectSource {
+            anchors.fill: parent
+            sourceItem: thumb.wallpaperSource
+            hideSource: false
+        }
+
+        // The workspaces either side hold windows of their own, so the strip
+        // reads as several desktops rather than one picture repeated.
+        Repeater {
+            model: thumb.showWindows ? [
+                [[0.06, 0.12, 0.44, 0.68], [0.53, 0.12, 0.41, 0.68]],
+                [[0.14, 0.16, 0.72, 0.62]],
+                [[0.06, 0.12, 0.40, 0.68], [0.49, 0.12, 0.45, 0.32], [0.49, 0.48, 0.45, 0.32]]
+            ][thumb.arrangement % 3] : []
+            Rectangle {
+                required property var modelData
+                x: thumb.width * modelData[0]
+                y: thumb.height * modelData[1]
+                width: thumb.width * modelData[2]
+                height: thumb.height * modelData[3]
+                radius: 6
+                color: Appearance.colors.colLayer3Base
+                Rectangle {
+                    width: parent.width
+                    height: 14
+                    topLeftRadius: 6
+                    topRightRadius: 6
+                    color: Appearance.colors.colLayer2Base
+                }
+            }
+        }
+
+        EdgeMount {
+            edge: Appearance.sizes.barEdge
+            BarPiece { shape: thumb.barShape }
+        }
+        EdgeMount {
+            visible: Config.options.dock.enable
+            edge: Appearance.sizes.dockEdge
+            DockPiece { shape: thumb.dockShape }
+        }
+    }
+
+    // What the top-left corner does, played over the first page's picture of
+    // the desktop: the pointer goes into the corner, the corner answers the
+    // way it is set to, and the desktop comes back. Nothing plays until a
+    // corner setting is changed or asked to play.
+    component HotCornerDemo : Item {
+        id: demo
+        property string trigger: "off"
+        property string layout: "vertical"
+        property Item wallpaperSource
+        property int rows: 2
+        property int columns: 5
+        property string barShape: "float"
+        property string dockShape: "float"
+
+        property real cursorX: 0
+        property real cursorY: 0
+        property real cursorAlpha: 0
+        property real rippleT: 0
+        property real openT: 0
+
+        function play() {
+            timeline.stop();
+            demo.openT = 0;
+            demo.rippleT = 0;
+            demo.cursorAlpha = 0;
+            demo.cursorX = demo.width * 0.56;
+            demo.cursorY = demo.height * 0.6;
+            timeline.start();
+        }
+
+        SequentialAnimation {
+            id: timeline
+            NumberAnimation { target: demo; property: "cursorAlpha"; to: 1; duration: 160 }
+            ParallelAnimation {
+                NumberAnimation { target: demo; property: "cursorX"; to: 2; duration: 650; easing.type: Easing.InOutCubic }
+                NumberAnimation { target: demo; property: "cursorY"; to: 2; duration: 650; easing.type: Easing.InOutCubic }
+            }
+            ParallelAnimation {
+                NumberAnimation { target: demo; property: "rippleT"; from: 0; to: 1; duration: 450; easing.type: Easing.OutCubic }
+                NumberAnimation {
+                    target: demo; property: "openT"
+                    to: demo.trigger === "off" ? 0 : 1
+                    duration: demo.trigger === "off" ? 0 : 420
+                    easing.type: Easing.OutCubic
+                }
+            }
+            PauseAnimation { duration: 1700 }
+            ParallelAnimation {
+                NumberAnimation { target: demo; property: "openT"; to: 0; duration: 280; easing.type: Easing.InCubic }
+                NumberAnimation { target: demo; property: "cursorAlpha"; to: 0; duration: 280 }
+            }
+        }
+
+        // The desktop behind either overview, blurred out as it opens.
+        WorkspaceThumb {
+            id: desktopCopy
+            anchors.fill: parent
+            visible: false
+            wallpaperSource: demo.wallpaperSource
+            showWindows: false
+            barShape: demo.barShape
+            dockShape: demo.dockShape
+        }
+        FastBlur {
+            anchors.fill: parent
+            visible: (demo.trigger === "default" || demo.trigger === "scrolloverview") && demo.openT > 0
+            source: desktopCopy
+            radius: 64
+            opacity: demo.openT
+        }
+
+        // ── The default overview, as the corner opens it: the workspace grid
+        // alone at the top of the screen, with no search field, over the
+        // desktop blurred and darkened. The dock is left standing sharp at its
+        // edge, as it is on screen. ──
+        Item {
+            anchors.fill: parent
+            visible: demo.trigger === "default" && demo.openT > 0
+
+            Rectangle {
+                anchors.fill: parent
+                color: "black"
+                opacity: 0.45 * demo.openT
+            }
+            EdgeMount {
+                visible: Config.options.dock.enable
+                edge: Appearance.sizes.dockEdge
+                DockPiece { shape: demo.dockShape }
+            }
+        }
+        Item {
+            anchors.fill: parent
+            visible: demo.trigger === "default" && demo.openT > 0
+            opacity: demo.openT
+
+            readonly property real tileW: demo.width * 0.9 / Math.max(demo.columns, demo.rows * demo.width / demo.height)
+            readonly property real tileH: tileW * demo.height / demo.width
+            readonly property real spacing: 3
+            readonly property real gridTop: Appearance.sizes.barEdge === "top" ? demo.height * 0.1 : demo.height * 0.03
+
+            Rectangle {
+                id: gridPanel
+                readonly property real pad: 5
+                width: demo.columns * parent.tileW + (demo.columns - 1) * parent.spacing + 2 * pad
+                height: demo.rows * parent.tileH + (demo.rows - 1) * parent.spacing + 2 * pad
+                anchors.horizontalCenter: parent.horizontalCenter
+                y: parent.gridTop - (1 - demo.openT) * 8
+                scale: 0.94 + 0.06 * demo.openT
+                radius: 8
+                color: Appearance.colors.colBackgroundSurfaceContainer
+
+                Grid {
+                    x: gridPanel.pad
+                    y: gridPanel.pad
+                    columns: demo.columns
+                    spacing: gridPanel.parent.spacing
+                    Repeater {
+                        model: demo.rows * demo.columns
+                        Rectangle {
+                            required property int index
+                            width: gridPanel.parent.tileW
+                            height: gridPanel.parent.tileH
+                            radius: 4
+                            color: Appearance.colors.colSurfaceContainerLow
+                            border.width: index === 0 ? 2 : 0
+                            border.color: Appearance.colors.colSecondary
+                            StyledText {
+                                anchors.centerIn: parent
+                                text: index + 1
+                                font.pixelSize: Math.max(8, parent.height * 0.45)
+                                color: ColorUtils.transparentize(Appearance.colors.colOnLayer1, 0.8)
+                            }
+                            // A few workspaces hold windows, as they would.
+                            Rectangle {
+                                visible: index === 0 || index === 2 || index === 3
+                                x: parent.width * 0.1; y: parent.height * 0.14
+                                width: parent.width * (index === 2 ? 0.8 : 0.46); height: parent.height * 0.72
+                                radius: 2
+                                color: Appearance.colors.colLayer3Base
+                            }
+                            Rectangle {
+                                visible: index === 0
+                                x: parent.width * 0.6; y: parent.height * 0.14
+                                width: parent.width * 0.3; height: parent.height * 0.72
+                                radius: 2
+                                color: Appearance.colors.colLayer3Base
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── The scrolling overview: the screen shrinks to half into a strip of
+        // workspaces. Behind it the whole desktop, bar and dock included, is
+        // blurred right out. On screen the bar and the dock stay sharp, but
+        // here they would only compete with the workspaces for attention. ──
+        Item {
+            id: strip
+            anchors.fill: parent
+            visible: demo.trigger === "scrolloverview" && demo.openT > 0
+            readonly property bool vertical: demo.layout !== "horizontal"
+            readonly property real s: 1 - 0.5 * demo.openT
+            readonly property real gap: demo.width * 0.04 * demo.openT
+
+            Repeater {
+                model: [-1, 0, 1]
+                WorkspaceThumb {
+                    required property int modelData
+                    width: demo.width
+                    height: demo.height
+                    scale: strip.s
+                    x: strip.vertical ? 0 : modelData * (demo.width * strip.s + strip.gap)
+                    y: strip.vertical ? modelData * (demo.height * strip.s + strip.gap) : 0
+                    // The one in the middle is the desktop already on screen, so
+                    // it starts identical to it and simply shrinks.
+                    opacity: modelData === 0 ? 1 : demo.openT
+                    wallpaperSource: demo.wallpaperSource
+                    arrangement: modelData + 1
+                    showWindows: modelData !== 0
+                    barShape: demo.barShape
+                    dockShape: demo.dockShape
+                }
+            }
+        }
+    }
+
+    // The pointer and the corner's ripple, drawn over the demonstration they
+    // belong to so whatever opens never hides them.
+    component HotCornerPointer : Item {
+        id: pointer
+        required property HotCornerDemo demo
+
+        // Where the corner fires.
+        Rectangle {
+            readonly property real size: 130 * pointer.demo.rippleT
+            x: -size / 2
+            y: -size / 2
+            width: size
+            height: size
+            radius: size / 2
+            color: pointer.demo.trigger === "off" ? Appearance.colors.colSubtext : Appearance.colors.colPrimary
+            opacity: (1 - pointer.demo.rippleT) * 0.85 * pointer.demo.cursorAlpha
+        }
+
+        // The pointer, drawn rather than taken from the icon font.
+        Shape {
+            x: pointer.demo.cursorX
+            y: pointer.demo.cursorY
+            width: 13
+            height: 20
+            opacity: pointer.demo.cursorAlpha
+            preferredRendererType: Shape.CurveRenderer
+            ShapePath {
+                fillColor: "white"
+                strokeColor: "black"
+                strokeWidth: 1.2
+                joinStyle: ShapePath.RoundJoin
+                startX: 0; startY: 0
+                PathLine { x: 0; y: 16 }
+                PathLine { x: 4; y: 12.5 }
+                PathLine { x: 7; y: 19 }
+                PathLine { x: 9.5; y: 18 }
+                PathLine { x: 6.5; y: 11.5 }
+                PathLine { x: 11.5; y: 11.5 }
+                PathLine { x: 0; y: 0 }
+            }
+        }
+    }
+
+    // ── Picture pages ───────────────────────────────────────────────────
+    // A wallpaper drawn in the theme's own tones, for the pictures to fall
+    // back on while the real one has no still to show.
+    component DrawnWallpaper : Item {
+        id: paper
+        LinearGradient {
+            anchors.fill: parent
+            start: Qt.point(0, 0)
+            end: Qt.point(width, height)
+            gradient: Gradient {
+                GradientStop { position: 0; color: Appearance.m3colors.m3secondaryContainer }
+                GradientStop { position: 1; color: Appearance.m3colors.m3primaryContainer }
+            }
+        }
+        Rectangle {
+            width: paper.height * 0.95
+            height: width
+            radius: width / 2
+            x: -width * 0.32
+            y: paper.height * 0.42
+            color: Appearance.m3colors.m3tertiaryContainer
+        }
+        Rectangle {
+            width: paper.width * 0.78
+            height: paper.height * 0.2
+            radius: height / 2
+            x: paper.width * 0.4
+            y: paper.height * 0.12
+            rotation: -30
+            color: Appearance.colors.colPrimary
+            opacity: 0.55
+        }
+        Rectangle {
+            width: paper.height * 0.28
+            height: width
+            radius: width / 2
+            x: paper.width * 0.34
+            y: paper.height * 0.2
+            color: Appearance.m3colors.m3tertiary
+            opacity: 0.6
+        }
+    }
+
+    // The frame a page's picture sits in: the look Settings → Layouts gives a
+    // picked card, around a rounded screen with the wallpaper on it. What a
+    // page puts inside lands on that screen, above the wallpaper.
+    component DesktopFrame : Rectangle {
+        id: frame
+        default property alias content: canvasItem.data
+        property alias canvas: canvasItem
+        property alias wallpaper: paperItem
+
+        radius: Appearance.rounding.normal
+        color: Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1)
+        border.width: 2
+        border.color: Appearance.colors.colPrimary
+
+        Item {
+            id: canvasItem
+            anchors.fill: parent
+            anchors.margins: frame.border.width
+            layer.enabled: true
+            layer.smooth: true
+            layer.effect: OpacityMask {
+                maskSource: Rectangle {
+                    width: canvasItem.width
+                    height: canvasItem.height
+                    radius: frame.radius - frame.border.width
+                }
+            }
+
+            Item {
+                id: paperItem
+                anchors.fill: parent
+                DrawnWallpaper {
+                    anchors.fill: parent
+                }
+                // The wallpaper actually set, over the drawn one, which stays
+                // in view while the thumbnail is made. A video shows its first
+                // frame.
+                ThumbnailImage {
+                    anchors.fill: parent
+                    fillMode: Image.PreserveAspectCrop
+                    sourcePath: Config.options.background.wallpaperPath
+                    sourceSize: Images.wallpaperPreviewSourceSize
+                }
+            }
+        }
+    }
+
+    // ── Style card ──────────────────────────────────────────────────────────
+    // Carries a bar or a dock drawn along the top of its own box and turns the
+    // box to the edge the piece belongs on, so each piece is drawn once and
+    // read at any of the four. A new edge is reached by sliding off the old
+    // one and back in at the new, the way a panel moves.
+    component EdgeMount : Item {
+        id: mount
+        required property string edge
+        property string shownEdge: ""
+        property real retract: 0
+
+        readonly property bool sideways: mount.shownEdge === "left" || mount.shownEdge === "right"
+        // Bottom and left are mirrored as well as turned, so the start of the
+        // bar, where its workspaces sit, lands at the left or the top the way
+        // it does on screen.
+        readonly property bool mirrored: mount.shownEdge === "bottom" || mount.shownEdge === "left"
+        readonly property real angle: ({ top: 0, right: 90, bottom: 180, left: 270 })[mount.shownEdge] ?? 0
+
+        width: mount.sideways ? parent.height : parent.width
+        height: mount.sideways ? parent.width : parent.height
+        x: (parent.width - width) / 2
+        y: (parent.height - height) / 2
+        transform: [
+            Scale {
+                origin.x: mount.width / 2
+                origin.y: mount.height / 2
+                xScale: mount.mirrored ? -1 : 1
+            },
+            Rotation {
+                origin.x: mount.width / 2
+                origin.y: mount.height / 2
+                angle: mount.angle
+            }
+        ]
+
+        Component.onCompleted: mount.shownEdge = mount.edge
+        onEdgeChanged: {
+            if (mount.shownEdge !== "" && mount.edge !== mount.shownEdge)
+                move.restart();
+        }
+        SequentialAnimation {
+            id: move
+            NumberAnimation {
+                target: mount; property: "retract"; to: 1
+                duration: 170
+                easing.type: Easing.InCubic
+            }
+            ScriptAction { script: mount.shownEdge = mount.edge }
+            NumberAnimation {
+                target: mount; property: "retract"; to: 0
+                duration: 280
+                easing.type: Easing.OutCubic
+            }
+        }
+    }
+
+    // The swoops a notched piece curves back into its edge with, one at each
+    // end of it.
+    component NotchSwoops : Item {
+        id: swoops
+        required property Item piece
+        property real edgeY: 0
+        property real size: 10
+        property color color
+        Repeater {
+            model: 2
+            RoundCorner {
+                required property int index
+                implicitSize: swoops.size
+                color: swoops.color
+                y: swoops.edgeY
+                x: index === 0 ? swoops.piece.x - implicitSize : swoops.piece.x + swoops.piece.width
+                corner: index === 0 ? RoundCorner.CornerEnum.TopRight : RoundCorner.CornerEnum.TopLeft
+            }
+        }
+    }
+
+    // The bar along the top of its box, in any of the shapes the style page
+    // offers, filled with the color and see-through the real bar is drawn
+    // with. Plain white when it only stands in for the blur's mask. Moving
+    // between shapes morphs one into the other rather than swapping them.
+    component BarPiece : Item {
+        id: bar
+        property string shape: "float"
+        property real retract: 0
+        property bool maskOnly: false
+        anchors.fill: parent
+
+        readonly property real thick: 20
+        // The Hug bar's two curves as the real bar draws them: the screen's
+        // rounding, taken as a share of the bar's height.
+        readonly property real hugRadius: bar.thick * Appearance.rounding.screenRounding / Appearance.sizes.baseBarHeight
+        property real gap: bar.shape === "float" ? 8 : 0
+        property real inset: bar.shape === "notch" ? bar.width * 0.14 : (bar.shape === "float" ? 8 : 0)
+        property real edgeRadius: bar.shape === "float" ? 10 : 0
+        property real farRadius: (bar.shape === "rect" || bar.shape === "hug") ? 0 : 10
+        property real swoop: bar.shape === "notch" ? 1 : 0
+        property real hug: bar.shape === "hug" ? 1 : 0
+        Behavior on gap { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on inset { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on edgeRadius { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on farRadius { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on swoop { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on hug { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+
+        // How far the piece has slid off its edge while it moves to another.
+        readonly property real slide: bar.retract * (bar.thick + bar.gap + bar.hugRadius * bar.hug + 12)
+        readonly property bool drawn: Config.options.bar.showBackground
+        readonly property color fill: bar.maskOnly ? "white" : Appearance.colors.colBarBackground
+        readonly property color markColor: ColorUtils.transparentize(Appearance.barStripContent.colOnLayer0, 0.45)
+
+        Item {
+            id: barBox
+            x: bar.inset
+            y: bar.gap - bar.slide
+            width: bar.width - 2 * bar.inset
+            height: bar.thick
+
+            RectangularShadow {
+                anchors.fill: parent
+                // Float and Notch cast one, as on screen, and the strips that
+                // run the whole edge do not.
+                visible: !bar.maskOnly && bar.drawn && Config.options.bar.floatStyleShadow
+                    && (bar.shape === "float" || bar.shape === "notch")
+                radius: bar.farRadius
+                blur: 8
+                offset: Qt.vector2d(0, 1)
+                color: Appearance.colors.colBarShadow
+            }
+            Rectangle {
+                anchors.fill: parent
+                visible: bar.drawn
+                color: bar.fill
+                topLeftRadius: bar.edgeRadius
+                topRightRadius: bar.edgeRadius
+                bottomLeftRadius: bar.farRadius
+                bottomRightRadius: bar.farRadius
+            }
+
+            // Workspaces at the start, the clock in the middle, the tray at
+            // the end, where the real bar keeps them.
+            Row {
+                visible: !bar.maskOnly
+                x: Math.max(10, bar.farRadius)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
+                Rectangle { width: 16; height: 6; radius: 3; color: Appearance.barStripContent.colPrimary }
+                Repeater {
+                    model: 3
+                    Rectangle { width: 6; height: 6; radius: 3; color: bar.markColor }
+                }
+            }
+            Row {
+                visible: !bar.maskOnly
+                anchors.centerIn: parent
+                spacing: 4
+                Rectangle { width: 20; height: 5; radius: 2.5; color: bar.markColor }
+                Rectangle { width: 12; height: 5; radius: 2.5; color: bar.markColor }
+            }
+            Row {
+                visible: !bar.maskOnly
+                anchors.right: parent.right
+                anchors.rightMargin: Math.max(10, bar.farRadius)
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 4
+                Repeater {
+                    model: 3
+                    Rectangle { width: 6; height: 6; radius: 3; color: bar.markColor }
+                }
+            }
+        }
+
+        NotchSwoops {
+            piece: barBox
+            edgeY: -bar.slide
+            visible: bar.drawn
+            opacity: bar.swoop
+            color: bar.fill
+        }
+
+        // Hug rounds the desktop's corners where each end of the bar meets
+        // it. They grow out of the bar's ends rather than fading in, so moving
+        // to or from Hug reads as the same bar changing shape.
+        Repeater {
+            model: 2
+            RoundCorner {
+                required property int index
+                implicitSize: Math.round(bar.hugRadius * bar.hug)
+                visible: bar.drawn && implicitSize > 0
+                color: bar.fill
+                y: barBox.y + barBox.height
+                x: index === 0 ? barBox.x : barBox.x + barBox.width - implicitSize
+                corner: index === 0 ? RoundCorner.CornerEnum.TopLeft : RoundCorner.CornerEnum.TopRight
+            }
+        }
+    }
+
+    // The dock along the top of its box, the same way the bar is drawn.
+    component DockPiece : Item {
+        id: dock
+        property string shape: "float"
+        property real retract: 0
+        property bool maskOnly: false
+        anchors.fill: parent
+
+        readonly property real thick: 30
+        // Hug stretches the body out to both ends of its edge, and the rest
+        // keep it to the middle.
+        readonly property real restSpan: Math.min(dock.width * 0.54, 250)
+        readonly property real span: dock.restSpan + (dock.width - dock.restSpan) * dock.hug
+        // The notched dock's two curves as the real dock draws them, taken as
+        // shares of its body's height: a long sweep leaving the edge, and a
+        // body turned generously enough to meet it.
+        readonly property real realBodyHeight: Math.max(1, Appearance.sizes.dockHeight - Appearance.sizes.elevationMargin)
+        readonly property real notchFlare: dock.thick
+            * Math.min(Appearance.rounding.dock, Appearance.rounding.dockFlareFit) / dock.realBodyHeight
+        readonly property real notchCorner: dock.thick * Appearance.rounding.dockBody / dock.realBodyHeight
+        // The Hug dock's two curves are the screen's rounding, the same share
+        // of its body as the Hug bar's are of the bar.
+        readonly property real hugRadius: dock.thick * Appearance.rounding.dockSpanCorner / dock.realBodyHeight
+        property real gap: dock.shape === "float" ? 9 : 0
+        property real edgeRadius: dock.shape === "float" ? 11 : 0
+        property real farRadius: (dock.shape === "rect" || dock.shape === "hug") ? 0
+            : (dock.shape === "notch" ? dock.notchCorner : 11)
+        property real swoop: dock.shape === "notch" ? 1 : 0
+        property real hug: dock.shape === "hug" ? 1 : 0
+        Behavior on gap { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on edgeRadius { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on farRadius { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on swoop { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        Behavior on hug { NumberAnimation { duration: 300; easing.type: Easing.OutCubic } }
+        // Set down on the edge, the body reaches a pixel past it so the outline
+        // it draws along the screen's own edge falls outside the picture.
+        readonly property real edgeTuck: dock.shape === "float" ? 0 : 1
+
+        readonly property real slide: dock.retract * (dock.thick + dock.gap + dock.hugRadius * dock.hug + 12)
+        readonly property bool drawn: Config.options.dock.showBackground
+        readonly property color fill: dock.maskOnly ? "white" : Appearance.colors.colDockBackground
+
+        Item {
+            id: dockBox
+            x: (dock.width - dock.span) / 2
+            y: dock.gap - dock.slide
+            width: dock.span
+            height: dock.thick
+
+            Rectangle {
+                y: -dock.edgeTuck
+                width: parent.width
+                height: parent.height + dock.edgeTuck
+                visible: dock.drawn && opacity > 0
+                opacity: Math.max(0, 1 - dock.swoop - dock.hug)
+                color: dock.fill
+                topLeftRadius: dock.edgeRadius
+                topRightRadius: dock.edgeRadius
+                bottomLeftRadius: dock.farRadius
+                bottomRightRadius: dock.farRadius
+                border.width: dock.maskOnly ? 0 : 1
+                border.color: Appearance.colors.colDockBackgroundBorder
+            }
+            Row {
+                visible: !dock.maskOnly
+                anchors.centerIn: parent
+                spacing: 7
+                Repeater {
+                    model: [Appearance.colors.colPrimary, Appearance.m3colors.m3tertiary,
+                            Appearance.m3colors.m3secondary, Appearance.m3colors.m3primaryContainer,
+                            Appearance.m3colors.m3tertiaryContainer]
+                    Rectangle {
+                        required property color modelData
+                        width: 16; height: 16; radius: 5
+                        color: modelData
+                    }
+                }
+            }
+        }
+
+        // The notched dock as one outline rather than a body with a curve hung
+        // at each end: the sweep leaving the edge turns straight into the
+        // corner above it, so there is no seam where two pieces meet and no
+        // sliver of either standing proud of the other. The two curves keep
+        // the real dock's sizes and meet where their slopes match.
+        Shape {
+            id: notchOutline
+            // Under the dock's contents, where the body it stands in for sits.
+            z: -1
+            visible: dock.drawn && dock.swoop > 0
+            opacity: dock.swoop
+            preferredRendererType: Shape.CurveRenderer
+
+            readonly property real bx: dockBox.x
+            readonly property real by: dockBox.y
+            readonly property real w: dock.span
+            readonly property real h: dock.thick
+            readonly property real rf: dock.notchFlare
+            readonly property real rb: dock.notchCorner
+            // How far each curve turns before handing over to the other. When
+            // the two together fall short of the height, they turn all the way
+            // and a straight stretch of side makes up the rest.
+            readonly property real turn: Math.acos(Math.max(0, 1 - h / Math.max(1, rf + rb)))
+            readonly property real reachF: rf * Math.sin(turn)
+            readonly property real reachB: rb * Math.sin(turn)
+            readonly property real handover: rf * (1 - Math.cos(turn))
+            readonly property real side: Math.max(0, h - (rf + rb))
+
+            ShapePath {
+                fillColor: dock.fill
+                strokeColor: dock.maskOnly ? "transparent" : Appearance.colors.colDockBackgroundBorder
+                strokeWidth: dock.maskOnly ? 0 : 1
+                joinStyle: ShapePath.RoundJoin
+                // Starts a pixel past the edge so the outline along the screen's
+                // own edge falls outside the picture.
+                startX: notchOutline.bx - notchOutline.reachF
+                startY: notchOutline.by - 1
+                PathLine { x: notchOutline.bx - notchOutline.reachF; y: notchOutline.by }
+                PathArc {
+                    x: notchOutline.bx; y: notchOutline.by + notchOutline.handover
+                    radiusX: notchOutline.rf; radiusY: notchOutline.rf
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: notchOutline.bx; y: notchOutline.by + notchOutline.handover + notchOutline.side }
+                PathArc {
+                    x: notchOutline.bx + notchOutline.reachB; y: notchOutline.by + notchOutline.h
+                    radiusX: notchOutline.rb; radiusY: notchOutline.rb
+                    direction: PathArc.Counterclockwise
+                }
+                PathLine { x: notchOutline.bx + notchOutline.w - notchOutline.reachB; y: notchOutline.by + notchOutline.h }
+                PathArc {
+                    x: notchOutline.bx + notchOutline.w; y: notchOutline.by + notchOutline.handover + notchOutline.side
+                    radiusX: notchOutline.rb; radiusY: notchOutline.rb
+                    direction: PathArc.Counterclockwise
+                }
+                PathLine { x: notchOutline.bx + notchOutline.w; y: notchOutline.by + notchOutline.handover }
+                PathArc {
+                    x: notchOutline.bx + notchOutline.w + notchOutline.reachF; y: notchOutline.by
+                    radiusX: notchOutline.rf; radiusY: notchOutline.rf
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: notchOutline.bx + notchOutline.w + notchOutline.reachF; y: notchOutline.by - 1 }
+                PathLine { x: notchOutline.bx - notchOutline.reachF; y: notchOutline.by - 1 }
+            }
+        }
+
+        // The Hug dock the way the real one is drawn: the strip and the curve
+        // at each end as one outline, lined only along the side facing the
+        // desktop and round both curves. The strip's ends and the edge it
+        // lies on are the screen's own and carry no line.
+        Shape {
+            id: hugOutline
+            z: -1
+            visible: dock.drawn && dock.hug > 0
+            opacity: dock.hug
+            preferredRendererType: Shape.CurveRenderer
+
+            readonly property real bx: dockBox.x
+            readonly property real by: dockBox.y
+            readonly property real w: dock.span
+            readonly property real h: dock.thick
+            readonly property real r: dock.hugRadius * dock.hug
+
+            ShapePath {
+                fillColor: dock.fill
+                strokeWidth: -1
+                strokeColor: "transparent"
+                // A pixel past the ends and the edge, so no seam of the
+                // background shows along the screen's own sides.
+                startX: hugOutline.bx - 1
+                startY: hugOutline.by - 1
+                PathLine { x: hugOutline.bx - 1; y: hugOutline.by + hugOutline.h + hugOutline.r }
+                PathLine { x: hugOutline.bx; y: hugOutline.by + hugOutline.h + hugOutline.r }
+                PathArc {
+                    x: hugOutline.bx + hugOutline.r; y: hugOutline.by + hugOutline.h
+                    radiusX: hugOutline.r; radiusY: hugOutline.r
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: hugOutline.bx + hugOutline.w - hugOutline.r; y: hugOutline.by + hugOutline.h }
+                PathArc {
+                    x: hugOutline.bx + hugOutline.w; y: hugOutline.by + hugOutline.h + hugOutline.r
+                    radiusX: hugOutline.r; radiusY: hugOutline.r
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: hugOutline.bx + hugOutline.w + 1; y: hugOutline.by + hugOutline.h + hugOutline.r }
+                PathLine { x: hugOutline.bx + hugOutline.w + 1; y: hugOutline.by - 1 }
+                PathLine { x: hugOutline.bx - 1; y: hugOutline.by - 1 }
+            }
+            ShapePath {
+                fillColor: "transparent"
+                strokeColor: dock.maskOnly ? "transparent" : Appearance.colors.colDockBackgroundBorder
+                strokeWidth: dock.maskOnly ? 0 : 1
+                capStyle: ShapePath.FlatCap
+                startX: hugOutline.bx
+                startY: hugOutline.by + hugOutline.h + hugOutline.r
+                PathArc {
+                    x: hugOutline.bx + hugOutline.r; y: hugOutline.by + hugOutline.h
+                    radiusX: hugOutline.r; radiusY: hugOutline.r
+                    direction: PathArc.Clockwise
+                }
+                PathLine { x: hugOutline.bx + hugOutline.w - hugOutline.r; y: hugOutline.by + hugOutline.h }
+                PathArc {
+                    x: hugOutline.bx + hugOutline.w; y: hugOutline.by + hugOutline.h + hugOutline.r
+                    radiusX: hugOutline.r; radiusY: hugOutline.r
+                    direction: PathArc.Clockwise
+                }
+            }
+        }
+    }
+
+    // The style page's picture: the bar and the dock where they are, in the
+    // shape, color and see-through they have right now, on the same desktop
+    // the windows page draws. The blur behind them is the wallpaper's, cut to
+    // their outline, the way the compositor frosts a layer.
+    component BarDockStage : DesktopFrame {
+        id: bds
+        property bool blur: true
+
+        // Named the way Settings names them, so the dock's stored "hug" is the
+        // notch and its "span" is Hug. Anything else is drawn as rect, as the
+        // bar and the dock themselves draw it.
+        readonly property string barShape: root.barDockStyle || "rect"
+        readonly property string dockShape: ({ float: "float", hug: "notch", span: "hug" })[Config.options.dock.cornerStyle] ?? "rect"
+        readonly property bool dockShown: Config.options.dock.enable
+
+        Item {
+            id: pieceShapes
+            anchors.fill: parent
+            visible: false
+            EdgeMount {
+                edge: Appearance.sizes.barEdge
+                BarPiece { shape: bds.barShape; retract: parent.retract; maskOnly: true }
+            }
+            EdgeMount {
+                visible: bds.dockShown
+                edge: Appearance.sizes.dockEdge
+                DockPiece { shape: bds.dockShape; retract: parent.retract; maskOnly: true }
+            }
+        }
+        FastBlur {
+            id: paperBlur
+            anchors.fill: parent
+            source: bds.wallpaper
+            radius: 48
+            cached: true
+            visible: false
+        }
+        OpacityMask {
+            anchors.fill: parent
+            visible: bds.blur
+            source: paperBlur
+            maskSource: pieceShapes
+        }
+
+        EdgeMount {
+            edge: Appearance.sizes.barEdge
+            BarPiece { shape: bds.barShape; retract: parent.retract }
+        }
+        EdgeMount {
+            visible: bds.dockShown
+            edge: Appearance.sizes.dockEdge
+            DockPiece { shape: bds.dockShape; retract: parent.retract }
+        }
+    }
+
+    // ── Windows card ────────────────────────────────────────────────────────
+    // A window in the windows card's picture, built from the same flat pieces
+    // Settings → Layouts draws its layout pictures with, so a window looks the
+    // same wherever the tour or the settings show one.
+    component DemoWindow : Item {
+        id: dw
+        required property var host
+        required property int number
+        property bool focused: false
+
+        readonly property real cornerRadius: dw.host.shownRadius
+
+        // Focus moving from one window to the next plays the way the
+        // compositor plays it: the see-through and the dim follow the fade
+        // curve, the border color follows the border curve.
+        property real surfaceOpacity: dw.focused ? dw.host.activeOpacity : dw.host.shownInactiveOpacity
+        Behavior on surfaceOpacity {
+            NumberAnimation {
+                duration: dw.host.ms("fadeIn")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: dw.host.curve("fadeIn")
+            }
+        }
+        property real dimAmount: dw.focused ? 0 : dw.host.dimStrength
+        Behavior on dimAmount {
+            NumberAnimation {
+                duration: dw.host.ms("fadeIn")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: dw.host.curve("fadeIn")
+            }
+        }
+        property color frameColor: dw.focused ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
+        Behavior on frameColor {
+            ColorAnimation {
+                duration: dw.host.ms("border")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: dw.host.curve("border")
+            }
+        }
+
+        Rectangle {
+            id: surface
+            anchors.fill: parent
+            radius: dw.cornerRadius
+            // The opaque tones the shell's layer colors are solved from: the
+            // layer colors carry the shell's own transparency, and a window
+            // here should be see-through only by the window settings.
+            color: Appearance.colors.colLayer3Base
+            opacity: dw.surfaceOpacity
+
+            Rectangle {
+                id: strip
+                visible: dw.host.titleBars
+                anchors { top: parent.top; left: parent.left; right: parent.right }
+                height: 16
+                topLeftRadius: surface.radius
+                topRightRadius: surface.radius
+                color: Appearance.colors.colLayer2Base
+
+                Rectangle {
+                    x: Math.max(7, surface.radius * 0.6)
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: 5; height: 5; radius: 2.5
+                    color: Appearance.colors.colSubtext
+                    opacity: 0.35
+                }
+                Row {
+                    visible: dw.host.titleBarButtons
+                    anchors {
+                        right: parent.right
+                        rightMargin: Math.max(7, surface.radius * 0.6)
+                        verticalCenter: parent.verticalCenter
+                    }
+                    spacing: 4
+                    Repeater {
+                        model: 3
+                        Rectangle {
+                            width: 5; height: 5; radius: 2.5
+                            color: Appearance.colors.colSubtext
+                            opacity: 0.35
+                        }
+                    }
+                }
+            }
+
+            Column {
+                x: Math.max(11, surface.radius * 0.7)
+                y: (dw.host.titleBars ? strip.height : 0) + Math.max(11, surface.radius * 0.7)
+                spacing: 5
+                Repeater {
+                    model: [0.62, 0.44, 0.68, 0.34, 0.54]
+                    Rectangle {
+                        required property real modelData
+                        width: (dw.width - 24) * modelData
+                        height: 5; radius: 2
+                        color: Appearance.colors.colSubtext
+                        opacity: 0.22
+                    }
+                }
+            }
+
+            StyledText {
+                anchors {
+                    right: parent.right
+                    bottom: parent.bottom
+                    margins: Math.max(7, surface.radius * 0.5)
+                }
+                text: dw.number
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colSubtext
+                opacity: 0.4
+            }
+
+            Rectangle {
+                anchors.fill: parent
+                radius: surface.radius
+                color: "black"
+                opacity: dw.dimAmount
+            }
+        }
+
+        // Apart from the surface, so it keeps its strength when the surface
+        // is see-through.
+        Rectangle {
+            anchors.fill: parent
+            visible: dw.host.shownBorder > 0
+            radius: dw.cornerRadius
+            color: "transparent"
+            border.width: dw.host.shownBorder
+            border.color: dw.frameColor
+        }
+    }
+
+    // A window's outline in the picture's masks: where the blur shows through
+    // it, and where the shadows are kept out from under it.
+    component WindowTwin : Rectangle {
+        required property DemoWindow modelData
+        x: modelData.x
+        y: modelData.y
+        width: modelData.width
+        height: modelData.height
+        scale: modelData.scale
+        opacity: modelData.opacity
+        visible: modelData.visible
+        radius: modelData.cornerRadius
+        color: "white"
+    }
+
+    component WindowShadow : RectangularShadow {
+        required property DemoWindow modelData
+        x: modelData.x
+        y: modelData.y
+        width: modelData.width
+        height: modelData.height
+        scale: modelData.scale
+        opacity: modelData.opacity
+        visible: modelData.visible
+        radius: modelData.cornerRadius
+    }
+
+    // A window's shadow as the compositor casts it: kept out from under the
+    // window itself, and falling on whatever lies beside it. Each one sits
+    // just below its own window, so a window drawn later shades the ones
+    // drawn before it.
+    component CastShadow : Item {
+        id: cast
+        required property DemoWindow window
+        property real blurSize: 12
+        property vector2d offsetBy: Qt.vector2d(0, 1)
+        property color shadowColor: "black"
+        anchors.fill: parent
+
+        Item {
+            id: castSource
+            anchors.fill: parent
+            visible: false
+            WindowShadow {
+                modelData: cast.window
+                blur: cast.blurSize
+                offset: cast.offsetBy
+                color: cast.shadowColor
+            }
+        }
+        Item {
+            id: castHole
+            anchors.fill: parent
+            visible: false
+            WindowTwin { modelData: cast.window }
+        }
+        OpacityMask {
+            anchors.fill: parent
+            source: castSource
+            maskSource: castHole
+            invert: true
+        }
+    }
+
+    // The windows card's picture: three windows on the desktop. A third one
+    // opens beside the second and closes again on a loop, moving to the
+    // curves and timings of the animation profile the desktop is running.
+    component WindowStage : DesktopFrame {
+        id: stage
+
+        property real rounding: 10
+        property bool roundCorners: true
+        property int borderSize: 4
+        property bool borders: true
+        property bool shadows: true
+        property int shadowRange: 20
+        property color shadowColor: Qt.rgba(0, 0, 0, 0.125)
+        property var shadowOffset: [0, 2]
+        property bool titleBars: true
+        property bool titleBarButtons: true
+        property bool blur: true
+        property real activeOpacity: 1
+        property real inactiveOpacity: 1
+        property real dimStrength: 0
+        property int gapsIn: 4
+        property int gapsOut: 5
+        property bool animations: true
+        property var motion: ({})
+        property bool live: false
+
+        // Sizes true to a real screen read as nothing at this scale, so each
+        // one is shown larger than life by the same factor, the shadow's
+        // strength included.
+        readonly property real lifeScale: 0.6
+        readonly property color shownShadowColor: Qt.rgba(stage.shadowColor.r, stage.shadowColor.g,
+            stage.shadowColor.b, Math.min(0.55, stage.shadowColor.a * 3))
+
+        // Blur only shows through something see-through, and a window that is
+        // solid, or only faintly see-through, leaves too little of it to see.
+        // Flipping the switch, or resting the pointer on it, lets the unfocused
+        // windows go see-through enough for the difference to read, and hands
+        // them back afterwards.
+        property bool blurPeek: false
+        property bool blurHover: false
+        readonly property bool showingBlur: stage.blurPeek || stage.blurHover
+        readonly property real shownInactiveOpacity: stage.showingBlur
+            ? Math.min(stage.inactiveOpacity, 0.72) : stage.inactiveOpacity
+        function peekBlur() {
+            stage.blurPeek = true;
+            blurPeekTimer.restart();
+        }
+        Timer {
+            id: blurPeekTimer
+            interval: 2600
+            onTriggered: stage.blurPeek = false
+        }
+
+        // A shadow this small, on dark windows, barely reads, and tiled windows
+        // leave it no wallpaper to fall on. Flipping the switch lifts the
+        // focused window out for a moment instead, floating over its neighbor
+        // the way a window pulled out of tiling does, so its shadow falls on
+        // both, then sets it back and lets the loop go on.
+        property bool shadowPeek: false
+        property real liftT: stage.shadowPeek ? 1 : 0
+        Behavior on liftT { NumberAnimation { duration: 280; easing.type: Easing.OutCubic } }
+        function peekShadow() {
+            stage.resetScene();
+            stage.shadowPeek = true;
+            shadowPeekTimer.restart();
+        }
+        Timer {
+            id: shadowPeekTimer
+            interval: 2600
+            onTriggered: {
+                stage.shadowPeek = false;
+                stage.replay(700);
+            }
+        }
+        readonly property real shownRadius: stage.roundCorners ? stage.rounding * stage.lifeScale : 0
+        readonly property real shownBorder: stage.borders ? Math.max(1, Math.round(stage.borderSize * stage.lifeScale)) : 0
+        readonly property real gapOut: Math.max(8, stage.gapsOut * stage.lifeScale)
+        readonly property real gapIn: Math.max(5, stage.gapsIn * stage.lifeScale)
+
+        // Dwindle's first two splits: side by side across the wide screen,
+        // then one above the other in the tall column that leaves.
+        readonly property real areaW: stage.canvas.width - 2 * stage.gapOut
+        readonly property real areaH: stage.canvas.height - 2 * stage.gapOut
+        readonly property real leftW: (stage.areaW - stage.gapIn) / 2
+        readonly property real rightX: stage.gapOut + stage.leftW + stage.gapIn
+        readonly property real rightW: stage.areaW - stage.leftW - stage.gapIn
+        readonly property real halfH: (stage.areaH - stage.gapIn) / 2
+
+        property real splitT: 0
+        property real w2Scale: 1
+        property real w2Shift: 0
+        property real w2Alpha: 0
+        property int focusIdx: 1
+        property bool thirdOpen: false
+
+        function leaf(name) {
+            return stage.motion[name] ?? { enabled: true, speed: 3, curve: [0.05, 0.7, 0.1, 1], kind: "popin", from: 0.8 };
+        }
+        function ms(name) {
+            const l = stage.leaf(name);
+            return stage.animations && l.enabled ? Math.round(l.speed * 100) : 0;
+        }
+        function curve(name) {
+            return stage.leaf(name).curve.concat([1, 1]);
+        }
+        function popFrom(name) {
+            const l = stage.leaf(name);
+            return l.kind === "popin" ? l.from : 1;
+        }
+        function slideFrom(name) {
+            return stage.leaf(name).kind === "slide" ? stage.canvas.width - stage.rightX + 4 : 0;
+        }
+
+        function openThird() {
+            closeAnim.stop();
+            stage.thirdOpen = true;
+            stage.focusIdx = 2;
+            openAnim.restart();
+        }
+        function closeThird() {
+            openAnim.stop();
+            stage.thirdOpen = false;
+            stage.focusIdx = 1;
+            closeAnim.restart();
+        }
+        function resetScene() {
+            openAnim.stop();
+            closeAnim.stop();
+            cycle.stop();
+            stage.thirdOpen = false;
+            stage.focusIdx = 1;
+            stage.splitT = 0;
+            stage.w2Alpha = 0;
+            stage.w2Scale = 1;
+            stage.w2Shift = 0;
+        }
+        // Back to two windows at once, with the loop picking up after `delay`.
+        function replay(delay) {
+            stage.resetScene();
+            if (!stage.live) return;
+            cycle.interval = delay;
+            cycle.start();
+        }
+
+        onLiveChanged: stage.replay(700)
+        onMotionChanged: stage.replay(300)
+        onAnimationsChanged: stage.replay(300)
+
+        Timer {
+            id: cycle
+            onTriggered: {
+                if (stage.thirdOpen) stage.closeThird();
+                else stage.openThird();
+                cycle.interval = stage.thirdOpen ? 2600 : 1700;
+                cycle.start();
+            }
+        }
+
+        ParallelAnimation {
+            id: openAnim
+            NumberAnimation {
+                target: stage; property: "splitT"; to: 1
+                duration: stage.ms("windowsMove")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("windowsMove")
+            }
+            NumberAnimation {
+                target: stage; property: "w2Scale"
+                from: stage.popFrom("windowsIn"); to: 1
+                duration: stage.ms("windowsIn")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("windowsIn")
+            }
+            NumberAnimation {
+                target: stage; property: "w2Shift"
+                from: stage.slideFrom("windowsIn"); to: 0
+                duration: stage.ms("windowsIn")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("windowsIn")
+            }
+            NumberAnimation {
+                target: stage; property: "w2Alpha"
+                from: 0; to: 1
+                duration: stage.ms("fadeIn")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("fadeIn")
+            }
+        }
+
+        ParallelAnimation {
+            id: closeAnim
+            NumberAnimation {
+                target: stage; property: "splitT"; to: 0
+                duration: stage.ms("windowsMove")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("windowsMove")
+            }
+            NumberAnimation {
+                target: stage; property: "w2Scale"
+                from: 1; to: stage.popFrom("windowsOut")
+                duration: stage.ms("windowsOut")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("windowsOut")
+            }
+            NumberAnimation {
+                target: stage; property: "w2Shift"
+                from: 0; to: stage.slideFrom("windowsOut")
+                duration: stage.ms("windowsOut")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("windowsOut")
+            }
+            NumberAnimation {
+                target: stage; property: "w2Alpha"
+                from: 1; to: 0
+                duration: stage.ms("fadeOut")
+                easing.type: Easing.BezierSpline
+                easing.bezierCurve: stage.curve("fadeOut")
+            }
+        }
+
+        Item {
+            id: shapes
+            anchors.fill: parent
+            visible: false
+            Repeater {
+                model: [w0, w1, w2]
+                WindowTwin {}
+            }
+        }
+
+        FastBlur {
+            id: backdropBlur
+            anchors.fill: parent
+            source: stage.wallpaper
+            radius: 64
+            cached: true
+            visible: false
+        }
+        OpacityMask {
+            anchors.fill: parent
+            visible: stage.blur
+            source: backdropBlur
+            maskSource: shapes
+        }
+
+        CastShadow {
+            window: w0
+            visible: stage.shadows
+            blurSize: stage.shadowRange * stage.lifeScale
+            offsetBy: Qt.vector2d(stage.shadowOffset[0] * stage.lifeScale, stage.shadowOffset[1] * stage.lifeScale)
+            shadowColor: stage.shownShadowColor
+        }
+        DemoWindow {
+            id: w0
+            host: stage
+            number: 1
+            x: stage.gapOut
+            y: stage.gapOut
+            width: stage.leftW
+            height: stage.areaH
+            focused: stage.focusIdx === 0
+        }
+        CastShadow {
+            window: w1
+            visible: stage.shadows
+            blurSize: stage.shadowRange * stage.lifeScale * (1 + 2.5 * stage.liftT)
+            offsetBy: Qt.vector2d(stage.shadowOffset[0] * stage.lifeScale,
+                                  stage.shadowOffset[1] * stage.lifeScale + 16 * stage.liftT)
+            shadowColor: Qt.rgba(stage.shownShadowColor.r, stage.shownShadowColor.g, stage.shownShadowColor.b,
+                                 Math.min(0.9, stage.shownShadowColor.a + 0.5 * stage.liftT))
+        }
+        DemoWindow {
+            id: w1
+            host: stage
+            number: 2
+            x: stage.rightX - stage.rightW * 0.3 * stage.liftT
+            y: stage.gapOut
+            width: stage.rightW
+            height: stage.areaH + (stage.halfH - stage.areaH) * stage.splitT
+            focused: stage.focusIdx === 1
+            scale: 1 - 0.2 * stage.liftT
+        }
+        CastShadow {
+            window: w2
+            visible: stage.shadows
+            blurSize: stage.shadowRange * stage.lifeScale
+            offsetBy: Qt.vector2d(stage.shadowOffset[0] * stage.lifeScale, stage.shadowOffset[1] * stage.lifeScale)
+            shadowColor: stage.shownShadowColor
+        }
+        DemoWindow {
+            id: w2
+            host: stage
+            number: 3
+            x: stage.rightX + stage.w2Shift
+            y: stage.gapOut + stage.halfH + stage.gapIn
+            width: stage.rightW
+            height: stage.halfH
+            scale: stage.w2Scale
+            opacity: stage.w2Alpha
+            visible: stage.w2Alpha > 0.001
+            focused: stage.focusIdx === 2
+        }
+    }
+
+    component CardWindows : Item {
+        id: cardWindows
+
+        readonly property string animationsDir: `${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprland/animations`
+
+        property bool decoReady: false
+        property bool animationsEnabled: true
+        property bool blurEnabled: true
+        property bool shadowsEnabled: true
+        property bool bordersEnabled: true
+        property bool roundCornersEnabled: true
+        property int roundingValue: 10
+        property int roundingWhileOff: 10
+        property int borderSizeValue: 4
+        property real activeOpacityValue: 1.0
+        property real inactiveOpacityValue: 1.0
+        property bool dimInactiveEnabled: true
+        property real dimStrengthValue: 0.05
+        property int gapsInValue: 4
+        property int gapsOutValue: 5
+        property int shadowRangeValue: 20
+        property string shadowColorValue: "rgba(00000020)"
+        property var shadowOffsetValue: [0, 2]
+        property string animationProfileValue: "expressive"
+        property var decoDefaults: ({})
+        property var motion: ({})
+
+        function defaultMark(key) {
+            const value = cardWindows.decoDefaults[key]
+            return value === undefined ? [] : [value]
+        }
+
+        function colorOf(rgba) {
+            const m = String(rgba).match(/^rgba\(([0-9a-fA-F]{8})\)$/);
+            if (!m) return Qt.rgba(0, 0, 0, 0.125);
+            const channel = i => parseInt(m[1].slice(i, i + 2), 16) / 255;
+            return Qt.rgba(channel(0), channel(2), channel(4), channel(6));
+        }
+
+        function setDecoration(pairs) {
+            Quickshell.execDetached(root.decorationsCommand("set", pairs))
+        }
+
+        // A dragged slider would otherwise write on every frame.
+        property var pendingDecoration: ({})
+        function queueDecoration(key, value) {
+            if (!cardWindows.decoReady) return;
+            cardWindows.pendingDecoration[key] = value;
+            decoFlush.restart();
+        }
+        Timer {
+            id: decoFlush
+            interval: 200
+            onTriggered: {
+                const pairs = Object.keys(cardWindows.pendingDecoration).map(k => `${k}=${cardWindows.pendingDecoration[k]}`);
+                cardWindows.pendingDecoration = ({});
+                if (pairs.length > 0) cardWindows.setDecoration(pairs);
+            }
+        }
+
+        function applyDecoValues(values) {
+            if (values.animations !== undefined) cardWindows.animationsEnabled = values.animations
+            if (values.blur !== undefined) cardWindows.blurEnabled = values.blur
+            if (values.shadow !== undefined) cardWindows.shadowsEnabled = values.shadow
+            if (values.borderSize !== undefined) cardWindows.bordersEnabled = values.borderSize > 0
+            if (values.borderSize !== undefined && values.borderSize > 0) cardWindows.borderSizeValue = values.borderSize
+            if (values.rounding !== undefined) cardWindows.roundCornersEnabled = values.rounding > 0
+            if (values.rounding !== undefined && values.rounding > 0) cardWindows.roundingValue = values.rounding
+            if (values.activeOpacity !== undefined) cardWindows.activeOpacityValue = values.activeOpacity
+            if (values.inactiveOpacity !== undefined) cardWindows.inactiveOpacityValue = values.inactiveOpacity
+            if (values.dimInactive !== undefined) cardWindows.dimInactiveEnabled = values.dimInactive
+            if (values.dimStrength !== undefined) cardWindows.dimStrengthValue = values.dimStrength
+            if (values.gapsIn !== undefined) cardWindows.gapsInValue = values.gapsIn
+            if (values.gapsOut !== undefined) cardWindows.gapsOutValue = values.gapsOut
+            if (values.shadowRange !== undefined) cardWindows.shadowRangeValue = values.shadowRange
+            if (values.shadowColor !== undefined) cardWindows.shadowColorValue = values.shadowColor
+            if (values.shadowOffset !== undefined) cardWindows.shadowOffsetValue = values.shadowOffset
+            if (values.animationProfile !== undefined) cardWindows.animationProfileValue = values.animationProfile
+        }
+
+        Process {
+            id: decoDefaultsReader
+            command: root.decorationsCommand("defaults")
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    try { cardWindows.decoDefaults = JSON.parse(text || "{}") }
+                    catch (e) { cardWindows.decoDefaults = ({}) }
+                }
+            }
+        }
+
+        Process {
+            id: decoReader
+            command: root.decorationsCommand("read")
+            stdout: StdioCollector { id: decoRead }
+            onExited: {
+                if (cardWindows.readAgain) {
+                    cardWindows.readAgain = false
+                    decoReader.running = true
+                    return
+                }
+                let values = ({})
+                try { values = JSON.parse(decoRead.text || "{}") } catch (e) { values = ({}) }
+                // The radius Rounded Corners turns back on to is the user's,
+                // not the one Hug switched on and leaving Hug switched off.
+                const hugOn = root.hugFitRoundingOn
+                if (!cardWindows.roundCornersEnabled && values.rounding === hugOn)
+                    cardWindows.roundingWhileOff = cardWindows.roundingValue
+                cardWindows.applyDecoValues(values)
+                if (values.rounding === 0 && cardWindows.roundingValue === hugOn) {
+                    cardWindows.roundingValue = cardWindows.roundingWhileOff
+                    // Turned off while on Hug, the switch remembered Hug's radius.
+                    const memory = Config.options.appearance.roundCornersRestore
+                    if (memory.windowRounding === hugOn)
+                        memory.windowRounding = cardWindows.roundingWhileOff
+                }
+                // A switch that has been clicked no longer follows its value
+                // (see ConfigSwitch), and the style page can change this one.
+                roundCornersSwitch.checked = Qt.binding(() => cardWindows.roundCornersEnabled)
+                cardWindows.decoReady = true
+            }
+        }
+
+        // The Hug tile on the style page can change the corners after this page
+        // has read them. The page reads again with decoReady off meanwhile, so
+        // the switches take the new values without writing them straight back,
+        // and a read already under way when the write landed is not trusted.
+        property bool readAgain: false
+        Connections {
+            target: root
+            function onDecorationsRewritten() {
+                cardWindows.decoReady = false
+                if (decoReader.running) cardWindows.readAgain = true
+                else decoReader.running = true
+            }
+        }
+
+        // The shipped profiles keep their translated names and their order,
+        // and anything else in the profile directory follows, named by its file.
+        readonly property var shippedAnimationProfiles: [
+            { displayName: Translation.tr("Expressive"), value: "expressive", icon: "animation" },
+            { displayName: Translation.tr("Snappy"), value: "snappy", icon: "bolt" },
+            { displayName: Translation.tr("Smooth"), value: "smooth", icon: "waves" },
+            { displayName: Translation.tr("Bouncy"), value: "bouncy", icon: "sports_basketball" },
+            { displayName: Translation.tr("Minimal"), value: "minimal", icon: "blur_on" },
+        ]
+        property var extraAnimationProfiles: []
+        readonly property var animationProfiles: shippedAnimationProfiles.concat(extraAnimationProfiles)
+
+        Process {
+            id: animationProfilesScan
+            command: ["bash", "-c", `ls '${cardWindows.animationsDir}'/*.lua 2>/dev/null`]
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const shipped = new Set(cardWindows.shippedAnimationProfiles.map(p => p.value));
+                    cardWindows.extraAnimationProfiles = text.split("\n")
+                        .map(line => line.trim().split("/").pop().replace(/\.lua$/, ""))
+                        .filter(name => /^[\w-]+$/.test(name) && !shipped.has(name))
+                        .sort()
+                        .map(name => ({
+                            displayName: name.replace(/[-_]/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+                            value: name,
+                            icon: "tune"
+                        }));
+                }
+            }
+        }
+
+        Component.onCompleted: {
+            decoDefaultsReader.running = true
+            decoReader.running = true
+            animationProfilesScan.running = true
+        }
+
+        // The picture moves to the profile's own file rather than to an
+        // imitation of it, so it plays the curves and timings the desktop
+        // plays, a hand-written profile included.
+        FileView {
+            id: profileFile
+            path: `${cardWindows.animationsDir}/${cardWindows.animationProfileValue}.lua`
+            onLoaded: cardWindows.motion = cardWindows.parseProfile(profileFile.text())
+            onLoadFailed: cardWindows.motion = cardWindows.parseProfile("")
+        }
+
+        function parseProfile(text) {
+            const curves = { linear: [0, 0, 1, 1], default: [0, 0.75, 0.15, 1] };
+            const curveRe = /hl\.curve\(\s*"([^"]+)"\s*,\s*\{[^}]*?points\s*=\s*\{\s*\{\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\}\s*,\s*\{\s*([-\d.]+)\s*,\s*([-\d.]+)\s*\}/g;
+            let m;
+            while ((m = curveRe.exec(text)) !== null)
+                curves[m[1]] = [m[2], m[3], m[4], m[5]].map(Number);
+
+            const leaves = {};
+            const animRe = /hl\.animation\(\s*\{([\s\S]*?)\}\s*\)/g;
+            while ((m = animRe.exec(text)) !== null) {
+                const body = m[1];
+                const field = key => {
+                    const f = body.match(new RegExp(`\\b${key}\\s*=\\s*"?([^",\\n}]+)"?`));
+                    return f ? f[1].trim() : undefined;
+                };
+                const name = field("leaf");
+                if (name)
+                    leaves[name] = { enabled: field("enabled"), speed: field("speed"),
+                                     bezier: field("bezier"), style: field("style") };
+            }
+
+            // A leaf the profile leaves out takes its parent's settings, the
+            // way the compositor fills it in.
+            const parents = { windowsIn: "windows", windowsOut: "windows", windowsMove: "windows",
+                              fadeIn: "fade", fadeOut: "fade", windows: "global", fade: "global", border: "global" };
+            const resolve = name => {
+                let n = name;
+                while (n && !leaves[n]) n = parents[n];
+                const l = leaves[n] ?? {};
+                const style = String(l.style ?? "");
+                const pop = style.match(/popin\s*(\d+)%/);
+                return {
+                    enabled: l.enabled !== "false",
+                    speed: Number(l.speed) || 3,
+                    curve: curves[l.bezier] ?? curves.default,
+                    kind: style.startsWith("slide") ? "slide" : "popin",
+                    from: pop ? Number(pop[1]) / 100 : 0.8
+                };
+            };
+            const out = {};
+            for (const name of ["windowsIn", "windowsOut", "windowsMove", "fadeIn", "fadeOut", "border"])
+                out[name] = resolve(name);
+            return out;
+        }
+
+        readonly property string motionBlurb: {
+            if (!cardWindows.animationsEnabled)
+                return Translation.tr("Windows appear and leave without moving");
+            switch (cardWindows.animationProfileValue) {
+            case "expressive": return Translation.tr("Quick to arrive, gentle to settle");
+            case "snappy": return Translation.tr("Quick and decisive, nothing lingers");
+            case "smooth": return Translation.tr("Long, even glides that slide rather than pop");
+            case "bouncy": return Translation.tr("Lands a little past its mark and springs back");
+            case "minimal": return Translation.tr("Nothing moves, windows simply fade in");
+            }
+            return Translation.tr("A profile of your own, played from its file");
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 24
+            spacing: 16
+
+            StyleSection {
+                title: Translation.tr("Preview")
+                symbol: "preview"
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                headerTrailing: [
+                    // Says what the picture is doing while it demonstrates a
+                    // switch rather than showing the desktop as it is.
+                    StyledText {
+                        text: windowStage.shadowPeek
+                            ? Translation.tr("Showing shadows under a floating window")
+                            : Translation.tr("Showing blur through a see-through window")
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                        opacity: (windowStage.showingBlur || windowStage.shadowPeek) ? 1 : 0
+                        visible: opacity > 0
+                        Behavior on opacity { NumberAnimation { duration: 200 } }
+                    },
+                    RippleButton {
+                        implicitWidth: 30
+                        implicitHeight: 30
+                        buttonRadius: Appearance.rounding.full
+                        colBackground: Appearance.colors.colSecondaryContainer
+                        colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                        onClicked: windowStage.replay(120)
+                        contentItem: MaterialSymbol {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            text: "replay"
+                            iconSize: 18
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                        StyledToolTip {
+                            text: Translation.tr("Play it again")
+                        }
+                    }
+                ]
+
+                WindowStage {
+                    id: windowStage
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    rounding: cardWindows.roundingValue
+                    roundCorners: cardWindows.roundCornersEnabled
+                    borderSize: cardWindows.borderSizeValue
+                    borders: cardWindows.bordersEnabled
+                    shadows: cardWindows.shadowsEnabled
+                    shadowRange: cardWindows.shadowRangeValue
+                    shadowColor: cardWindows.colorOf(cardWindows.shadowColorValue)
+                    shadowOffset: cardWindows.shadowOffsetValue
+                    titleBars: TitleBars.enabled
+                    titleBarButtons: TitleBars.buttonsEnabled
+                    blur: cardWindows.blurEnabled
+                    activeOpacity: cardWindows.activeOpacityValue
+                    inactiveOpacity: cardWindows.inactiveOpacityValue
+                    dimStrength: cardWindows.dimInactiveEnabled ? cardWindows.dimStrengthValue : 0
+                    gapsIn: cardWindows.gapsInValue
+                    gapsOut: cardWindows.gapsOutValue
+                    animations: cardWindows.animationsEnabled
+                    motion: cardWindows.motion
+                    live: cardWindows.visible && cardWindows.decoReady
+                }
+            }
+
+            // The sections share out whatever height the picture leaves, so
+            // the column ends where the picture does.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.fillHeight: true
+                spacing: 0
+
+                StyleSection {
+                    title: Translation.tr("Window shape")
+                    symbol: "rounded_corner"
+                    Layout.fillHeight: false
+
+                    ConfigSlider {
+                        Layout.fillWidth: true
+                        text: Translation.tr("Corner roundness")
+                        stopIndicatorValues: cardWindows.defaultMark("rounding")
+                        buttonIcon: "rounded_corner"
+                        usePercentTooltip: false
+                        enabled: cardWindows.roundCornersEnabled
+                        opacity: cardWindows.roundCornersEnabled ? 1 : 0.5
+                        from: 1
+                        to: 24
+                        value: cardWindows.roundingValue
+                        onMoved: {
+                            const stepped = Math.round(value);
+                            if (stepped === cardWindows.roundingValue) return;
+                            cardWindows.roundingValue = stepped;
+                            cardWindows.queueDecoration("rounding", stepped);
+                        }
+                    }
+                }
+
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
+                StyleSection {
+                    title: Translation.tr("Window transparency")
+                    symbol: "opacity"
+                    Layout.fillHeight: false
+
+                    ConfigSlider {
+                        Layout.fillWidth: true
+                        text: Translation.tr("Unfocused windows")
+                        stopIndicatorValues: cardWindows.defaultMark("inactiveOpacity")
+                        buttonIcon: "filter_none"
+                        from: 0.7
+                        to: 1.0
+                        value: cardWindows.inactiveOpacityValue
+                        onMoved: {
+                            if (Math.abs(value - cardWindows.inactiveOpacityValue) < 0.005) return;
+                            cardWindows.inactiveOpacityValue = value;
+                            cardWindows.queueDecoration("inactiveOpacity", value.toFixed(2));
+                        }
+                    }
+                }
+
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
+                StyleSection {
+                    title: Translation.tr("Window animations")
+                    symbol: "auto_awesome_motion"
+                    Layout.fillHeight: false
+
+                    headerTrailing: StyledComboBox {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 190
+                        enabled: cardWindows.animationsEnabled
+                        opacity: cardWindows.animationsEnabled ? 1 : 0.5
+                        textRole: "displayName"
+                        model: cardWindows.animationProfiles
+                        currentIndex: cardWindows.animationProfiles.findIndex(p => p.value === cardWindows.animationProfileValue)
+                        onActivated: index => {
+                            const chosen = cardWindows.animationProfiles[index].value;
+                            if (chosen === cardWindows.animationProfileValue) return;
+                            cardWindows.animationProfileValue = chosen;
+                            cardWindows.setDecoration([`animationProfile=${chosen}`]);
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 26
+                        elide: Text.ElideRight
+                        text: cardWindows.motionBlurb
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                    }
+                }
+
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
+                StyleSection {
+                    title: Translation.tr("Window decorations")
+                    symbol: "auto_awesome"
+                    Layout.fillHeight: false
+
+                    ConfigRow {
+                        Layout.fillWidth: true
+                        uniform: true
+                        ConfigSwitch {
+                            buttonIcon: "animation"
+                            text: Translation.tr("Animations")
+                            checked: cardWindows.animationsEnabled
+                            animateChanges: cardWindows.decoReady
+                            onCheckedChanged: {
+                                if (!cardWindows.decoReady) return;
+                                cardWindows.animationsEnabled = checked;
+                                cardWindows.setDecoration(["animations=" + checked]);
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Window open/close and workspace transition effects")
+                            }
+                        }
+                        ConfigSwitch {
+                            buttonIcon: "blur_on"
+                            text: Translation.tr("Blur")
+                            checked: cardWindows.blurEnabled
+                            animateChanges: cardWindows.decoReady
+                            onCheckedChanged: {
+                                if (!cardWindows.decoReady) return;
+                                cardWindows.blurEnabled = checked;
+                                cardWindows.setDecoration(["blur=" + checked]);
+                                windowStage.peekBlur();
+                            }
+                            onHoveredChanged: windowStage.blurHover = hovered
+                            StyledToolTip {
+                                text: Translation.tr("Background blur behind transparent windows and layers")
+                            }
+                        }
+                    }
+                    ConfigRow {
+                        Layout.fillWidth: true
+                        uniform: true
+                        ConfigSwitch {
+                            buttonIcon: "ev_shadow"
+                            text: Translation.tr("Shadows")
+                            checked: cardWindows.shadowsEnabled
+                            animateChanges: cardWindows.decoReady
+                            onCheckedChanged: {
+                                if (!cardWindows.decoReady) return;
+                                cardWindows.shadowsEnabled = checked;
+                                cardWindows.setDecoration(["shadow=" + checked]);
+                                windowStage.peekShadow();
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Drop shadows underneath windows")
+                            }
+                        }
+                        ConfigSwitch {
+                            buttonIcon: "border_style"
+                            text: Translation.tr("Borders")
+                            checked: cardWindows.bordersEnabled
+                            animateChanges: cardWindows.decoReady
+                            onCheckedChanged: {
+                                if (!cardWindows.decoReady) return;
+                                cardWindows.bordersEnabled = checked;
+                                cardWindows.setDecoration([`borderSize=${checked ? cardWindows.borderSizeValue : 0}`,
+                                                           `resizeOnBorder=${checked}`]);
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Colored borders around active and inactive windows")
+                            }
+                        }
+                    }
+                    ConfigRow {
+                        Layout.fillWidth: true
+                        uniform: true
+                        ConfigSwitch {
+                            id: roundCornersSwitch
+                            buttonIcon: "rounded_corner"
+                            text: Translation.tr("Rounded Corners")
+                            checked: cardWindows.roundCornersEnabled
+                            animateChanges: cardWindows.decoReady
+                            onCheckedChanged: {
+                                // Only a click moves the switch away from the
+                                // card's value; a reread moves both together
+                                // and must write nothing back. The bar's own
+                                // corners and the screen's rounded corners
+                                // follow the window rounding.
+                                if (!cardWindows.decoReady || checked === cardWindows.roundCornersEnabled) return;
+                                cardWindows.roundCornersEnabled = checked;
+                                if (checked) {
+                                    const radius = RoundedCorners.turnOn(cardWindows.roundingValue);
+                                    if (radius > 0) {
+                                        cardWindows.roundingValue = radius;
+                                        cardWindows.setDecoration([`rounding=${radius}`]);
+                                    } else {
+                                        root.decorationsRewritten();
+                                    }
+                                } else {
+                                    RoundedCorners.turnOff(cardWindows.roundingValue);
+                                    cardWindows.setDecoration(["rounding=0"]);
+                                }
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Rounded corners on windows, the bar and the screen")
+                            }
+                        }
+                        ConfigSwitch {
+                            buttonIcon: "title"
+                            text: Translation.tr("Title Bars")
+                            checked: TitleBars.enabled
+                            animateChanges: TitleBars.enabledLoaded
+                            onCheckedChanged: {
+                                if (!cardWindows.decoReady) return;
+                                TitleBars.setEnabled(checked);
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Show title bars on windows")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    component CardStyle : Item {
+        id: cardStyle
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 24
+            spacing: 16
+
+            StyleSection {
+                title: Translation.tr("Preview")
+                symbol: "preview"
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+
+                BarDockStage {
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    blur: root.layerBlur
+                }
+            }
+
+            // The sections share out whatever height the picture leaves, so
+            // the column ends where the picture does.
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.preferredWidth: 1
+                Layout.fillHeight: true
+                spacing: 0
+
+                StyleSection {
+                    title: Translation.tr("Bar and Dock shape")
+                    symbol: "screenshot_monitor"
+                    Layout.fillHeight: false
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 10
+                        uniformCellSizes: true
+
+                        StyleTile {
+                            styleName: "float"; label: Translation.tr("Float")
+                            selected: root.barDockStyle === "float"
+                            onPicked: root.applyBarDockStyle("float")
+                        }
+                        StyleTile {
+                            styleName: "notch"; label: Translation.tr("Notch")
+                            selected: root.barDockStyle === "notch"
+                            onPicked: root.applyBarDockStyle("notch")
+                        }
+                        StyleTile {
+                            styleName: "hug"; label: Translation.tr("Hug")
+                            selected: root.barDockStyle === "hug"
+                            onPicked: root.applyBarDockStyle("hug")
+                        }
+                    }
+
+                    StyledText {
+                        Layout.fillWidth: true
+                        Layout.topMargin: 2
+                        wrapMode: Text.Wrap
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                        text: ({
+                            float: Translation.tr("The bar and the dock float clear of the screen's edges"),
+                            hug: Translation.tr("The bar and the dock run end to end along opposite edges"),
+                            notch: Translation.tr("Flush with the edge, curving back into it at either end")
+                        })[root.barDockStyle] ?? Translation.tr("The bar keeps a shape of its own, picked in Settings")
+                    }
+                }
+
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
+                StyleSection {
+                    title: Translation.tr("Transparency and color")
+                    symbol: "palette"
+                    Layout.fillHeight: false
+                    // On the header line rather than below the controls: the title
+                    // already says what it resets, and a row of its own would make
+                    // the group taller the moment anything here is touched.
+                    headerTrailing: [
+                        ConfigResetButton {
+                            visible: root.styleIsCustom
+                            buttonText: Translation.tr("Reset to default")
+                            onClicked: root.resetStyleAppearance()
+                        }
+                    ]
+
+                    ConfigSlider {
+                        Layout.fillWidth: true
+                        textWidth: 124
+                        text: Translation.tr("Transparency")
+                        buttonIcon: "opacity"
+                        stopIndicatorValues: [Appearance.colors.layer0StockAlpha]
+                        // The track stops where the surfaces stop being frosted
+                        // rather than at nothing, the same as the settings page.
+                        from: Appearance.colors.surfaceOpacityFloor
+                        to: 1
+                        value: root.styleOpacity
+                        onMoved: {
+                            if (Math.abs(value - root.styleOpacity) < 0.005)
+                                return;
+                            root.applyStyleOpacity(value);
+                        }
+                    }
+
+                    ColorField {
+                        Layout.fillWidth: true
+                        textWidth: 124
+                        text: Translation.tr("Color")
+                        buttonIcon: "wallpaper"
+                        allowEmpty: true
+                        value: root.styleColor
+                        fallback: String(Appearance.colors.colLayer0)
+                        onEdited: newValue => root.applyStyleColor(newValue)
+                    }
+                }
+
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
+                StyleSection {
+                    title: Translation.tr("Bar and Dock position")
+                    symbol: "swap_horiz"
+                    Layout.fillHeight: false
+
+                    GridLayout {
+                        Layout.fillWidth: true
+                        columns: 2
+                        columnSpacing: 12
+                        rowSpacing: 6
+
+                        StyledText {
+                            Layout.preferredWidth: 44
+                            text: Translation.tr("Bar")
+                            color: Appearance.colors.colOnLayer1
+                        }
+                        ConfigSelectionArray {
+                            Layout.fillWidth: true
+                            currentValue: (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
+                            // Through the shared rule, which carries a Hug
+                            // dock across to face the bar wherever it goes.
+                            onSelected: newValue => Appearance.sizes.placeBar((newValue & 1) !== 0, (newValue & 2) !== 0)
+                            options: [
+                                { displayName: Translation.tr("Top"),    icon: "arrow_upward",    value: 0 },
+                                { displayName: Translation.tr("Left"),   icon: "arrow_back",      value: 2 },
+                                { displayName: Translation.tr("Bottom"), icon: "arrow_downward",  value: 1 },
+                                { displayName: Translation.tr("Right"),  icon: "arrow_forward",   value: 3 }
+                            ]
+                        }
+
+                        StyledText {
+                            Layout.preferredWidth: 44
+                            text: Translation.tr("Dock")
+                            color: Appearance.colors.colOnLayer1
+                        }
+                        ConfigSelectionArray {
+                            Layout.fillWidth: true
+                            // The edge the dock actually occupies rather than
+                            // the saved one: the resolver already sends it
+                            // away from whichever edge the bar holds.
+                            currentValue: Appearance.sizes.dockEdge
+                            // The same placement the Dock page makes: the
+                            // bar's own edge sends the bar across, and a Hug
+                            // dock stays on the edge facing the bar.
+                            onSelected: newValue => Appearance.sizes.placeDock(newValue)
+                            // The edges a Hug dock cannot take stay in the row,
+                            // dimmed the way this page dims what does not apply,
+                            // so the row keeps its shape as the style changes.
+                            options: [
+                                { displayName: Translation.tr("Top"),    icon: "arrow_upward",    value: "top" },
+                                { displayName: Translation.tr("Left"),   icon: "arrow_back",      value: "left" },
+                                { displayName: Translation.tr("Bottom"), icon: "arrow_downward",  value: "bottom" },
+                                { displayName: Translation.tr("Right"),  icon: "arrow_forward",   value: "right" }
+                            ].map(option => Object.assign({ enabled: Appearance.sizes.dockEdgeAllowed(option.value) }, option))
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     // ── Card 8: Contribute ───────────────────────────────────────────────
     // The last page. The links that ask for money sit beside the ones that
@@ -1161,194 +4326,12 @@ ApplicationWindow {
                             y: card2.barY
                             width: card2.barW
                             height: card2.barH
-                            // Fully-rounded pill ends to match the
-                            // earlier mockup shape.
                             radius: card2.barH / 2
                             color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.45)
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.35)
                             border.width: 1
 
-                            // Active-window text column on the far left
-                            // (mirrors the real shell's ActiveWindow.qml:
-                            // top line dim, bottom line bright).
-                            // Left: the workspaces, then the tray, the way the
-                            // shipped layout orders them. The window title the
-                            // bar used to open with is still switched off.
-                            PillBg {
-                                id: workspacePill
-                                anchors.left: parent.left
-                                anchors.leftMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card2.barPillH
-                                width: barWsStrip.implicitWidth + 10
-                                Item {
-                                    id: barWsStrip
-                                    anchors.centerIn: parent
-                                    implicitWidth: card2.barSlotW * card2.totalWs
-                                    implicitHeight: card2.barSlotH
-
-                                    WorkspaceIndicator { anchors.fill: parent; z: 1; card: card2 }
-
-                                    Row {
-                                        z: 2
-                                        anchors.fill: parent
-                                        Repeater {
-                                            model: card2.totalWs
-                                            delegate: Item {
-                                                required property int index
-                                                width: card2.barSlotW
-                                                height: card2.barSlotH
-                                                Rectangle {
-                                                    anchors.centerIn: parent
-                                                    width: card2.barSlotR * 2
-                                                    height: card2.barSlotR * 2
-                                                    radius: width / 2
-                                                    color: Appearance.colors.colOnLayer0
-                                                    opacity: 0.35
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    IconImage {
-                                        z: 3
-                                        readonly property string primary: card2.primaryAppFor(card2.currentWs)
-                                        visible: primary !== ""
-                                        implicitSize: card2.barIconSize
-                                        x: card2.currentWs * card2.barSlotW + (card2.barSlotW - implicitSize) / 2
-                                        y: (card2.barSlotH - implicitSize) / 2
-                                        source: primary !== ""
-                                            ? Quickshell.iconPath(primary, "image-missing")
-                                            : ""
-                                    }
-                                }
-                            }
-
-                            PillBg {
-                                id: sysTrayPill
-                                anchors.left: workspacePill.right
-                                anchors.leftMargin: 3
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card2.barPillH
-                                width: trayRow.implicitWidth + 12
-                                Row {
-                                    id: trayRow
-                                    anchors.centerIn: parent
-                                    spacing: 6
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "discord-tray.svg" }
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "steam_tray_mono.svg" }
-                                }
-                            }
-
-                            // Center: the utility buttons, the clock, and the
-                            // weather beside it.
-                            Row {
-                                id: barCenter
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 4
-                                PillBg {
-                                    height: card2.barPillH
-                                    width: utilRow.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: utilRow
-                                        anchors.centerIn: parent
-                                        spacing: 5
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "screenshot_region"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "videocam"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "mic"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                                PillBg {
-                                    height: card2.barPillH
-                                    width: clockText.implicitWidth + 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    StyledText {
-                                        id: clockText
-                                        anchors.centerIn: parent
-                                        text: "9:41 AM"
-                                        font.pixelSize: 10
-                                        color: Appearance.colors.colOnLayer1
-                                    }
-                                }
-                                PillBg {
-                                    height: card2.barPillH
-                                    width: weatherRow.implicitWidth + 10
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: weatherRow
-                                        anchors.centerIn: parent
-                                        spacing: 2
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "clear_day"
-                                            iconSize: 11
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        StyledText {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "73°F"
-                                            font.pixelSize: 9
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Right: what is playing, then the status icons
-                            // against the screen edge.
-                            Row {
-                                id: barRight
-                                anchors.right: parent.right
-                                anchors.rightMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-                                MediaPill { id: mediaPill; card: card2; inRow: true }
-                                PillBg {
-                                    height: card2.barPillH
-                                    width: indicatorRow.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: indicatorRow
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "volume_up"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "lan"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "bluetooth"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "settings"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
+                            MockBarContents { card: card2 }
                         }
 
                         // ─── Tiled windows background ───
@@ -1645,185 +4628,7 @@ ApplicationWindow {
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.35)
                             border.width: 1
 
-                            // Active-window text
-                            // Left: the workspaces, then the tray, the way the
-                            // shipped layout orders them. The window title the
-                            // bar used to open with is still switched off.
-                            PillBg {
-                                id: workspacePill3
-                                anchors.left: parent.left
-                                anchors.leftMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card6.barPillH
-                                width: barWsStrip3.implicitWidth + 10
-                                Item {
-                                    id: barWsStrip3
-                                    anchors.centerIn: parent
-                                    implicitWidth: card6.barSlotW * card6.totalWs
-                                    implicitHeight: card6.barSlotH
-
-                                    WorkspaceIndicator { anchors.fill: parent; z: 1; card: card6 }
-
-                                    Row {
-                                        z: 2
-                                        anchors.fill: parent
-                                        Repeater {
-                                            model: card6.totalWs
-                                            delegate: Item {
-                                                required property int index
-                                                width: card6.barSlotW
-                                                height: card6.barSlotH
-                                                Rectangle {
-                                                    anchors.centerIn: parent
-                                                    width: card6.barSlotR * 2
-                                                    height: card6.barSlotR * 2
-                                                    radius: width / 2
-                                                    color: Appearance.colors.colOnLayer0
-                                                    opacity: 0.35
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    IconImage {
-                                        z: 3
-                                        readonly property string primary: card6.primaryAppFor(card6.currentWs)
-                                        visible: primary !== ""
-                                        implicitSize: card6.barIconSize
-                                        x: card6.currentWs * card6.barSlotW + (card6.barSlotW - implicitSize) / 2
-                                        y: (card6.barSlotH - implicitSize) / 2
-                                        source: primary !== ""
-                                            ? Quickshell.iconPath(primary, "image-missing")
-                                            : ""
-                                    }
-                                }
-                            }
-
-                            PillBg {
-                                id: sysTrayPill3
-                                anchors.left: workspacePill3.right
-                                anchors.leftMargin: 3
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card6.barPillH
-                                width: trayRow3.implicitWidth + 12
-                                Row {
-                                    id: trayRow3
-                                    anchors.centerIn: parent
-                                    spacing: 6
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "discord-tray.svg" }
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "steam_tray_mono.svg" }
-                                }
-                            }
-
-                            // Center: the utility buttons, the clock, and the
-                            // weather beside it.
-                            Row {
-                                id: barCenter3
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 4
-                                PillBg {
-                                    height: card6.barPillH
-                                    width: utilRow3.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: utilRow3
-                                        anchors.centerIn: parent
-                                        spacing: 5
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "screenshot_region"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "videocam"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "mic"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                                PillBg {
-                                    height: card6.barPillH
-                                    width: clockText3.implicitWidth + 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    StyledText {
-                                        id: clockText3
-                                        anchors.centerIn: parent
-                                        text: "9:41 AM"
-                                        font.pixelSize: 10
-                                        color: Appearance.colors.colOnLayer1
-                                    }
-                                }
-                                PillBg {
-                                    height: card6.barPillH
-                                    width: weatherRow3.implicitWidth + 10
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: weatherRow3
-                                        anchors.centerIn: parent
-                                        spacing: 2
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "clear_day"
-                                            iconSize: 11
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        StyledText {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "73°F"
-                                            font.pixelSize: 9
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Right: what is playing, then the status icons
-                            // against the screen edge.
-                            Row {
-                                id: barRight3
-                                anchors.right: parent.right
-                                anchors.rightMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-                                MediaPill { id: mediaPill3; card: card6; inRow: true }
-                                PillBg {
-                                    height: card6.barPillH
-                                    width: indicatorRow3.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: indicatorRow3
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "volume_up"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "lan"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "bluetooth"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "settings"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
+                            MockBarContents { card: card6 }
                         }
 
                         // ─── Tile viewport with sliding pages ───
@@ -2519,6 +5324,391 @@ ApplicationWindow {
     }
 
 
+    // ── Desktop right-click menu ─────────────────────────────────────────
+    // Picks up where the dock page leaves off: the same bar and dock over the
+    // workspace that page emptied, so the only new thing is where the
+    // right-click lands. The menu is DesktopMenu.qml's, row for row, drawn at
+    // the size the dock page draws its own menu.
+    component CardDesktopMenu : Item {
+        id: cardDesk
+
+        // ── State ──
+        property real cursorX: 1000
+        property real cursorY: 1000
+        property real cursorPulse: 1.0     // briefly scales the cursor on right-click
+        property bool menuVisible: false
+
+        // The rows of DesktopMenu.qml, in its order. A divided row has the
+        // menu's rule above it, and a flipped glyph is turned over the way
+        // that menu turns the bar's.
+        readonly property var menuRows: [
+            { icon: "image", label: Translation.tr("Change Wallpaper") },
+            { icon: "dashboard_customize", label: Translation.tr("Personalize Desktop") },
+            { icon: "toast", flipped: true, divided: true, label: Translation.tr("Personalize Bar") },
+            { icon: "toast", label: Translation.tr("Personalize Dock") },
+            { icon: "display_settings", divided: true, label: Translation.tr("Display Settings") },
+            { icon: "style", divided: true, label: Translation.tr("Switch Theme") }
+        ]
+
+        // ── Mockup geometry ──
+        readonly property int mockW: root.mockW
+        readonly property int mockH: root.mockH
+
+        // Bar and dock as the dock page draws them, so turning the page from
+        // there leaves both exactly where they were.
+        readonly property int barW: root.barW
+        readonly property int barH: 30
+        readonly property int barX: (mockW - barW) / 2
+        readonly property int barY: 12
+        readonly property int barPillH: 22
+        readonly property int barSlotW: root.barSlotW
+        readonly property int barSlotH: root.barSlotH
+        readonly property int barSlotR: root.barSlotR
+        readonly property int barIconSize: root.barIconSize
+        readonly property int barIndicatorInset: root.barIndicatorInset
+        // Workspace 3, where the dock page's loop ends once Spotify fades.
+        readonly property int currentWs: 2
+        readonly property int totalWs: 10
+
+        readonly property var dockApps: [
+            "google-chrome", "spotify", "org.gnome.Nautilus", "gimp", "discord"
+        ]
+        readonly property int dockIconSize: 29
+        readonly property int dockGap: 14
+        readonly property int dockPadding: 14
+        readonly property int dockCellCount: dockApps.length + 2   // pin + apps + drawer
+        readonly property real dockW: dockCellCount * dockIconSize + (dockCellCount - 1) * dockGap + 2 * dockPadding
+        readonly property real dockH: dockIconSize + 2 * dockPadding
+        readonly property real dockX: (mockW - dockW) / 2
+        readonly property real dockY: mockH - dockH - 14
+
+        // The menu opens with its corner on the click and grows right and
+        // down, as DesktopMenu.qml places it. This spot leaves the whole menu
+        // room between the bar and the dock, so it never has to flip.
+        readonly property int clickX: 220
+        readonly property int clickY: 86
+        readonly property int menuPad: 4
+        readonly property int menuRowH: 26
+        readonly property int menuSepH: 7
+        readonly property int menuHoverX: clickX + 56
+
+        function menuRowTop(i) {
+            let top = menuPad
+            for (let r = 0; r <= i; r++) {
+                if (menuRows[r].divided) top += menuSepH
+                if (r < i) top += menuRowH
+            }
+            return top
+        }
+        function menuRowCenterY(i) {
+            return clickY + menuRowTop(i) + menuRowH / 2
+        }
+
+        // Worked out from where the pointer is rather than set by the
+        // timeline, so a row lights the moment the pointer crosses into it,
+        // as a real hover would.
+        readonly property int hoveredRow: {
+            if (!menuVisible) return -1
+            const x = cursorX - clickX
+            const y = cursorY - clickY
+            if (x < menuPad || x > deskMenu.width - menuPad) return -1
+            for (let i = 0; i < menuRows.length; i++) {
+                const top = menuRowTop(i)
+                if (y >= top && y < top + menuRowH) return i
+            }
+            return -1
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.margins: 28
+            spacing: 28
+
+            // Left: title + body
+            CardLeftColumn {
+                title: Translation.tr("Right-click the desktop for quick settings")
+                body: Translation.tr("Any empty spot works, wherever no window is in the way. Pick a new wallpaper, or open the Settings page for your desktop, bar, dock, displays, or theme.")
+            }
+
+            // Right: animated mockup
+            Item {
+                id: deskMockupHost
+                Layout.fillWidth: true
+                Layout.fillHeight: true
+
+                Item {
+                    id: deskMockupContainer
+                    width: cardDesk.mockW
+                    height: cardDesk.mockH
+                    anchors.centerIn: parent
+                    scale: Math.min(
+                        1.0,
+                        (deskMockupHost.width  - 8) / width,
+                        (deskMockupHost.height - 8) / height
+                    )
+
+                    Rectangle {
+                        id: deskMockup
+                        anchors.fill: parent
+                        radius: 14
+                        color: "#0e0e12"
+                        border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
+                        border.width: 1
+                        clip: true
+
+                        // ─── Bar at top (same as the dock page's) ───
+                        Rectangle {
+                            id: barFrameDesk
+                            x: cardDesk.barX
+                            y: cardDesk.barY
+                            width: cardDesk.barW
+                            height: cardDesk.barH
+                            radius: cardDesk.barH / 2
+                            color: ColorUtils.transparentize(Appearance.colors.colLayer0, 0.45)
+                            border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.35)
+                            border.width: 1
+
+                            MockBarContents { card: cardDesk; showAppIcon: false }
+                        }
+
+                        // ─── Dock (same as the dock page's) ───
+                        Rectangle {
+                            id: dockStripDesk
+                            x: cardDesk.dockX
+                            y: cardDesk.dockY
+                            width: cardDesk.dockW
+                            height: cardDesk.dockH
+                            radius: Appearance.rounding.large
+                            color: "#000000"
+                            border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.5)
+                            border.width: 1
+                            z: 2
+
+                            Row {
+                                anchors.left: parent.left
+                                anchors.leftMargin: cardDesk.dockPadding
+                                anchors.verticalCenter: parent.verticalCenter
+                                spacing: cardDesk.dockGap
+
+                                // Pin button
+                                Item {
+                                    width: cardDesk.dockIconSize
+                                    height: cardDesk.dockIconSize
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "push_pin"
+                                        iconSize: cardDesk.dockIconSize - 6
+                                        color: Appearance.colors.colOnLayer0
+                                        opacity: 0.85
+                                    }
+                                }
+
+                                // Pinned apps, each with its open-window mark
+                                Repeater {
+                                    model: cardDesk.dockApps
+                                    delegate: Item {
+                                        id: deskDockSlot
+                                        required property string modelData
+                                        width: cardDesk.dockIconSize
+                                        height: cardDesk.dockIconSize
+                                        IconImage {
+                                            anchors.centerIn: parent
+                                            implicitSize: cardDesk.dockIconSize
+                                            source: Quickshell.iconPath(deskDockSlot.modelData, "image-missing")
+                                        }
+                                        Rectangle {
+                                            anchors.horizontalCenter: parent.horizontalCenter
+                                            anchors.bottom: parent.bottom
+                                            anchors.bottomMargin: -6
+                                            width: 10
+                                            height: 2
+                                            radius: 1
+                                            color: Appearance.colors.colOnLayer0
+                                            opacity: 0.55
+                                        }
+                                    }
+                                }
+
+                                // App drawer toggle
+                                Item {
+                                    width: cardDesk.dockIconSize
+                                    height: cardDesk.dockIconSize
+                                    MaterialSymbol {
+                                        anchors.centerIn: parent
+                                        text: "apps"
+                                        iconSize: cardDesk.dockIconSize - 6
+                                        color: Appearance.colors.colOnLayer0
+                                        opacity: 0.85
+                                    }
+                                }
+                            }
+                        }
+
+                        // ─── Desktop menu ───
+                        // The dock page's menu card with DesktopMenu.qml's
+                        // rows in it, sized like that page's rows.
+                        Rectangle {
+                            id: deskMenu
+                            x: cardDesk.clickX
+                            y: cardDesk.clickY
+                            width: deskMenuColumn.implicitWidth + cardDesk.menuPad * 2
+                            height: deskMenuColumn.implicitHeight + cardDesk.menuPad * 2
+                            radius: 12
+                            color: Appearance.m3colors.m3surfaceContainer
+                            // Fade only, no grow: the real menu fades in
+                            // right where the pointer already is.
+                            opacity: cardDesk.menuVisible ? 1 : 0
+                            visible: opacity > 0
+                            z: 7
+                            Behavior on opacity {
+                                NumberAnimation { duration: 220; easing.type: Easing.OutCubic }
+                            }
+
+                            ColumnLayout {
+                                id: deskMenuColumn
+                                anchors {
+                                    fill: parent
+                                    margins: cardDesk.menuPad
+                                }
+                                spacing: 0
+
+                                Repeater {
+                                    model: cardDesk.menuRows
+                                    delegate: ColumnLayout {
+                                        id: deskMenuEntry
+                                        required property var modelData
+                                        required property int index
+                                        Layout.fillWidth: true
+                                        spacing: 0
+
+                                        ContextMenuSeparator {
+                                            visible: deskMenuEntry.modelData.divided === true
+                                            implicitHeight: cardDesk.menuSepH
+                                        }
+
+                                        // Lit with a state layer rather than the real
+                                        // row's hover color, which sits too close to
+                                        // the card's own to read at this size.
+                                        Rectangle {
+                                            Layout.fillWidth: true
+                                            implicitHeight: cardDesk.menuRowH
+                                            implicitWidth: Math.max(deskMenuRow.implicitWidth + 24, 144)
+                                            radius: 8
+                                            color: ColorUtils.transparentize(Appearance.m3colors.m3onSurface,
+                                                cardDesk.hoveredRow === deskMenuEntry.index ? 0.88 : 1)
+                                            Behavior on color {
+                                                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+                                            }
+
+                                            RowLayout {
+                                                id: deskMenuRow
+                                                anchors {
+                                                    fill: parent
+                                                    leftMargin: 10
+                                                    rightMargin: 14
+                                                }
+                                                spacing: 8
+                                                MaterialSymbol {
+                                                    Layout.alignment: Qt.AlignVCenter
+                                                    text: deskMenuEntry.modelData.icon
+                                                    iconSize: 13
+                                                    rotation: deskMenuEntry.modelData.flipped ? 180 : 0
+                                                    color: Appearance.m3colors.m3onSurface
+                                                }
+                                                StyledText {
+                                                    Layout.fillWidth: true
+                                                    text: deskMenuEntry.modelData.label
+                                                    font.pixelSize: 11
+                                                    color: Appearance.m3colors.m3onSurface
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // ─── Cursor cue ───
+                        MaterialSymbol {
+                            id: deskCursor
+                            z: 8
+                            text: "arrow_selector_tool"
+                            iconSize: 20
+                            color: Appearance.colors.colOnLayer0
+                            x: cardDesk.cursorX - 4
+                            y: cardDesk.cursorY - 4
+                            scale: cardDesk.cursorPulse
+                            transformOrigin: Item.TopLeft
+                            Behavior on scale {
+                                NumberAnimation { duration: 120; easing.type: Easing.OutBack }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Animation timeline ──
+        // The pointer comes onto the empty workspace and right-clicks it, and
+        // the menu opens at the click. It then runs down every row so each one
+        // lights in turn, and comes back up to settle on Personalize Desktop
+        // before the menu closes and the loop starts over.
+        SequentialAnimation {
+            id: deskCycle
+            running: cardDesk.visible
+            loops: Animation.Infinite
+
+            // Reset
+            ScriptAction {
+                script: {
+                    cardDesk.cursorX = cardDesk.mockW + 60
+                    cardDesk.cursorY = cardDesk.mockH * 0.45
+                    cardDesk.menuVisible = false
+                    cardDesk.cursorPulse = 1.0
+                }
+            }
+            PauseAnimation { duration: 700 }
+
+            // Cursor drifts in onto the bare desktop
+            ParallelAnimation {
+                NumberAnimation { target: cardDesk; property: "cursorX"; to: cardDesk.clickX; duration: 900; easing.type: Easing.OutCubic }
+                NumberAnimation { target: cardDesk; property: "cursorY"; to: cardDesk.clickY; duration: 900; easing.type: Easing.OutCubic }
+            }
+            PauseAnimation { duration: 350 }
+
+            // Right-click: quick cursor pulse, menu opens at the pointer
+            ScriptAction { script: cardDesk.cursorPulse = 0.78 }
+            PauseAnimation { duration: 110 }
+            ParallelAnimation {
+                ScriptAction { script: cardDesk.cursorPulse = 1.0 }
+                ScriptAction { script: cardDesk.menuVisible = true }
+            }
+            PauseAnimation { duration: 700 }
+
+            // Onto the first row
+            ParallelAnimation {
+                NumberAnimation { target: cardDesk; property: "cursorX"; to: cardDesk.menuHoverX; duration: 380; easing.type: Easing.InOutQuad }
+                NumberAnimation { target: cardDesk; property: "cursorY"; to: cardDesk.menuRowCenterY(0); duration: 380; easing.type: Easing.InOutQuad }
+            }
+            PauseAnimation { duration: 600 }
+
+            // Down past every row to the last
+            NumberAnimation { target: cardDesk; property: "cursorY"; to: cardDesk.menuRowCenterY(cardDesk.menuRows.length - 1); duration: 1800; easing.type: Easing.InOutQuad }
+            PauseAnimation { duration: 700 }
+
+            // Back up to settle on Personalize Desktop
+            NumberAnimation { target: cardDesk; property: "cursorY"; to: cardDesk.menuRowCenterY(1); duration: 900; easing.type: Easing.InOutQuad }
+            PauseAnimation { duration: 2200 }
+
+            // Close menu, cursor parks off-screen right for the loop
+            ScriptAction { script: cardDesk.menuVisible = false }
+            PauseAnimation { duration: 280 }
+            NumberAnimation { target: cardDesk; property: "cursorX"; to: cardDesk.mockW + 60; duration: 500; easing.type: Easing.InCubic }
+            PauseAnimation { duration: 600 }
+        }
+    }
+
+
     // ── Card 4: Move open windows between workspaces ─────────────────────
     // Same scaffold as card 1 (bar, overview widget, drawer, dock) but
     // the demo starts with two windows already open on workspace 1 and
@@ -3199,10 +6389,10 @@ readonly property var drawerApps: root.drawerApps
         // cannot drift away from what it is naming. The centre group and the
         // dock hold still, and stay tuned by eye.
         readonly property var sectionXs: [
-            barX + barRight8.x + mediaPill8.x + mediaPill8.width / 2,
-            barX + sysTrayPill8.x + sysTrayPill8.width / 2,
+            barX + mockBar8.barRight.x + mockBar8.mediaPill.x + mockBar8.mediaPill.width / 2,
+            barX + mockBar8.sysTrayPill.x + mockBar8.sysTrayPill.width / 2,
             260, 310, 356,
-            barX + workspacePill8.x + workspacePill8.width / 2,
+            barX + mockBar8.workspacePill.x + mockBar8.workspacePill.width / 2,
             300, 360
         ]
         // Per-section pointer y + arrow direction. Bar sections point up
@@ -3323,183 +6513,7 @@ readonly property var drawerApps: root.drawerApps
                             border.width: 1
                             z: 2
 
-                            // Left: the workspaces, then the tray, the way the
-                            // shipped layout orders them. The window title the
-                            // bar used to open with is still switched off.
-                            PillBg {
-                                id: workspacePill8
-                                anchors.left: parent.left
-                                anchors.leftMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card1.barPillH
-                                width: barWsStrip8.implicitWidth + 10
-                                Item {
-                                    id: barWsStrip8
-                                    anchors.centerIn: parent
-                                    implicitWidth: card1.barSlotW * card1.totalWs
-                                    implicitHeight: card1.barSlotH
-
-                                    WorkspaceIndicator { anchors.fill: parent; z: 1; card: card1 }
-
-                                    Row {
-                                        z: 2
-                                        anchors.fill: parent
-                                        Repeater {
-                                            model: card1.totalWs
-                                            delegate: Item {
-                                                required property int index
-                                                width: card1.barSlotW
-                                                height: card1.barSlotH
-                                                Rectangle {
-                                                    anchors.centerIn: parent
-                                                    width: card1.barSlotR * 2
-                                                    height: card1.barSlotR * 2
-                                                    radius: width / 2
-                                                    color: Appearance.colors.colOnLayer0
-                                                    opacity: 0.35
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    IconImage {
-                                        z: 3
-                                        readonly property string primary: card1.primaryAppFor(card1.currentWs)
-                                        visible: primary !== ""
-                                        implicitSize: card1.barIconSize
-                                        x: card1.currentWs * card1.barSlotW + (card1.barSlotW - implicitSize) / 2
-                                        y: (card1.barSlotH - implicitSize) / 2
-                                        source: primary !== ""
-                                            ? Quickshell.iconPath(primary, "image-missing")
-                                            : ""
-                                    }
-                                }
-                            }
-
-                            PillBg {
-                                id: sysTrayPill8
-                                anchors.left: workspacePill8.right
-                                anchors.leftMargin: 3
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card1.barPillH
-                                width: trayRow8.implicitWidth + 12
-                                Row {
-                                    id: trayRow8
-                                    anchors.centerIn: parent
-                                    spacing: 6
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "discord-tray.svg" }
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "steam_tray_mono.svg" }
-                                }
-                            }
-
-                            // Center: the utility buttons, the clock, and the
-                            // weather beside it.
-                            Row {
-                                id: barCenter8
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 4
-                                PillBg {
-                                    height: card1.barPillH
-                                    width: utilRow8.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: utilRow8
-                                        anchors.centerIn: parent
-                                        spacing: 5
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "screenshot_region"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "videocam"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "mic"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                                PillBg {
-                                    height: card1.barPillH
-                                    width: clockText8.implicitWidth + 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    StyledText {
-                                        id: clockText8
-                                        anchors.centerIn: parent
-                                        text: "9:41 AM"
-                                        font.pixelSize: 10
-                                        color: Appearance.colors.colOnLayer1
-                                    }
-                                }
-                                PillBg {
-                                    height: card1.barPillH
-                                    width: weatherRow8.implicitWidth + 10
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: weatherRow8
-                                        anchors.centerIn: parent
-                                        spacing: 2
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "clear_day"
-                                            iconSize: 11
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        StyledText {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "73°F"
-                                            font.pixelSize: 9
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Right: what is playing, then the status icons
-                            // against the screen edge.
-                            Row {
-                                id: barRight8
-                                anchors.right: parent.right
-                                anchors.rightMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-                                MediaPill { id: mediaPill8; card: card1; inRow: true }
-                                PillBg {
-                                    height: card1.barPillH
-                                    width: indicatorRow8.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: indicatorRow8
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "volume_up"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "lan"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "bluetooth"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "settings"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
+                            MockBarContents { id: mockBar8; card: card1 }
                         }
 
                         // ─── Pointer ───
@@ -5187,184 +8201,7 @@ readonly property var drawerApps: root.drawerApps
                             border.width: 1
                             z: 2
 
-                            // Left: the workspaces, then the tray, the way the
-                            // shipped layout orders them. The window title the
-                            // bar used to open with is still switched off.
-                            PillBg {
-                                id: workspacePill12
-                                anchors.left: parent.left
-                                anchors.leftMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card7.barPillH
-                                width: barWsStrip12.implicitWidth + 10
-                                Item {
-                                    id: barWsStrip12
-                                    anchors.centerIn: parent
-                                    implicitWidth: card7.barSlotW * card7.totalWs
-                                    implicitHeight: card7.barSlotH
-
-                                    WorkspaceIndicator { anchors.fill: parent; z: 1; card: card7 }
-
-                                    Row {
-                                        z: 2
-                                        anchors.fill: parent
-                                        Repeater {
-                                            model: card7.totalWs
-                                            delegate: Item {
-                                                required property int index
-                                                width: card7.barSlotW
-                                                height: card7.barSlotH
-                                                Rectangle {
-                                                    anchors.centerIn: parent
-                                                    width: card7.barSlotR * 2
-                                                    height: card7.barSlotR * 2
-                                                    radius: width / 2
-                                                    color: Appearance.colors.colOnLayer0
-                                                    opacity: 0.35
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    IconImage {
-                                        z: 3
-                                        readonly property string primary: card7.primaryAppFor(card7.currentWs)
-                                        visible: primary !== ""
-                                        implicitSize: card7.barIconSize
-                                        x: card7.currentWs * card7.barSlotW + (card7.barSlotW - implicitSize) / 2
-                                        y: (card7.barSlotH - implicitSize) / 2
-                                        source: primary !== ""
-                                            ? Quickshell.iconPath(primary, "image-missing")
-                                            : ""
-                                    }
-                                }
-                            }
-
-                            PillBg {
-                                id: sysTrayPill12
-                                anchors.left: workspacePill12.right
-                                anchors.leftMargin: 3
-                                anchors.verticalCenter: parent.verticalCenter
-                                height: card7.barPillH
-                                width: trayRow12.implicitWidth + 12
-                                Row {
-                                    id: trayRow12
-                                    anchors.centerIn: parent
-                                    spacing: 6
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "discord-tray.svg" }
-                                    TrayAppIcon { anchors.verticalCenter: parent.verticalCenter; trayIcon: "steam_tray_mono.svg" }
-                                }
-                            }
-
-                            // Center: the utility buttons, the clock, and the
-                            // weather beside it.
-                            Row {
-                                id: barCenter12
-                                anchors.horizontalCenter: parent.horizontalCenter
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 4
-                                PillBg {
-                                    height: card7.barPillH
-                                    width: utilRow12.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: utilRow12
-                                        anchors.centerIn: parent
-                                        spacing: 5
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "screenshot_region"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "videocam"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "mic"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                                PillBg {
-                                    height: card7.barPillH
-                                    width: clockText12.implicitWidth + 16
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    StyledText {
-                                        id: clockText12
-                                        anchors.centerIn: parent
-                                        text: "9:41 AM"
-                                        font.pixelSize: 10
-                                        color: Appearance.colors.colOnLayer1
-                                    }
-                                }
-                                PillBg {
-                                    height: card7.barPillH
-                                    width: weatherRow12.implicitWidth + 10
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: weatherRow12
-                                        anchors.centerIn: parent
-                                        spacing: 2
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "clear_day"
-                                            iconSize: 11
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        StyledText {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "73°F"
-                                            font.pixelSize: 9
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Right: what is playing, then the status icons
-                            // against the screen edge.
-                            Row {
-                                id: barRight12
-                                anchors.right: parent.right
-                                anchors.rightMargin: 10
-                                anchors.verticalCenter: parent.verticalCenter
-                                spacing: 3
-                                MediaPill { id: mediaPill12; card: card7; inRow: true }
-                                PillBg {
-                                    height: card7.barPillH
-                                    width: indicatorRow12.implicitWidth + 12
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    Row {
-                                        id: indicatorRow12
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "volume_up"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "lan"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "bluetooth"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                        MaterialSymbol {
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "settings"; iconSize: 10
-                                            color: Appearance.colors.colOnLayer1
-                                        }
-                                    }
-                                }
-                            }
-
+                            MockBarContents { card: card7 }
                         }
 
                         // Screenshot window — nested Repeater: section → images
@@ -5638,10 +8475,10 @@ readonly property var drawerApps: root.drawerApps
             editLayoutProc.running = true
         }
 
-        // Random-wallpaper helper (matches welcome.qml)
         Process {
-            id: konachanWallProc
-            command: ["bash", "-c", Quickshell.shellPath("scripts/colors/random/random_konachan_wall.sh")]
+            id: randomWallProc
+            property string scriptPath: `${Directories.scriptPath}/colors/random/set_default_wall.sh`
+            command: ["bash", "-c", FileUtils.trimFileProtocol(randomWallProc.scriptPath)]
         }
 
         // Re-runs the wallpaper-switch script in --noswitch mode to
@@ -5658,980 +8495,505 @@ readonly property var drawerApps: root.drawerApps
             themeApplyProc.running = true
         }
 
+        // Picking a folder turns the slideshow on and shows one straight away,
+        // so the button does something visible rather than leaving the desktop
+        // unchanged until the first interval is up. The rotation lives in the
+        // main shell, so it is asked over IPC rather than run from this window.
+        Process {
+            id: slideshowFolderProc
+            property string buf: ""
+            onRunningChanged: if (running) buf = ""
+            stdout: SplitParser { onRead: data => slideshowFolderProc.buf += data }
+            onExited: exitCode => {
+                if (exitCode !== 0) return;
+                const picked = (slideshowFolderProc.buf || "").trim();
+                if (picked.length === 0) return;
+                Config.options.background.slideshow.folder = picked;
+                Config.options.background.slideshow.enable = true;
+                slideshowNextProc.command = ["qs", "-c", "ii", "ipc", "call", "slideshow", "next"];
+                slideshowNextProc.running = false;
+                slideshowNextProc.running = true;
+            }
+        }
+
+        Process { id: slideshowNextProc }
+
         // ── Layout ──────────────────────────────────────────────────────
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 18
-            spacing: 14
+            anchors.margins: 24
+            spacing: 16
 
-            // ── LEFT COLUMN: Language / Bar / Style & Wallpaper ─────────
-            // 5:6 split with the right column (~45% / ~55%). The right
-            // column needs slightly more room for the Window Layout
-            // section's two side-by-side cards; the left column's
-            // content (a combo, position/style pills, and Light/Dark +
-            // wallpaper buttons) fits comfortably in the narrower half.
-            // The inner Window Layout cards still use a 1:1 preferred
-            // width so they stay uniform with each other.
-            ColumnLayout {
-                Layout.fillWidth: true
-                Layout.preferredWidth: 5
-                Layout.fillHeight: true
-                Layout.alignment: Qt.AlignTop
-                spacing: 8
-
-                // ── Language ────────────────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    color: Appearance.colors.colLayer1
-                    radius: Appearance.rounding.normal
-                    border.width: 1
-                    border.color: Appearance.colors.colOutlineVariant
-                    implicitHeight: langCol.implicitHeight + 24
-
-                    ColumnLayout {
-                        id: langCol
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 8
-
-                        RowLayout {
-                            spacing: 8
-                            MaterialSymbol { text: "language"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                            StyledText {
-                                text: Translation.tr("Language")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.Medium
-                            }
-                        }
-
-                        StyledComboBox {
-                            id: langCombo
-                            Layout.fillWidth: true
-                            textRole: "displayName"
-                            buttonIcon: "language"
-                            model: {
-                                const opts = [{ displayName: Translation.tr("Auto (System)"), value: "auto", icon: "language" }]
-                                for (const l of Translation.allAvailableLanguages) {
-                                    opts.push({ displayName: l, value: l, icon: "language" })
-                                }
-                                return opts
-                            }
-                            currentIndex: {
-                                const idx = model.findIndex(item => item.value === Config.options.language.ui)
-                                return idx !== -1 ? idx : 0
-                            }
-                            onActivated: index => {
-                                Config.options.language.ui = model[index].value
-                            }
-                        }
-                    }
-                }
-
-                // ── Style & Wallpaper ───────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    color: Appearance.colors.colLayer1
-                    radius: Appearance.rounding.normal
-                    border.width: 1
-                    border.color: Appearance.colors.colOutlineVariant
-                    implicitHeight: styleCol.implicitHeight + 24
-
-                    ColumnLayout {
-                        id: styleCol
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 10
-
-                        RowLayout {
-                            spacing: 8
-                            MaterialSymbol { text: "format_paint"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                            StyledText {
-                                text: Translation.tr("Style, wallpaper, & colors")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.Medium
-                            }
-                        }
-
-                        // Light/Dark — compact two-button row. The
-                        // full-fat LightDarkPreferenceButton from welcome.qml
-                        // is ~260px wide and won't fit two-across in this
-                        // column.
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            Repeater {
-                                model: [
-                                    { mode: false, icon: "light_mode", label: Translation.tr("Light") },
-                                    { mode: true,  icon: "dark_mode",  label: Translation.tr("Dark")  }
-                                ]
-                                delegate: RippleButton {
-                                    required property var modelData
-                                    Layout.fillWidth: true
-                                    implicitHeight: 38
-                                    buttonRadius: Appearance.rounding.small
-                                    toggled: Appearance.m3colors.darkmode === modelData.mode
-                                    onClicked: {
-                                        Quickshell.execDetached(["bash", "-c",
-                                            `${Directories.wallpaperSwitchScriptPath} --mode ${modelData.mode ? "dark" : "light"} --noswitch`])
-                                    }
-                                    contentItem: RowLayout {
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        MaterialSymbol {
-                                            text: modelData.icon
-                                            iconSize: 18
-                                            color: toggled
-                                                ? Appearance.m3colors.m3onPrimary
-                                                : Appearance.colors.colOnSecondaryContainer
-                                        }
-                                        StyledText {
-                                            text: modelData.label
-                                            color: toggled
-                                                ? Appearance.m3colors.m3onPrimary
-                                                : Appearance.colors.colOnSecondaryContainer
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 6
-                            // Random Konachan wallpaper — visible iff weeb=Yes,
-                            // matching welcome.qml's policy gating.
-                            RippleButtonWithIcon {
-                                Layout.fillWidth: true
-                                visible: Config.options.policies.weeb === 1
-                                buttonRadius: Appearance.rounding.small
-                                materialIcon: "ifl"
-                                mainText: konachanWallProc.running
-                                    ? Translation.tr("Be patient...")
-                                    : Translation.tr("Random: Konachan")
-                                onClicked: {
-                                    konachanWallProc.running = true
-                                }
-                                StyledToolTip {
-                                    text: Translation.tr("Random SFW Anime wallpaper from Konachan\nImage is saved to ~/Pictures/Wallpapers")
-                                }
-                            }
-                            RippleButtonWithIcon {
-                                Layout.fillWidth: true
-                                buttonRadius: Appearance.rounding.small
-                                materialIcon: "wallpaper"
-                                onClicked: {
-                                    Quickshell.execDetached([`${Directories.wallpaperSwitchScriptPath}`])
-                                }
-                                // Mirrors welcome.qml's "Choose file"
-                                // button — surfaces the Super+W keybind
-                                // alongside the label so users know they
-                                // can also open the picker via keyboard.
-                                // Trailing fillWidth spacer pushes both
-                                // the label and the chips to the left so
-                                // they sit flush against the icon.
-                                mainContentComponent: Component {
-                                    RowLayout {
-                                        spacing: 10
-                                        StyledText {
-                                            font.pixelSize: Appearance.font.pixelSize.small
-                                            text: Translation.tr("Choose wallpaper")
-                                            color: Appearance.colors.colOnSecondaryContainer
-                                        }
-                                        RowLayout {
-                                            spacing: 3
-                                            KeyboardKey { key: "󰖳" }
-                                            StyledText {
-                                                Layout.alignment: Qt.AlignVCenter
-                                                text: "+"
-                                            }
-                                            KeyboardKey { key: "W" }
-                                        }
-                                        Item { Layout.fillWidth: true }
-                                    }
-                                }
-                                StyledToolTip {
-                                    text: Translation.tr("Pick wallpaper image on your system")
-                                }
-                            }
-                        }
-
-                        // Material colour palette — same options as
-                        // Settings → Quick. Selecting one writes
-                        // Config.options.appearance.palette.type and
-                        // (debounced 150ms) re-derives the theme from
-                        // the current wallpaper with the new palette.
-                        ConfigSelectionArray {
-                            Layout.fillWidth: true
-                            currentValue: Config.options.appearance.palette.type
-                            onSelected: newValue => {
-                                Config.options.appearance.palette.type = newValue
-                                paletteApplyTimer.restart()
-                            }
-
-                            Timer {
-                                id: paletteApplyTimer
-                                interval: 150
-                                repeat: false
-                                onTriggered: card0.applyTheme("--noswitch")
-                            }
-                            options: [
-                                { value: "auto",              displayName: Translation.tr("Auto") },
-                                { value: "scheme-content",    displayName: Translation.tr("Content") },
-                                { value: "scheme-expressive", displayName: Translation.tr("Expressive") },
-                                { value: "scheme-fidelity",   displayName: Translation.tr("Fidelity") },
-                                { value: "scheme-fruit-salad",displayName: Translation.tr("Fruit Salad") },
-                                { value: "scheme-monochrome", displayName: Translation.tr("Monochrome") },
-                                { value: "scheme-neutral",    displayName: Translation.tr("Neutral") },
-                                { value: "scheme-rainbow",    displayName: Translation.tr("Rainbow") },
-                                { value: "scheme-tonal-spot", displayName: Translation.tr("Tonal Spot") }
-                            ]
-                        }
-                    }
-                }
-
-                // ── Bar ─────────────────────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    color: Appearance.colors.colLayer1
-                    radius: Appearance.rounding.normal
-                    border.width: 1
-                    border.color: Appearance.colors.colOutlineVariant
-                    implicitHeight: barCol.implicitHeight + 24
-
-                    ColumnLayout {
-                        id: barCol
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 10
-
-                        RowLayout {
-                            spacing: 8
-                            MaterialSymbol { text: "screenshot_monitor"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                            StyledText {
-                                text: Translation.tr("Bar")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.Medium
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-                            StyledText {
-                                text: Translation.tr("Bar position")
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colSubtext
-                            }
-                            ConfigSelectionArray {
-                                Layout.fillWidth: true
-                                currentValue: (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
-                                onSelected: newValue => {
-                                    Config.options.bar.bottom = (newValue & 1) !== 0
-                                    Config.options.bar.vertical = (newValue & 2) !== 0
-                                }
-                                options: [
-                                    { displayName: Translation.tr("Top"),    icon: "arrow_upward",    value: 0 },
-                                    { displayName: Translation.tr("Left"),   icon: "arrow_back",      value: 2 },
-                                    { displayName: Translation.tr("Bottom"), icon: "arrow_downward",  value: 1 },
-                                    { displayName: Translation.tr("Right"),  icon: "arrow_forward",   value: 3 }
-                                ]
-                            }
-                        }
-
-                        ColumnLayout {
-                            Layout.fillWidth: true
-                            spacing: 4
-                            StyledText {
-                                text: Translation.tr("Bar style")
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: Appearance.colors.colSubtext
-                            }
-                            ConfigSelectionArray {
-                                Layout.fillWidth: true
-                                currentValue: Config.options.bar.cornerStyle
-                                onSelected: newValue => {
-                                    Config.options.bar.cornerStyle = newValue
-                                }
-                                options: [
-                                    { displayName: Translation.tr("Hug"),         icon: "line_curve",     value: 0 },
-                                    { displayName: Translation.tr("Float"),       icon: "page_header",    value: 1 },
-                                    { displayName: Translation.tr("Rect"),        icon: "toolbar",        value: 2 },
-                                    { displayName: Translation.tr("Notch"), icon: "call_to_action", value: 3 }
-                                ]
-                            }
-                        }
-                    }
-                }
-
-                Item { Layout.fillHeight: true }
-            }
-
-            // ── RIGHT COLUMN: Window Layout / Left Hot Corner ───────────
+            // The sections share out whatever height the picture leaves, so
+            // the column ends where the picture does.
             ColumnLayout {
                 Layout.fillWidth: true
                 Layout.preferredWidth: 6
                 Layout.fillHeight: true
-                Layout.alignment: Qt.AlignTop
-                spacing: 8
+                spacing: 0
 
-                // ── Window Layout ───────────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    color: Appearance.colors.colLayer1
-                    radius: Appearance.rounding.normal
-                    border.width: 1
-                    border.color: Appearance.colors.colOutlineVariant
-                    implicitHeight: winLayoutCol.implicitHeight + 24
+                StyleSection {
+                    title: Translation.tr("Language")
+                    symbol: "language"
+                    Layout.fillHeight: false
 
-                    ColumnLayout {
-                        id: winLayoutCol
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 10
+                    headerTrailing: StyledComboBox {
+                        Layout.fillWidth: false
+                        Layout.preferredWidth: 220
+                        textRole: "displayName"
+                        model: {
+                            const opts = [{ displayName: Translation.tr("Auto (System)"), value: "auto", icon: "language" }]
+                            for (const l of Translation.allAvailableLanguages) {
+                                opts.push({ displayName: l, value: l, icon: "language" })
+                            }
+                            return opts
+                        }
+                        currentIndex: {
+                            const idx = model.findIndex(item => item.value === Config.options.language.ui)
+                            return idx !== -1 ? idx : 0
+                        }
+                        onActivated: index => {
+                            Config.options.language.ui = model[index].value
+                        }
+                    }
+                }
 
-                        RowLayout {
-                            spacing: 8
-                            MaterialSymbol { text: "view_quilt"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                            StyledText {
-                                text: Translation.tr("Window Layout")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.Medium
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
+                StyleSection {
+                    title: Translation.tr("Window Layout")
+                    symbol: "view_quilt"
+                    Layout.fillHeight: false
+
+                    // One picture per layout, the picture itself the button,
+                    // lit the way Settings → Layouts lights the one in use.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        spacing: 8
+                        uniformCellSizes: true
+
+                        Repeater {
+                            model: [
+                                { value: "dwindle",   label: Translation.tr("Dwindle") },
+                                { value: "master",    label: Translation.tr("Master") },
+                                { value: "scrolling", label: Translation.tr("Scrolling") },
+                                { value: "monocle",   label: Translation.tr("Monocle") },
+                                { value: "float",     label: Translation.tr("Float") }
+                            ]
+                            delegate: MouseArea {
+                                id: layoutCard
+                                required property var modelData
+                                readonly property bool picked: card0.currentLayout === modelData.value
+                                Layout.fillWidth: true
+                                implicitHeight: layoutCardColumn.implicitHeight
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (!layoutCard.picked)
+                                        card0.applyLayout(modelData.value)
+                                }
+
+                                ColumnLayout {
+                                    id: layoutCardColumn
+                                    width: parent.width
+                                    spacing: 5
+
+                                    LayoutPicture {
+                                        Layout.fillWidth: true
+                                        Layout.preferredHeight: 62
+                                        layout: layoutCard.modelData.value
+                                        selected: layoutCard.picked
+                                        hovered: layoutCard.containsMouse
+                                    }
+                                    StyledText {
+                                        Layout.fillWidth: true
+                                        horizontalAlignment: Text.AlignHCenter
+                                        elide: Text.ElideRight
+                                        text: layoutCard.modelData.label
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        font.weight: layoutCard.picked ? Font.Medium : Font.Normal
+                                        color: Appearance.colors.colOnLayer1
+                                        opacity: layoutCard.picked ? 1 : 0.75
+                                    }
+                                }
                             }
                         }
+                    }
 
-                        // 50/50 split — left half is the layout picker with
-                        // a live picture preview, right half is the title-bars
-                        // mockup with its toggle below. Both columns put the
-                        // picture on top and the control underneath, matching
-                        // the Settings → Layouts cards. Both halves get the
-                        // same Layout.preferredWidth: without it the combo
-                        // box's "Dwindle (default)" + chevron has a wider
-                        // implicit width than the switch and the fillWidth
-                        // split goes uneven.
-                        RowLayout {
-                            Layout.fillWidth: true
-                            spacing: 8
-
-                            // Layout picker: picture + dropdown below
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                Layout.alignment: Qt.AlignTop
-                                spacing: 6
-
-                                // Picture preview — one mockup per layout,
-                                // toggled visible by currentLayout. These
-                                // mockups are lifted 1:1 from Settings →
-                                // Layouts (LayoutsConfig.qml) so the previews
-                                // look identical to the picker cards there.
-                                // The `sel` flag on each LayoutsConfig
-                                // MouseArea becomes
-                                // `card0.currentLayout === "..."` here.
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: 130
-                                    radius: Appearance.rounding.normal
-                                    color: Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1)
-                                    border.width: 2
-                                    border.color: Appearance.colors.colPrimary
-
-                                    // Dwindle
-                                    Item {
-                                        visible: card0.currentLayout === "dwindle"
-                                        anchors { fill: parent; margins: 10 }
-                                        Rectangle {
-                                            x: 0; y: 0; width: parent.width * 0.54; height: parent.height
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
-                                                Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                            }
-                                            Column { x: 7; y: 15; spacing: 4
-                                                Repeater { model: [38, 28, 40, 24]
-                                                    Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
-                                                }
-                                            }
-                                            StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
-                                                text: "1"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.54 + 3; y: 0
-                                            width: parent.width * 0.46 - 3; height: parent.height * 0.5 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
-                                            StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
-                                                text: "2"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.54 + 3; y: parent.height * 0.5 + 2
-                                            width: (parent.width * 0.46 - 3) * 0.54; height: parent.height * 0.5 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
-                                            StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
-                                                text: "3"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.54 + 3 + (parent.width * 0.46 - 3) * 0.54 + 2
-                                            y: parent.height * 0.5 + 2
-                                            width: (parent.width * 0.46 - 3) * 0.46 - 2; height: parent.height * 0.5 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
-                                            StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
-                                                text: "4"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                        }
-                                    }
-
-                                    // Master
-                                    Item {
-                                        visible: card0.currentLayout === "master"
-                                        anchors { fill: parent; margins: 10 }
-                                        Rectangle {
-                                            x: 0; y: 0; width: parent.width * 0.57; height: parent.height
-                                            radius: 3
-                                            color: card0.currentLayout === "master" ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.08) : Appearance.colors.colLayer3
-                                            border.width: 1
-                                            border.color: card0.currentLayout === "master" ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.5) : Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
-                                                Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                            }
-                                            Column { x: 7; y: 15; spacing: 4
-                                                Repeater { model: [38, 26, 42, 20, 36]
-                                                    Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
-                                                }
-                                            }
-                                            StyledText { anchors { right: parent.right; bottom: parent.bottom; margins: 5 }
-                                                text: "M"; font.pixelSize: Appearance.font.pixelSize.small; color: Appearance.colors.colSubtext; opacity: 0.45 }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.57 + 3; y: 0
-                                            width: parent.width * 0.43 - 3; height: parent.height / 3 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.57 + 3; y: parent.height / 3 + 1
-                                            width: parent.width * 0.43 - 3; height: parent.height / 3 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.57 + 3; y: parent.height * 2 / 3 + 2
-                                            width: parent.width * 0.43 - 3; height: parent.height / 3 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2 }
-                                        }
-                                    }
-
-                                    // Scrolling
-                                    Item {
-                                        visible: card0.currentLayout === "scrolling"
-                                        anchors { fill: parent; margins: 10 }
-                                        clip: true
-                                        Rectangle {
-                                            x: -18; y: 4; width: 24; height: parent.height - 8
-                                            radius: 3; opacity: 0.45; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                        }
-                                        Row {
-                                            x: 10; y: 0; width: parent.width - 14; height: parent.height; spacing: 4
-                                            Repeater {
-                                                model: 3
-                                                Rectangle {
-                                                    width: (parent.width - 8) / 3; height: parent.height
-                                                    radius: 3; color: Appearance.colors.colLayer3
-                                                    border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                                    Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
-                                                        Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.3 }
-                                                    }
-                                                    Column { x: 5; y: 14; spacing: 3
-                                                        Repeater { model: [20, 14, 22, 12]
-                                                            Rectangle { width: modelData; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Rectangle {
-                                            x: parent.width - 6; y: 4; width: 20; height: parent.height - 8
-                                            radius: 3; opacity: 0.5; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                        }
-                                        MaterialSymbol {
-                                            x: -2; anchors.verticalCenter: parent.verticalCenter
-                                            text: "chevron_left"; iconSize: 16; z: 3
-                                            color: card0.currentLayout === "scrolling" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext; opacity: 0.75
-                                        }
-                                        MaterialSymbol {
-                                            anchors.right: parent.right; anchors.rightMargin: -2
-                                            anchors.verticalCenter: parent.verticalCenter
-                                            text: "chevron_right"; iconSize: 16; z: 3
-                                            color: card0.currentLayout === "scrolling" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext; opacity: 0.75
-                                        }
-                                    }
-
-                                    // Monocle
-                                    Item {
-                                        visible: card0.currentLayout === "monocle"
-                                        anchors { fill: parent; margins: 10 }
-                                        Rectangle {
-                                            x: 10; y: 8; width: parent.width - 20; height: parent.height - 18
-                                            radius: 3; opacity: 0.38; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                        }
-                                        Rectangle {
-                                            x: 5; y: 4; width: parent.width - 10; height: parent.height - 10
-                                            radius: 3; opacity: 0.65; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                        }
-                                        Rectangle {
-                                            x: 0; y: 0; width: parent.width; height: parent.height
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle { width: parent.width; height: 9; radius: 2; color: Appearance.colors.colLayer2
-                                                Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                            }
-                                            Column { x: 8; y: 15; spacing: 4
-                                                Repeater { model: [55, 38, 60, 28, 50]
-                                                    Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
-                                                }
-                                            }
-                                            Row {
-                                                anchors.horizontalCenter: parent.horizontalCenter
-                                                anchors.bottom: parent.bottom; anchors.bottomMargin: 6
-                                                spacing: 5
-                                                Repeater {
-                                                    model: 4
-                                                    Rectangle {
-                                                        width: index === 0 ? 16 : 6; height: 4; radius: 2
-                                                        color: index === 0 ? (card0.currentLayout === "monocle" ? Appearance.colors.colPrimary : Appearance.colors.colSubtext) : Appearance.colors.colSubtext
-                                                        opacity: index === 0 ? 0.85 : 0.3
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    // Float — scattered windows at their own
-                                    // sizes, overlapping rather than tiled.
-                                    Item {
-                                        visible: card0.currentLayout === "float"
-                                        anchors { fill: parent; margins: 10 }
-                                        Repeater {
-                                            model: [
-                                                { fx: 0.02, fy: 0.10, fw: 0.46, fh: 0.52, n: "1" },
-                                                { fx: 0.40, fy: 0.00, fw: 0.40, fh: 0.44, n: "2" },
-                                                { fx: 0.22, fy: 0.46, fw: 0.44, fh: 0.50, n: "3" },
-                                                { fx: 0.62, fy: 0.38, fw: 0.36, fh: 0.46, n: "4" }
-                                            ]
-                                            Rectangle {
-                                                x: parent.width * modelData.fx
-                                                y: parent.height * modelData.fy
-                                                width: parent.width * modelData.fw
-                                                height: parent.height * modelData.fh
-                                                radius: 3
-                                                color: Appearance.colors.colLayer3
-                                                border.width: 1
-                                                border.color: Appearance.colors.colOutlineVariant
-                                                Rectangle {
-                                                    width: parent.width; height: 9; radius: 2
-                                                    color: Appearance.colors.colLayer2
-                                                    Rectangle { x: 3; anchors.verticalCenter: parent.verticalCenter; width: 4; height: 4; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                                }
-                                                StyledText {
-                                                    anchors { right: parent.right; bottom: parent.bottom; margins: 4 }
-                                                    text: modelData.n
-                                                    font.pixelSize: Appearance.font.pixelSize.small
-                                                    color: Appearance.colors.colSubtext
-                                                    opacity: 0.4
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                StyledComboBox {
-                                    Layout.fillWidth: true
-                                    textRole: "displayName"
-                                    model: [
-                                        { displayName: Translation.tr("Dwindle (default)"), value: "dwindle",   icon: "view_quilt"     },
-                                        { displayName: Translation.tr("Master"),            value: "master",    icon: "splitscreen_right" },
-                                        { displayName: Translation.tr("Scrolling"),         value: "scrolling", icon: "view_day"       },
-                                        { displayName: Translation.tr("Monocle"),           value: "monocle",   icon: "crop_square"    },
-                                        { displayName: Translation.tr("Float"),             value: "float",     icon: "drag_pan"       }
-                                    ]
-                                    currentIndex: {
-                                        const idx = model.findIndex(item => item.value === card0.currentLayout)
-                                        return idx !== -1 ? idx : 0
-                                    }
-                                    onActivated: index => {
-                                        card0.applyLayout(model[index].value)
-                                    }
-                                }
-
-                                // Per-layout description — the same one-liner
-                                // each LayoutsConfig picker card shows under
-                                // its title/radio row. Swaps with the combo
-                                // selection so the user knows what the
-                                // picture is showing.
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    Layout.leftMargin: 4
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: Appearance.colors.colSubtext
-                                    wrapMode: Text.WordWrap
-                                    text: {
-                                        switch (card0.currentLayout) {
-                                        case "dwindle":   return Translation.tr("Each new window splits the last in half")
-                                        case "master":    return Translation.tr("One main window with a side stack")
-                                        case "scrolling": return Translation.tr("Horizontally scrollable window columns")
-                                        case "monocle":   return Translation.tr("One focused fullscreen window at a time")
-                                        case "float":     return Translation.tr("All windows float freely on the desktop")
-                                        default: return ""
-                                        }
-                                    }
-                                }
-                            }
-
-                            // Title Bars: mockup + toggle below. Lifted
-                            // 1:1 from Settings → Layouts (the titleBarCard
-                            // block in LayoutsConfig.qml). The mockup
-                            // includes the same window-control circles,
-                            // menu-indicator dot+bar, and content-line
-                            // Repeaters as the Settings card so the two
-                            // surfaces look identical.
-                            ColumnLayout {
-                                Layout.fillWidth: true
-                                Layout.preferredWidth: 1
-                                Layout.alignment: Qt.AlignTop
-                                spacing: 6
-
-                                Rectangle {
-                                    Layout.fillWidth: true
-                                    implicitHeight: 130
-                                    radius: Appearance.rounding.normal
-                                    color: TitleBars.enabled ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.1) : Appearance.colors.colLayer2
-                                    border.width: TitleBars.enabled ? 2 : 1
-                                    border.color: TitleBars.enabled ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
-
-                                    Item {
-                                        anchors { fill: parent; margins: 10 }
-
-                                        // Dwindle-style layout but with prominent title bars
-                                        Rectangle {
-                                            x: 0; y: 0; width: parent.width * 0.54; height: parent.height
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle {
-                                                width: parent.width; height: 14; radius: 2
-                                                color: TitleBars.enabled ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer2
-                                                border.width: TitleBars.enabled ? 1 : 0
-                                                border.color: Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.3)
-                                                Row {
-                                                    anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 4 }
-                                                    spacing: 2
-                                                    Rectangle { width: 3; height: 3; radius: 1.5; color: Appearance.colors.colSubtext; opacity: 0.5 }
-                                                    Rectangle { width: 20; height: 3; radius: 1.5; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                                }
-                                                Row {
-                                                    anchors { verticalCenter: parent.verticalCenter; right: parent.right; rightMargin: 4 }
-                                                    spacing: 3
-                                                    Repeater { model: 3
-                                                        Rectangle { width: 5; height: 5; radius: 2.5; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                                    }
-                                                }
-                                            }
-                                            Column { x: 7; y: 20; spacing: 4
-                                                Repeater { model: [38, 28, 40, 24]
-                                                    Rectangle { width: modelData; height: 5; radius: 2; color: Appearance.colors.colSubtext; opacity: 0.22 }
-                                                }
-                                            }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.54 + 3; y: 0
-                                            width: parent.width * 0.46 - 3; height: parent.height * 0.5 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle {
-                                                width: parent.width; height: 14; radius: 2
-                                                color: TitleBars.enabled ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer2
-                                                border.width: TitleBars.enabled ? 1 : 0
-                                                border.color: Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.3)
-                                                Row {
-                                                    anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 4 }
-                                                    spacing: 2
-                                                    Rectangle { width: 3; height: 3; radius: 1.5; color: Appearance.colors.colSubtext; opacity: 0.5 }
-                                                    Rectangle { width: 14; height: 3; radius: 1.5; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                                }
-                                                Row {
-                                                    anchors { verticalCenter: parent.verticalCenter; right: parent.right; rightMargin: 4 }
-                                                    spacing: 3
-                                                    Repeater { model: 3
-                                                        Rectangle { width: 5; height: 5; radius: 2.5; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        Rectangle {
-                                            x: parent.width * 0.54 + 3; y: parent.height * 0.5 + 2
-                                            width: parent.width * 0.46 - 3; height: parent.height * 0.5 - 2
-                                            radius: 3; color: Appearance.colors.colLayer3
-                                            border.width: 1; border.color: Appearance.colors.colOutlineVariant
-                                            Rectangle {
-                                                width: parent.width; height: 14; radius: 2
-                                                color: TitleBars.enabled ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer2
-                                                border.width: TitleBars.enabled ? 1 : 0
-                                                border.color: Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.3)
-                                                Row {
-                                                    anchors { verticalCenter: parent.verticalCenter; left: parent.left; leftMargin: 4 }
-                                                    spacing: 2
-                                                    Rectangle { width: 3; height: 3; radius: 1.5; color: Appearance.colors.colSubtext; opacity: 0.5 }
-                                                    Rectangle { width: 14; height: 3; radius: 1.5; color: Appearance.colors.colSubtext; opacity: 0.35 }
-                                                }
-                                                Row {
-                                                    anchors { verticalCenter: parent.verticalCenter; right: parent.right; rightMargin: 4 }
-                                                    spacing: 3
-                                                    Repeater { model: 3
-                                                        Rectangle { width: 5; height: 5; radius: 2.5; color: Appearance.colors.colSubtext; opacity: 0.4 }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Toggle centered below the card. Driven
-                                // by the TitleBars singleton so this and
-                                // Settings → Interface stay in sync.
-                                ConfigSwitch {
-                                    Layout.alignment: Qt.AlignHCenter
-                                    buttonIcon: "title"
-                                    text: Translation.tr("Title Bars")
-                                    checked: TitleBars.enabled
-                                    animateChanges: TitleBars.enabledLoaded
-                                    onCheckedChanged: TitleBars.setEnabled(checked)
-                                    StyledToolTip {
-                                        text: Translation.tr("Show title bars on windows")
-                                    }
-                                }
-
-                                // Description below the switch — pulls the
-                                // same one-liner the LayoutsConfig switch's
-                                // tooltip uses. Matches the layout-picker
-                                // description on the left so both cards
-                                // hold the same total height.
-                                StyledText {
-                                    Layout.fillWidth: true
-                                    Layout.leftMargin: 4
-                                    font.pixelSize: Appearance.font.pixelSize.small
-                                    color: Appearance.colors.colSubtext
-                                    wrapMode: Text.WordWrap
-                                    text: Translation.tr("Show title bars on windows")
-                                }
+                    // The one line each Settings → Layouts card carries under
+                    // its name, for the layout picked here.
+                    StyledText {
+                        Layout.fillWidth: true
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                        wrapMode: Text.WordWrap
+                        text: {
+                            switch (card0.currentLayout) {
+                            case "dwindle":   return Translation.tr("Each new window splits the last in half")
+                            case "master":    return Translation.tr("One main window with a side stack")
+                            case "scrolling": return Translation.tr("Horizontally scrollable window columns")
+                            case "monocle":   return Translation.tr("One fullscreen window at a time")
+                            case "float":     return Translation.tr("All windows float freely on the desktop")
+                            default: return ""
                             }
                         }
                     }
                 }
 
-                // ── Left Hot Corner ─────────────────────────────────────
-                Rectangle {
-                    Layout.fillWidth: true
-                    color: Appearance.colors.colLayer1
-                    radius: Appearance.rounding.normal
-                    border.width: 1
-                    border.color: Appearance.colors.colOutlineVariant
-                    implicitHeight: hotCornerCol.implicitHeight + 24
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
 
-                    ColumnLayout {
-                        id: hotCornerCol
-                        anchors.fill: parent
-                        anchors.margins: 12
+                StyleSection {
+                    title: Translation.tr("Left Hot Corner")
+                    symbol: "ads_click"
+                    Layout.fillHeight: false
+
+                    // What the corner opens sits on the header line: the title
+                    // reads as the question and the choice as its answer. The
+                    // picture beside it plays whatever is picked, and plays it
+                    // again on asking.
+                    headerTrailing: [
+                        RippleButton {
+                            implicitWidth: 30
+                            implicitHeight: 30
+                            buttonRadius: Appearance.rounding.full
+                            colBackground: Appearance.colors.colSecondaryContainer
+                            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
+                            onClicked: hotCornerDemo.play()
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                horizontalAlignment: Text.AlignHCenter
+                                text: "play_arrow"
+                                iconSize: 18
+                                color: Appearance.colors.colOnSecondaryContainer
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Show me")
+                            }
+                        },
+                        StyledComboBox {
+                            Layout.fillWidth: false
+                            Layout.preferredWidth: 220
+                            textRole: "displayName"
+                            model: [
+                                { displayName: Translation.tr("Off"),                icon: "block",     value: "off" },
+                                { displayName: Translation.tr("Default Overview"),   icon: "grid_view", value: "default" },
+                                { displayName: Translation.tr("Scrolling Overview"), icon: "view_day",  value: "scrolloverview" }
+                            ]
+                            currentIndex: {
+                                const idx = model.findIndex(item => item.value === Config.options.bar.hotCorners.trigger)
+                                return idx !== -1 ? idx : 0
+                            }
+                            onActivated: index => {
+                                Config.options.bar.hotCorners.trigger = model[index].value
+                                hotCornerDemo.play()
+                            }
+                        }
+                    ]
+
+                    // Scrolling-overview layout — Vertical/Horizontal, shown
+                    // only when the corner triggers the scrolling overview.
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 8
                         spacing: 4
-
-                        RowLayout {
-                            spacing: 8
-                            MaterialSymbol { text: "ads_click"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                            StyledText {
-                                text: Translation.tr("Left Hot Corner")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.Medium
-                            }
+                        visible: Config.options.bar.hotCorners.trigger === "scrolloverview"
+                        OptionalMaterialSymbol {
+                            icon: "splitscreen"
+                            Layout.alignment: Qt.AlignVCenter
                         }
-
-                        // Trigger overview combo — same layout/padding as
-                        // Settings → Interface. ConfigSwitch-style rows wrap in a
-                        // RippleButton with ~6-8px of internal left padding before
-                        // the icon; a bare RowLayout doesn't, so it needs explicit
-                        // left/right margins to keep the icon aligned.
-                        RowLayout {
+                        StyledText {
                             Layout.fillWidth: true
-                            Layout.leftMargin: 8
-                            Layout.rightMargin: 8
-                            spacing: 4
-                            OptionalMaterialSymbol {
-                                icon: "drag_click"
-                                Layout.alignment: Qt.AlignVCenter
-                            }
-                            StyledText {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                Layout.leftMargin: 6
-                                text: Translation.tr("Trigger overview")
-                                color: Appearance.colors.colOnSecondaryContainer
-                            }
-                            StyledComboBox {
-                                textRole: "displayName"
-                                Layout.fillWidth: false
-                                Layout.preferredWidth: 220
-                                model: [
-                                    { displayName: Translation.tr("Off"),                icon: "block",     value: "off" },
-                                    { displayName: Translation.tr("Default Overview"),   icon: "grid_view", value: "default" },
-                                    { displayName: Translation.tr("Scrolling Overview"), icon: "view_day",  value: "scrolloverview" }
-                                ]
-                                currentIndex: {
-                                    const idx = model.findIndex(item => item.value === Config.options.bar.hotCorners.trigger)
-                                    return idx !== -1 ? idx : 0
-                                }
-                                onActivated: index => {
-                                    Config.options.bar.hotCorners.trigger = model[index].value
-                                }
-                            }
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.leftMargin: 6
+                            text: Translation.tr("Scrolling Overview Layout")
+                            color: Appearance.colors.colOnSecondaryContainer
                         }
-
-                        // Scrolling-overview layout — Vertical/Horizontal, shown
-                        // only when the corner triggers the scrolling overview.
-                        RowLayout {
-                            Layout.fillWidth: true
-                            Layout.leftMargin: 8
-                            Layout.rightMargin: 8
-                            spacing: 4
-                            visible: Config.options.bar.hotCorners.trigger === "scrolloverview"
-                            OptionalMaterialSymbol {
-                                icon: "splitscreen"
-                                Layout.alignment: Qt.AlignVCenter
+                        StyledComboBox {
+                            textRole: "displayName"
+                            Layout.fillWidth: false
+                            Layout.preferredWidth: 220
+                            model: [
+                                { displayName: Translation.tr("Vertical"),   icon: "view_day",  value: "vertical" },
+                                { displayName: Translation.tr("Horizontal"), icon: "view_week", value: "horizontal" }
+                            ]
+                            currentIndex: {
+                                const idx = model.findIndex(item => item.value === root.scrollOverviewLayout)
+                                return idx !== -1 ? idx : 0
                             }
-                            StyledText {
-                                Layout.fillWidth: true
-                                Layout.alignment: Qt.AlignVCenter
-                                Layout.leftMargin: 6
-                                text: Translation.tr("Scrolling Overview Layout")
-                                color: Appearance.colors.colOnSecondaryContainer
-                            }
-                            StyledComboBox {
-                                textRole: "displayName"
-                                Layout.fillWidth: false
-                                Layout.preferredWidth: 220
-                                model: [
-                                    { displayName: Translation.tr("Vertical"),   icon: "view_day",  value: "vertical" },
-                                    { displayName: Translation.tr("Horizontal"), icon: "view_week", value: "horizontal" }
-                                ]
-                                currentIndex: {
-                                    const idx = model.findIndex(item => item.value === root.scrollOverviewLayout)
-                                    return idx !== -1 ? idx : 0
-                                }
-                                onActivated: index => {
-                                    root.setScrollOverviewLayout(model[index].value)
-                                }
+                            onActivated: index => {
+                                root.setScrollOverviewLayout(model[index].value)
+                                hotCornerDemo.play()
                             }
                         }
                     }
+
+                    // What the corner does, in words, beside the picture that
+                    // plays it.
+                    StyledText {
+                        Layout.fillWidth: true
+                        wrapMode: Text.WordWrap
+                        font.pixelSize: Appearance.font.pixelSize.small
+                        color: Appearance.colors.colSubtext
+                        text: ({
+                            off: Translation.tr("Moving the pointer into the top-left corner does nothing"),
+                            default: Translation.tr("Moving the pointer into the top-left corner opens the overview"),
+                            scrolloverview: Translation.tr("Moving the pointer into the top-left corner opens the scrolling overview")
+                        })[Config.options.bar.hotCorners.trigger] ?? ""
+                    }
                 }
 
-                // ── Usage docs ──────────────────────────────────────────
+                Item { Layout.fillHeight: true; Layout.minimumHeight: 6 }
+
                 // Mirrors welcome.qml's Info + Useless-buttons sections
                 // — quick links to the keybind cheatsheet, the project
                 // wiki, the repo, and the sponsor link. Donate is the
                 // same target as welcome.qml's "Funny number" button.
-                Rectangle {
-                    Layout.fillWidth: true
-                    color: Appearance.colors.colLayer1
-                    radius: Appearance.rounding.normal
-                    border.width: 1
-                    border.color: Appearance.colors.colOutlineVariant
-                    implicitHeight: usageCol.implicitHeight + 24
+                StyleSection {
+                    title: Translation.tr("Info")
+                    symbol: "info"
+                    Layout.fillHeight: false
 
-                    ColumnLayout {
-                        id: usageCol
-                        anchors.fill: parent
-                        anchors.margins: 12
-                        spacing: 10
+                    Flow {
+                        Layout.fillWidth: true
+                        spacing: 5
 
-                        RowLayout {
-                            spacing: 8
-                            MaterialSymbol { text: "info"; iconSize: 18; color: Appearance.colors.colOnLayer1 }
-                            StyledText {
-                                text: Translation.tr("Info")
-                                font.pixelSize: Appearance.font.pixelSize.normal
-                                color: Appearance.colors.colOnLayer1
-                                font.weight: Font.Medium
+                        RippleButtonWithIcon {
+                            materialIcon: "keyboard_alt"
+                            onClicked: {
+                                Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "cheatsheet", "toggle"])
                             }
-                        }
-
-                        Flow {
-                            Layout.fillWidth: true
-                            spacing: 5
-
-                            RippleButtonWithIcon {
-                                materialIcon: "keyboard_alt"
-                                onClicked: {
-                                    Quickshell.execDetached(["qs", "-p", Quickshell.shellPath(""), "ipc", "call", "cheatsheet", "toggle"])
-                                }
-                                mainContentComponent: Component {
+                            mainContentComponent: Component {
+                                RowLayout {
+                                    spacing: 10
+                                    StyledText {
+                                        font.pixelSize: Appearance.font.pixelSize.small
+                                        text: Translation.tr("Keybinds")
+                                        color: Appearance.colors.colOnSecondaryContainer
+                                    }
                                     RowLayout {
-                                        spacing: 10
+                                        spacing: 3
+                                        KeyboardKey { key: "󰖳" }
                                         StyledText {
-                                            font.pixelSize: Appearance.font.pixelSize.small
-                                            text: Translation.tr("Keybinds")
-                                            color: Appearance.colors.colOnSecondaryContainer
+                                            Layout.alignment: Qt.AlignVCenter
+                                            text: "+"
                                         }
-                                        RowLayout {
-                                            spacing: 3
-                                            KeyboardKey { key: "󰖳" }
-                                            StyledText {
-                                                Layout.alignment: Qt.AlignVCenter
-                                                text: "+"
-                                            }
-                                            KeyboardKey { key: "Tab" }
-                                        }
+                                        KeyboardKey { key: "Tab" }
                                     }
                                 }
                             }
-                            RippleButtonWithIcon {
-                                materialIcon: "help"
-                                mainText: Translation.tr("Docs")
-                                onClicked: {
-                                    Qt.openUrlExternally("https://mainstreamos.org/#desktop")
-                                }
+                        }
+                        RippleButtonWithIcon {
+                            materialIcon: "help"
+                            mainText: Translation.tr("Docs")
+                            onClicked: {
+                                Qt.openUrlExternally("https://mainstreamos.org/#desktop")
                             }
-                            RippleButtonWithIcon {
-                                nerdIcon: "󰊤"
-                                mainText: Translation.tr("GitHub")
-                                onClicked: {
-                                    Qt.openUrlExternally("https://github.com/MainstreamOS")
-                                }
+                        }
+                        RippleButtonWithIcon {
+                            nerdIcon: "󰊤"
+                            mainText: Translation.tr("GitHub")
+                            onClicked: {
+                                Qt.openUrlExternally("https://github.com/MainstreamOS")
                             }
-                            RippleButtonWithIcon {
-                                materialIcon: "favorite"
-                                mainText: Translation.tr("Donate")
-                                onClicked: {
-                                    Qt.openUrlExternally("https://github.com/sponsors/MainstreamOS")
+                        }
+                        RippleButtonWithIcon {
+                            materialIcon: "favorite"
+                            mainText: Translation.tr("Donate")
+                            onClicked: {
+                                Qt.openUrlExternally("https://github.com/sponsors/MainstreamOS")
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5:6 against the settings, so the links along the bottom of that
+            // column fit on one line beside the keybind's keycaps.
+            StyleSection {
+                title: Translation.tr("Style, wallpaper, & colors")
+                symbol: "format_paint"
+                Layout.fillWidth: true
+                Layout.preferredWidth: 5
+
+                // The desktop as it stands: the wallpaper that is set, with the
+                // bar and the dock in the colors the theme gives them, so each
+                // button under it answers in the picture. The hot corner plays
+                // on it too.
+                BarDockStage {
+                    id: desktopPicture
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    blur: root.layerBlur
+
+                    HotCornerDemo {
+                        id: hotCornerDemo
+                        anchors.fill: parent
+                        trigger: Config.options.bar.hotCorners.trigger
+                        layout: root.scrollOverviewLayout
+                        wallpaperSource: desktopPicture.wallpaper
+                        rows: Config.options.overview.rows
+                        columns: Config.options.overview.columns
+                        barShape: desktopPicture.barShape
+                        dockShape: desktopPicture.dockShape
+                    }
+                    HotCornerPointer {
+                        anchors.fill: parent
+                        demo: hotCornerDemo
+                    }
+                }
+
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    uniformCellSizes: true
+
+                    RippleButtonWithIcon {
+                        Layout.fillWidth: true
+                        centerContent: true
+                        buttonRadius: Appearance.rounding.small
+                        materialIcon: "wallpaper"
+                        mainText: Translation.tr("Wallpaper")
+                        onClicked: {
+                            Quickshell.execDetached([`${Directories.wallpaperSwitchScriptPath}`])
+                        }
+                        StyledToolTip {
+                            text: Translation.tr("Pick wallpaper image on your system")
+                        }
+                    }
+
+                    RippleButtonWithIcon {
+                        Layout.fillWidth: true
+                        centerContent: true
+                        buttonRadius: Appearance.rounding.small
+                        materialIcon: "slideshow"
+                        mainText: Translation.tr("Slideshow")
+                        onClicked: {
+                            slideshowFolderProc.command = ["bash", "-c",
+                                'zenity --file-selection --directory --filename="$1/" --title="$2"',
+                                "--", WallpaperSlideshow.folder, Translation.tr("Choose slideshow folder")];
+                            slideshowFolderProc.running = false;
+                            slideshowFolderProc.running = true;
+                        }
+                        StyledToolTip {
+                            text: Translation.tr("Rotate the wallpaper through a folder's images")
+                        }
+                    }
+
+                    RippleButtonWithIcon {
+                        Layout.fillWidth: true
+                        enabled: !randomWallProc.running
+                        centerContent: true
+                        buttonRadius: Appearance.rounding.small
+                        materialIcon: "restart_alt"
+                        mainText: randomWallProc.running ? Translation.tr("Wait...") : Translation.tr("Default")
+                        onClicked: {
+                            randomWallProc.scriptPath = `${Directories.scriptPath}/colors/random/set_default_wall.sh`
+                            randomWallProc.running = true
+                        }
+                        StyledToolTip {
+                            text: Translation.tr("Reset to the default theme wallpaper")
+                        }
+                    }
+                }
+
+                RippleButtonWithIcon {
+                    Layout.fillWidth: true
+                    visible: Config.options.policies.weeb === 1
+                    enabled: !randomWallProc.running
+                    centerContent: true
+                    buttonRadius: Appearance.rounding.small
+                    materialIcon: "ifl"
+                    mainText: randomWallProc.running ? Translation.tr("Be patient...") : Translation.tr("Random: osu! seasonal")
+                    onClicked: {
+                        randomWallProc.scriptPath = `${Directories.scriptPath}/colors/random/random_osu_wall.sh`
+                        randomWallProc.running = true
+                    }
+                    StyledToolTip {
+                        text: Translation.tr("Random osu! seasonal background\nImage is saved to ~/Pictures/Wallpapers")
+                    }
+                }
+
+                // Light/Dark — compact two-button row. The
+                // full-fat LightDarkPreferenceButton from welcome.qml
+                // is ~260px wide and won't fit two-across in this
+                // column.
+                RowLayout {
+                    Layout.fillWidth: true
+                    spacing: 6
+                    uniformCellSizes: true
+                    Repeater {
+                        model: [
+                            { mode: false, icon: "light_mode", label: Translation.tr("Light") },
+                            { mode: true,  icon: "dark_mode",  label: Translation.tr("Dark")  }
+                        ]
+                        delegate: RippleButton {
+                            id: modeButton
+                            required property var modelData
+                            property color colText: toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
+                            Layout.fillWidth: true
+                            implicitHeight: 38
+                            buttonRadius: Appearance.rounding.small
+                            colBackground: Appearance.colors.colLayer2
+                            toggled: Appearance.m3colors.darkmode === modelData.mode
+                            onClicked: {
+                                Quickshell.execDetached(["bash", "-c",
+                                    `${Directories.wallpaperSwitchScriptPath} --mode ${modelData.mode ? "dark" : "light"} --noswitch`])
+                            }
+                            // The layout goes inside a plain Item: as the
+                            // contentItem itself it is stretched to the
+                            // button's width and the icon and label drift
+                            // apart to its two ends.
+                            contentItem: Item {
+                                anchors.centerIn: parent
+                                RowLayout {
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    MaterialSymbol {
+                                        text: modeButton.modelData.icon
+                                        iconSize: 18
+                                        color: modeButton.colText
+                                    }
+                                    StyledText {
+                                        text: modeButton.modelData.label
+                                        color: modeButton.colText
+                                    }
                                 }
                             }
                         }
                     }
                 }
 
-                Item { Layout.fillHeight: true }
+                // Material colour palette — same options as
+                // Settings → Quick. Selecting one writes
+                // Config.options.appearance.palette.type and
+                // (debounced 150ms) re-derives the theme from
+                // the current wallpaper with the new palette.
+                ConfigSelectionArray {
+                    Layout.fillWidth: true
+                    currentValue: Config.options.appearance.palette.type
+                    onSelected: newValue => {
+                        Config.options.appearance.palette.type = newValue
+                        paletteApplyTimer.restart()
+                    }
+
+                    Timer {
+                        id: paletteApplyTimer
+                        interval: 150
+                        repeat: false
+                        onTriggered: card0.applyTheme("--noswitch")
+                    }
+                    options: [
+                        { value: "auto",              displayName: Translation.tr("Auto") },
+                        { value: "scheme-content",    displayName: Translation.tr("Content") },
+                        { value: "scheme-expressive", displayName: Translation.tr("Expressive") },
+                        { value: "scheme-fidelity",   displayName: Translation.tr("Fidelity") },
+                        { value: "scheme-fruit-salad",displayName: Translation.tr("Fruit Salad") },
+                        { value: "scheme-monochrome", displayName: Translation.tr("Monochrome") },
+                        { value: "scheme-neutral",    displayName: Translation.tr("Neutral") },
+                        { value: "scheme-rainbow",    displayName: Translation.tr("Rainbow") },
+                        { value: "scheme-tonal-spot", displayName: Translation.tr("Tonal Spot") }
+                    ]
+                }
             }
         }
     }

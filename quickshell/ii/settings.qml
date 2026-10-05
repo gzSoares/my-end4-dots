@@ -79,12 +79,6 @@ ApplicationWindow {
             component: "modules/settings/DecorationsConfig.qml"
         },
         {
-            group: 2,
-            name: Translation.tr("Themes"),
-            icon: "style",
-            component: "modules/settings/ThemesConfig.qml"
-        },
-        {
             group: 3,
             name: Translation.tr("Display"),
             icon: "monitor",
@@ -140,34 +134,24 @@ ApplicationWindow {
             name: Translation.tr("Manage"),
             icon: "apps",
             component: "modules/settings/ManageAppsConfig.qml"
-        },
-        {
-            group: 4,
-            name: Translation.tr("Update"),
-            icon: "system_update_alt",
-            component: "modules/settings/UpdateConfig.qml"
-        },
-        {
-            group: 4,
-            name: Translation.tr("Recovery"),
-            icon: "healing",
-            component: "modules/settings/RecoverConfig.qml"
-        },
-        {
-            group: 5,
-            name: Translation.tr("About"),
-            icon: "info",
-            component: "modules/settings/About.qml"
         }
     ]
     
+    function pageIndex(name) {
+        return root.pages.findIndex(page => page.component.endsWith(name));
+    }
+    function showPage(name) {
+        const idx = root.pageIndex(name);
+        if (idx !== -1) root.currentPage = idx;
+    }
+
     // Read deep-linking from environment variables (set by dialogs)
     // A page may be named by its component file (UpdateConfig.qml) instead of
     // its position, so callers don't have to track this list's ordering.
     property int initialPage: {
         const envPage = Quickshell.env("QS_SETTINGS_PAGE");
         if (!envPage) return 0;
-        const named = root.pages.findIndex(page => page.component.endsWith(envPage));
+        const named = root.pageIndex(envPage);
         return named !== -1 ? named : (parseInt(envPage) || 0);
     }
     property int initialTab: {
@@ -180,7 +164,15 @@ ApplicationWindow {
     property int currentPage: initialPage
 
     visible: true
-    onClosing: Qt.quit()
+    // A successful run's record is kept only until it has been seen and the
+    // window closed. The Update page marks it seen once it has shown the
+    // result; a run still going, or one that failed, has no mark and stays.
+    onClosing: {
+        Quickshell.execDetached(["bash", "-c",
+            '[ -f "$0/update.seen" ] && rm -f "$0/update.log" "$0/update.exit" "$0/update.seen"',
+            Directories.updateStateDir]);
+        Qt.quit();
+    }
     title: Translation.tr("Mainstream Settings")
 
     // Re-center on the active screen after a monitor scale apply.
@@ -203,11 +195,13 @@ ApplicationWindow {
     Process {
         id: recenterProc
         command: ["hyprctl", "monitors", "-j"]
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => {
+        // Collected whole. A parser with an empty marker hands over each raw
+        // pipe read as it arrives, so on a machine with several screens the
+        // JSON arrived in pieces and every piece failed to parse.
+        stdout: StdioCollector {
+            onStreamFinished: {
                 try {
-                    let mons = JSON.parse(data);
+                    let mons = JSON.parse(this.text);
                     if (!mons || mons.length === 0) return;
                     let mon = mons.find(m => m.focused) || mons[0];
                     let scale = mon.scale || 1.0;
@@ -221,6 +215,13 @@ ApplicationWindow {
                     let logicalH = pxH / scale;
                     let tx = Math.round(mon.x + (logicalW - root.width)  / 2);
                     let ty = Math.round(mon.y + (logicalH - root.height) / 2);
+                    // Asking for a position it already asked for is what let a
+                    // resize become a move become another resize, forking two
+                    // hyprctl processes each time round.
+                    if (tx === root.lastRecenterX && ty === root.lastRecenterY)
+                        return;
+                    root.lastRecenterX = tx;
+                    root.lastRecenterY = ty;
                     // Wayland xdg-shell does not allow clients to set their
                     // own x/y after creation — assigning root.x/root.y is a
                     // no-op on Hyprland. Ask the compositor to move us via
@@ -234,12 +235,18 @@ ApplicationWindow {
                     ];
                     recenterMoveProc.running = false;
                     recenterMoveProc.running = true;
-                } catch (e) {}
+                } catch (e) {
+                    console.log("settings: could not read monitors for recenter:", e);
+                }
             }
         }
     }
 
     Process { id: recenterMoveProc; command: [] }
+
+    // Where the last move asked for, so the same request is not made twice.
+    property int lastRecenterX: -100000
+    property int lastRecenterY: -100000
 
     // Debounce — give hyprctl reload a beat to land before we query so we
     // don't read the pre-apply geometry.
@@ -266,10 +273,63 @@ ApplicationWindow {
     }
 
     Component.onCompleted: {
+        // An app must not tear itself down under the user. Quickshell reloads
+        // an instance whenever a file it loaded changes, and the update copies
+        // this very tree in, so the window used to restart part way through
+        // an update and, since a reload kills the objects' child processes,
+        // took the running update with it. The next launch loads the new
+        // files; this one keeps what it started with.
+        Quickshell.watchFiles = false
         MaterialThemeLoader.reapplyTheme()
         ThemeLibrary.load()
         Config.readWriteDelay = 0 // Settings app always only sets one var at a time so delay isn't needed
         recenterTimer.restart()
+        // Files opens the Sharing page naming the folder that should be
+        // shared once sharing is set up.
+        const sharingFolder = Quickshell.env("QS_SHARING_FOLDER")
+        if (sharingFolder)
+            FileSharing.requestFolder(sharingFolder)
+    }
+
+    // A second launch hands its page to this window rather than opening
+    // another: qs ipc --pid <pid> call settings showPage UpdateConfig.qml
+    IpcHandler {
+        target: "settings"
+        function showPage(name: string): void {
+            root.showPage(name);
+        }
+        // What QS_SHARING_FOLDER does for a new window, for one already open:
+        // qs ipc -p <this file> call settings shareFolder <absolute path>
+        // It exits nonzero when no Settings window is running. The window is
+        // brought forward here, since the caller has no address for it. It
+        // stays void: Files takes any output as an older Settings without
+        // this function and opens a new window instead.
+        function shareFolder(path: string): void {
+            FileSharing.requestFolder(path);
+            root.showPage("SharingConfig.qml");
+            const titleRegex = (root.title || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            if (titleRegex)
+                Quickshell.execDetached(["hyprctl", "dispatch",
+                    `hl.dsp.focus({ window = [[title:^${titleRegex}$]] })`]);
+        }
+    }
+
+    // An update under way is what the person opening Settings most likely
+    // wants to see, so it is shown unless a page was asked for by name.
+    Process {
+        running: !Quickshell.env("QS_SETTINGS_PAGE")
+        // The pid has to name a live process. A run that was killed, or a
+        // machine that lost power, leaves the file behind for good, and
+        // existence alone would then force this page open on every launch
+        // for the rest of the machine's life.
+        command: ["bash", "-c",
+            'bash "$0" "$1" >/dev/null 2>&1 && [ ! -f "$2" ]',
+            Quickshell.shellPath("scripts/update/update-live.sh"),
+            Directories.updateStateDir + "/update.pid",
+            Directories.updateStateDir + "/update.exit"]
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode === 0) root.showPage("UpdateConfig.qml")
+        }
     }
 
     minimumWidth: 750
@@ -447,6 +507,12 @@ ApplicationWindow {
                     Connections {
                         target: Appearance
                         function onThemeRevisionChanged() {
+                            // The Update page is left standing: its colors
+                            // follow Appearance on their own, and rebuilding it
+                            // replays the whole run record and asks for the
+                            // pending list again, on every wallpaper change.
+                            if (root.pages[root.currentPage].component.endsWith("UpdateConfig.qml"))
+                                return;
                             pageLoader.reloadCurrentPage();
                         }
                     }

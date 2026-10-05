@@ -8,6 +8,9 @@ ToolTip {
     id: root
     property bool extraVisibleCondition: true
     property bool alternativeVisibleCondition: false
+    // Long text wraps into a block this wide rather than running across the
+    // window; anything shorter keeps its single line. Zero turns wrapping off.
+    property real maximumTextWidth: 360
 
     readonly property bool internalVisibleCondition: (extraVisibleCondition && (parent.hovered === undefined || parent?.hovered)) || alternativeVisibleCondition
     verticalPadding: 5
@@ -27,6 +30,7 @@ ToolTip {
         id: contentItem
         font: root.font
         text: root.text
+        maximumTextWidth: root.maximumTextWidth
         shown: root.internalVisibleCondition
         horizontalPadding: root.horizontalPadding
         verticalPadding: root.verticalPadding

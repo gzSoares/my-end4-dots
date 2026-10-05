@@ -89,6 +89,20 @@ Singleton {
                 property bool inhibit: false
             }
 
+            // Names given to workspaces from the bar, keyed by workspace id.
+            // A workspace with no entry shows its window titles as usual.
+            property JsonObject workspaces: JsonObject {
+                property var names: ({})
+            }
+
+            // Pictures picked for single monitors from the desktop menu, keyed
+            // by "desc:" and the monitor's description, or by its connector
+            // name when that is all that tells it apart. Drawn only on
+            // monitors other than the default one; the colors never read them.
+            property JsonObject monitors: JsonObject {
+                property var wallpapers: ({})
+            }
+
             property JsonObject overlay: JsonObject {
                 property list<string> open: ["crosshair", "recorder", "volumeMixer", "resources"]
                 property JsonObject crosshair: JsonObject {

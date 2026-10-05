@@ -23,7 +23,12 @@ ApplicationWindow {
     height: 800
     minimumWidth: 500
     minimumHeight: 600
-    title: Translation.tr("Welcome")
+    // Deliberately not translated. This string is the window's identity, not
+    // a label: the rule that floats the installer matches on it, and the
+    // dispatch that centers the window builds a regex from it. Translating it
+    // would leave the installer tiled and the centering aimed at nothing, on
+    // the live image, with nothing logged to say why.
+    title: "Welcome"
     color: Appearance.m3colors.m3surfaceContainerLow
 
     // What this machine needs plugged in before it can be installed, written by
@@ -70,9 +75,12 @@ ApplicationWindow {
     Process {
         id: recenterProc
         command: ["hyprctl", "monitors", "-j"]
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => {
+        // Collected whole. SplitParser with an empty marker hands over each
+        // raw pipe read as it arrives, so anything past the first chunk showed
+        // up as truncated JSON and was swallowed by the catch below.
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const data = this.text;
                 try {
                     let mons = JSON.parse(data);
                     if (!mons || mons.length === 0) return;
@@ -86,10 +94,18 @@ ApplicationWindow {
                     let logicalH = pxH / scale;
                     let tx = Math.round(mon.x + (logicalW - root.width)  / 2);
                     let ty = Math.round(mon.y + (logicalH - root.height) / 2);
+                    // Asking for a position it has already asked for is what
+                    // turned a resize into a move into another resize, forking
+                    // two hyprctl processes each time round. A genuinely new
+                    // target is always honored; only a repeat is dropped.
+                    if (tx === root.lastRecenterX && ty === root.lastRecenterY)
+                        return;
+                    root.lastRecenterX = tx;
+                    root.lastRecenterY = ty;
                     // Wayland xdg-shell does not allow clients to set their
                     // own x/y after creation — assigning root.x/root.y is a
                     // no-op on Hyprland. Ask the compositor to move us via
-                    // a hyprctl dispatch keyed on our (translated) title.
+                    // a hyprctl dispatch keyed on our title.
                     let titleRegex = (root.title || "")
                         .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
                     if (!titleRegex) return;
@@ -100,16 +116,22 @@ ApplicationWindow {
                     // (relative defaults to false → absolute coords).
                     recenterMoveProc.command = [
                         "hyprctl", "dispatch",
-                        `hl.dsp.window.move({x = ${tx}, y = ${ty}, window = "title:^${titleRegex}$"})`
+                        `hl.dsp.window.move({ x = ${tx}, y = ${ty}, window = [[title:^${titleRegex}$]] })`
                     ];
                     recenterMoveProc.running = false;
                     recenterMoveProc.running = true;
-                } catch (e) {}
+                } catch (e) {
+                    console.log("installer: could not read monitors for recenter:", e);
+                }
             }
         }
     }
 
     Process { id: recenterMoveProc; command: [] }
+
+    // Where the last move asked for, so the same request is not made twice.
+    property int lastRecenterX: -100000
+    property int lastRecenterY: -100000
 
     // Debounce — give hyprctl reload a beat to land before we query so we
     // don't read the pre-apply geometry.
@@ -173,18 +195,6 @@ ApplicationWindow {
         return lines.join("\n");
     }
 
-    function initPending(monitor) {
-        let name = monitor.name;
-        if (!pendingChanges[name]) {
-            pendingChanges[name] = {
-                width: monitor.width,
-                height: monitor.height,
-                refreshRate: monitor.refreshRate,
-                scale: monitor.scale,
-            };
-        }
-    }
-
     function updatePending(monName, key, value) {
         let p = Object.assign({}, pendingChanges[monName] ?? {});
         p[key] = value;
@@ -198,7 +208,15 @@ ApplicationWindow {
         pendingChanges = Object.assign({}, pendingChanges);
     }
 
-    function applyMonitorChanges(monitorName) {
+    function applyMonitorChanges() {
+        // Writing from an empty list produces a file with nothing in it, and
+        // the reload that follows makes every output fall back to a guessed
+        // mode right as the installer hands over. DisplayConfig guards the
+        // same way.
+        if (root.monitors.length === 0) {
+            console.log("installer: no monitors read yet, not writing monitors.lua");
+            return false;
+        }
         let blocks = [];
         monitors.forEach(mon => {
             let p = pendingChanges[mon.name] ?? {};
@@ -208,63 +226,105 @@ ApplicationWindow {
         // Blank line between blocks matches DisplayConfig's output style and
         // keeps the file readable when Settings → Display rewrites it.
         let fileContent = blocks.join("\n\n") + "\n";
-        let escaped = fileContent
-            .replace(/\\/g, "\\\\")
-            .replace(/'/g, "\\'")
-            .replace(/\n/g, "\\n");
-        let py =
-            "path = '" + root.monitorsConfPath + "'\n" +
-            "content = '" + escaped + "'\n" +
-            "open(path, 'w').write(content)\n";
-        writeProc.command = ["python3", "-c", py];
+        writeProc.command = ["python3", "-c", "import sys; open(sys.argv[1], 'w').write(sys.argv[2])",
+                             root.monitorsConfPath, fileContent];
         writeProc.running = false;
         writeProc.running = true;
+        return true;
     }
 
     Process {
         id: monitorProc
         command: ["hyprctl", "monitors", "all", "-j"]
-        stdout: SplitParser {
-            splitMarker: ""
-            onRead: data => {
+        // Whole-output collector for the same reason as recenterProc: this
+        // JSON carries every mode of every output and does not fit one read.
+        stdout: StdioCollector {
+            onStreamFinished: {
                 try {
-                    let parsed = JSON.parse(data);
+                    let parsed = JSON.parse(this.text);
                     root.monitors = parsed;
-                    parsed.forEach(m => root.initPending(m));
-                } catch (e) {}
+                } catch (e) {
+                    console.log("installer: could not read the monitor list:", e);
+                }
             }
         }
     }
 
     Process {
         id: writeProc
-        onExited: reloadProc.running = true
+        // Quickshell emits no exited signal at all when a command cannot be
+        // started, only runningChanged, so hanging the rest of the chain on
+        // onExited alone left Start Install silently dead forever. Both the
+        // failure to start and a non-zero exit are handled here.
+        property bool sawExit: false
+        onRunningChanged: {
+            if (running) {
+                sawExit = false;
+            } else if (!sawExit) {
+                root.applyFailed(Translation.tr("Could not save the display settings."));
+            }
+        }
+        onExited: (exitCode) => {
+            sawExit = true;
+            if (exitCode === 0) {
+                reloadProc.running = true;
+            } else {
+                root.applyFailed(Translation.tr("Could not save the display settings."));
+            }
+        }
+    }
+
+    // The one place that knows how to hand over to the installer.
+    function launchInstaller() {
+        Quickshell.execDetached(["sudo", "-E", "calamares"]);
+        Qt.quit();
+    }
+
+    // Shown in place of a silent dead button when the apply chain breaks.
+    property string applyError: ""
+    function applyFailed(message) {
+        root.applyError = message;
+        root.startInstallQueued = false;
     }
 
     Process {
         id: reloadProc
         command: ["hyprctl", "reload"]
         onExited: {
-            Qt.callLater(root.refreshMonitors);
-            recenterTimer.restart();
-            // Launch Calamares only after the apply chain has completed, so
-            // the new scale/mode is in effect before the installer takes the
-            // foreground.
+            // Nothing below matters once the installer is taking over, and
+            // this is the busiest moment of the live session. Re-reading the
+            // monitors and re-centering here cost another two or three
+            // processes and a full rebuild of the display rows for a window
+            // about to close.
             if (root.startInstallQueued) {
                 root.startInstallQueued = false;
-                Quickshell.execDetached(["sudo", "-E", "calamares"]);
-                Qt.quit();
+                root.launchInstaller();
+                return;
             }
+            Qt.callLater(root.refreshMonitors);
+            recenterTimer.restart();
         }
     }
 
-    Component.onCompleted: { refreshMonitors(); recenterTimer.restart(); }
+    Component.onCompleted: {
+        // A reload triggered by any watched file changing would take this
+        // instance down with its in-flight processes, which during the apply
+        // chain means the write or the reload disappears and Calamares never
+        // starts. settings.qml switches this off for the same reason.
+        Quickshell.watchFiles = false;
+        refreshMonitors();
+        recenterTimer.restart();
+    }
 
     // ── Main content ──
     ColumnLayout {
         anchors {
             fill: parent
             margins: root.width > 600 ? 40 : 20
+            // The Start Install button floats over this layout; without room
+            // reserved for it, it covered the bottom of the Wi-Fi list and
+            // took the clicks meant for the last network.
+            bottomMargin: (root.width > 600 ? 40 : 20) + 60
         }
         spacing: 0
 
@@ -314,6 +374,39 @@ ApplicationWindow {
                     ContentSection {
                         icon: "monitor"
                         title: Translation.tr("Display")
+                        // One Apply, because applying has only ever been one
+                        // thing: the whole file is rewritten and the
+                        // compositor reloaded whichever monitor's button was
+                        // pressed. A button per monitor offered a choice that
+                        // was never carried out, and on two screens it meant
+                        // two reloads and two flashes to do one job.
+                        headerExtra: [
+                            RippleButton {
+                                implicitWidth: applyRow.implicitWidth + 24
+                                implicitHeight: 34
+                                buttonRadius: Appearance.rounding.full
+                                colBackground: Appearance.colors.colPrimary
+                                colBackgroundHover: Appearance.colors.colPrimaryHover
+                                onClicked: {
+                                    root.applyError = "";
+                                    root.applyMonitorChanges();
+                                }
+                                contentItem: RowLayout {
+                                    id: applyRow
+                                    anchors.centerIn: parent
+                                    spacing: 6
+                                    MaterialSymbol {
+                                        text: "check"
+                                        iconSize: 18
+                                        color: Appearance.colors.colOnPrimary
+                                    }
+                                    StyledText {
+                                        text: Translation.tr("Apply")
+                                        color: Appearance.colors.colOnPrimary
+                                    }
+                                }
+                            }
+                        ]
 
                         Repeater {
                             model: root.monitors
@@ -321,7 +414,6 @@ ApplicationWindow {
                             delegate: ColumnLayout {
                                 id: monDelegate
                                 required property var modelData
-                                required property int index
 
                                 property var mon: modelData
                                 property string monName: mon.name
@@ -437,7 +529,6 @@ ApplicationWindow {
                                                     model: monDelegate.modeModel
                                                     delegate: Rectangle {
                                                         required property var modelData
-                                                        required property int index
                                                         width: ListView.view.width
                                                         height: 36
                                                         radius: Appearance.rounding.small
@@ -551,7 +642,6 @@ ApplicationWindow {
                                                     model: scaleRow.scaleOptions
                                                     delegate: Rectangle {
                                                         required property var modelData
-                                                        required property int index
                                                         width: ListView.view.width
                                                         height: 36
                                                         radius: Appearance.rounding.small
@@ -579,36 +669,6 @@ ApplicationWindow {
                                                     }
                                                 }
                                             }
-                                        }
-                                    }
-                                }
-
-                                // Apply button
-                                RippleButton {
-                                    Layout.alignment: Qt.AlignRight
-                                    Layout.topMargin: 8
-                                    implicitWidth: applyRow.implicitWidth + 24
-                                    implicitHeight: 36
-                                    buttonRadius: Appearance.rounding.full
-                                    colBackground: Appearance.colors.colPrimary
-                                    colBackgroundHover: Appearance.colors.colPrimaryHover
-
-                                    onClicked: root.applyMonitorChanges(monDelegate.monName)
-
-                                    contentItem: RowLayout {
-                                        id: applyRow
-                                        anchors.centerIn: parent
-                                        spacing: 6
-                                        MaterialSymbol {
-                                            text: "check"
-                                            iconSize: 18
-                                            color: Appearance.colors.colOnPrimary
-                                        }
-                                        StyledText {
-                                            text: root.monitors.length > 1
-                                                ? Translation.tr("Apply %1").arg(monDelegate.monName)
-                                                : Translation.tr("Apply")
-                                            color: Appearance.colors.colOnPrimary
                                         }
                                     }
                                 }
@@ -744,6 +804,37 @@ ApplicationWindow {
 
     }
 
+    // Whatever went wrong in the apply chain, said out loud. Before this the
+    // button simply stopped responding with nothing on screen to explain it.
+    Rectangle {
+        visible: root.applyError.length > 0
+        anchors {
+            bottom: parent.bottom
+            horizontalCenter: parent.horizontalCenter
+            bottomMargin: 80
+        }
+        z: 11
+        implicitWidth: Math.min(applyErrorRow.implicitWidth + 24, root.width - 40)
+        implicitHeight: 36
+        radius: Appearance.rounding.small
+        color: Appearance.m3colors.m3errorContainer
+        RowLayout {
+            id: applyErrorRow
+            anchors.centerIn: parent
+            spacing: 6
+            MaterialSymbol {
+                text: "error"
+                iconSize: 18
+                color: Appearance.m3colors.m3onErrorContainer
+            }
+            StyledText {
+                text: root.applyError
+                color: Appearance.m3colors.m3onErrorContainer
+                font.pixelSize: Appearance.font.pixelSize.small
+            }
+        }
+    }
+
     // ── Start Install button (floating over content) ──
     RippleButton {
         anchors {
@@ -759,14 +850,17 @@ ApplicationWindow {
         colBackgroundHover: Appearance.colors.colPrimaryHover
 
         onClicked: {
-            // Apply every monitor's pending settings (mode + scale) before
-            // handing off to Calamares. applyMonitorChanges already iterates
-            // over all monitors and writes the full monitors.lua, so the
-            // monitorName arg is irrelevant — we just need the file written
-            // and hyprctl reloaded. The reloadProc onExited handler then
-            // launches Calamares once startInstallQueued is set.
+            // Everything pending is written and the compositor reloaded
+            // before handing off, so Calamares opens at the chosen scale.
+            root.applyError = "";
             root.startInstallQueued = true;
-            root.applyMonitorChanges("");
+            // The monitor list may not have arrived yet. Rather than write a
+            // config built from nothing, go straight to the installer with the
+            // display left exactly as the live session set it up.
+            if (!root.applyMonitorChanges()) {
+                root.startInstallQueued = false;
+                root.launchInstaller();
+            }
         }
 
         contentItem: RowLayout {

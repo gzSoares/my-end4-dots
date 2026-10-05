@@ -2,99 +2,18 @@ import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
-import Qt.labs.synchronizer
 import QtQuick
-import QtQuick.Controls
 import QtQuick.Layouts
 import Quickshell
 import Quickshell.Io
-import Quickshell.Widgets
 import Quickshell.Wayland
 import Quickshell.Hyprland
 
 Scope {
     id: overviewScope
-    property bool dontAutoCancelSearch: false
 
-    // The compositor's edge reservations come from a snapshot that layer
-    // open and close events do not refresh, and a mapped layer changing
-    // its zone (a pin, an auto-hide) sends no event at all, so the
-    // snapshot is retaken at every open. The open can move a zone itself
-    // (a bar shown for a held Super hides on the release that opens the
-    // launcher), and that reaches the compositor at the bar's next frame,
-    // after the first query, so a second query follows once it has landed.
-    Connections {
-        target: GlobalStates
-        function onOverviewOpenChanged() {
-            if (!GlobalStates.overviewOpen) return;
-            HyprlandData.updateMonitors();
-            reservationSettle.restart();
-        }
-    }
-    Timer {
-        id: reservationSettle
-        interval: 100
-        onTriggered: if (GlobalStates.overviewOpen) HyprlandData.updateMonitors()
-    }
-
-    // Dismiss in-surface (dismissArea + Escape), not the shared focus grab: the
-    // always-alive full-screen surface already captures outside clicks, so the
-    // grab was redundant and its races broke the dock launcher button.
-
-    // Fallback for D-Bus-activated / splash-then-real apps whose real
-    // window bypasses the exec_cmd workspace rule. Each drop registers
-    // a class hint for 5s; openwindow events that match a hint get
-    // silently moved to the target workspace.
-    property var _pendingSpawns: ({})
-
-    function _addSpawnWatch(hint, ws) {
-        if (!hint || ws <= 0) return
-        const key = String(hint).toLowerCase().replace(/^.*\//, "")
-        if (!key) return
-        const updated = _pendingSpawns
-        updated[key] = { targetWs: ws, expiresAt: Date.now() + 5000 }
-        _pendingSpawns = updated
-        _spawnWatchExpire.restart()
-    }
-
-    Timer {
-        id: _spawnWatchExpire
-        interval: 1000
-        repeat: true
-        running: Object.keys(overviewScope._pendingSpawns).length > 0
-        onTriggered: {
-            const now = Date.now()
-            const updated = overviewScope._pendingSpawns
-            let dirty = false
-            for (const k in updated) {
-                if (updated[k].expiresAt < now) { delete updated[k]; dirty = true }
-            }
-            if (dirty) overviewScope._pendingSpawns = updated
-        }
-    }
-
-    Connections {
-        target: Hyprland
-        function onRawEvent(event) {
-            if (event.name !== "openwindow") return
-            if (Object.keys(overviewScope._pendingSpawns).length === 0) return
-            // event.data: ADDR,WORKSPACE_NAME,CLASS,TITLE
-            const parts = String(event.data).split(",")
-            if (parts.length < 3) return
-            const addr = parts[0]
-            const klass = parts[2].toLowerCase()
-            const wsNum = parseInt(parts[1], 10)
-            for (const watched in overviewScope._pendingSpawns) {
-                if (klass.indexOf(watched) === -1 && watched.indexOf(klass) === -1) continue
-                const target = overviewScope._pendingSpawns[watched].targetWs
-                if (wsNum === target) continue
-                Hyprland.dispatch(
-                    `hl.dsp.window.move({ workspace = ${target}, follow = false, window = "address:0x${addr}" })`
-                )
-                // Don't delete — multi-window apps may open more within 5s.
-            }
-        }
-    }
+    // Dismiss in-surface (backdrop + Escape), not the shared focus grab: the
+    // always-alive full-screen surface already captures outside clicks.
 
     // One overview per screen: surfaces are torn down and rebuilt with their
     // output, so a DP re-train across suspend/DPMS can't orphan the window.
@@ -106,24 +25,12 @@ Scope {
         id: panelWindow
         required property ShellScreen modelData
         screen: modelData
-        property string searchingText: ""
         readonly property HyprlandMonitor monitor: Hyprland.monitorFor(panelWindow.screen)
         property bool monitorIsFocused: ((Hyprland.focusedMonitor?.id ?? monitor?.id) === monitor?.id)
 
-        // ── Surface lifecycle ────────────────────────────────────────────
         // When Config.options.overview.keepSurfaceAlive is true (default),
-        // the wlr-layer-shell surface is permanently allocated. This makes
-        // every overview-open instant, even when Hyprland is busy
-        // compositing a game at 4K@144Hz on another workspace (otherwise
-        // the configure roundtrip takes 1-1.5s and pegs qs's main thread).
-        //
-        // Users who want direct scanout for exclusive-fullscreen games can
-        // turn the option off — surface becomes visible only while open,
-        // which restores scanout but reintroduces the open-stall whenever
-        // the compositor is busy.
-        //
-        // When the surface is alive but the overview is closed,
-        // contentFade.opacity=0 hides the contents visually and an empty
+        // the layer-shell surface stays allocated so every open is instant.
+        // While closed, contentFade.opacity=0 hides the contents and an empty
         // mask Region routes all pointer input through to apps below.
         visible: (Config.options.overview.keepSurfaceAlive ?? true)
             || GlobalStates.overviewOpen
@@ -138,15 +45,9 @@ Scope {
         Region { id: passthroughRegion }
 
         WlrLayershell.namespace: "quickshell:overview"
-        // Use Overlay layer (not Top) so the surface stays visible during
-        // exclusive/borderless fullscreen apps. Hyprland forces alpha=0 on
-        // any layer surface below Overlay when a monitor is in fullscreen
-        // mode (see Hyprland src/desktop/view/LayerSurface.cpp:335). With
-        // the always-alive surface fix, our overview can't rely on "newly
-        // mapped above fullscreen" semantics, so we need Overlay layer.
+        // Overlay layer so the surface stays visible above fullscreen apps.
         WlrLayershell.layer: WlrLayer.Overlay
-        // Exclusive while open holds the keyboard (search/Escape) now that the
-        // focus grab is gone; None while closed (click-through surface).
+        // Exclusive while open holds the keyboard (Escape, arrows).
         WlrLayershell.keyboardFocus: (GlobalStates.overviewOpen && monitorIsFocused) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
         color: "transparent"
 
@@ -157,62 +58,16 @@ Scope {
             left: true
             right: true
         }
-        // While it is open the compositor sends every click to this surface,
-        // wherever the click lands, so the surface lies under every place a
-        // click can land, exclusive zones included.
+        // The surface lies under every place a click can land, bar and dock included.
         exclusionMode: ExclusionMode.Ignore
-        // Content keeps clear of whatever holds an edge. The compositor's
-        // resolved reservation covers the bar, a pinned dock, a pinned sidebar
-        // or keyboard, and anything third party, on this screen alone and only
-        // while it is actually there. A dock reserves nothing unpinned and
-        // overhangs its zone pinned, so its share is added by hand, and a dock
-        // owner keeps the search bar at one height wherever the dock sits:
-        // with neither the dock nor the bar on top, the content starts a
-        // dock's thickness down, as it does under a top dock.
-        readonly property var monitorData: HyprlandData.monitors.find(m => m.id === panelWindow.monitor?.id)
-        function edgeClearance(edge) {
-            const index = { left: 0, top: 1, right: 2, bottom: 3 }[edge];
-            let c = panelWindow.monitorData?.reserved?.[index] ?? 0;
-            if (Config.options.dock.enable && Appearance.sizes.dockEdge === edge)
-                c += GlobalStates.dockPinned ? Appearance.sizes.elevationMargin : Appearance.sizes.dockExtent;
-            if (edge === "top" && Config.options.dock.enable
-                    && Appearance.sizes.dockEdge !== "top" && Appearance.sizes.barEdge !== "top")
-                c += Appearance.sizes.dockExtent;
-            return c;
-        }
 
         Connections {
             target: GlobalStates
             function onOverviewOpenChanged() {
-                if (!GlobalStates.overviewOpen) {
-                    searchWidget.disableExpandAnimation();
-                    overviewScope.dontAutoCancelSearch = false;
-                    // Reset drawer state
-                    appDrawer.expanded = false;
-                    appDrawer.searchText = "";
-                    appDrawer.folderPopupVisible = false;
-                    appDrawer.openFolder = null;
-                    appDrawer.resetScroll();
-                    flickable.contentY = 0;
-                } else {
-                    if (!overviewScope.dontAutoCancelSearch) {
-                        searchWidget.cancelSearch();
-                    }
-                    // Reset drawer state on open.
-                    appDrawer.expanded = false;
-                    appDrawer.searchText = "";
-                    appDrawer.folderPopupVisible = false;
-                    appDrawer.openFolder = null;
-                    appDrawer.resetScroll();
-                    // Focus the search box (Exclusive keyboardFocus delivers keys).
-                    Qt.callLater(() => searchWidget.focusSearchInput());
-                }
+                // Take the keyboard so Escape and the arrows reach keyHandler.
+                if (GlobalStates.overviewOpen)
+                    Qt.callLater(() => keyHandler.forceActiveFocus());
             }
-        }
-
-        function setSearchingText(text) {
-            searchWidget.setSearchingText(text);
-            searchWidget.focusFirstItem();
         }
 
         // Wraps all content so a single opacity animation fades everything together
@@ -220,7 +75,6 @@ Scope {
             id: contentFade
             anchors.fill: parent
             opacity: (GlobalStates.overviewOpen && panelWindow.monitorIsFocused) ? 1 : 0
-            property bool appDragging: false
             Behavior on opacity {
                 NumberAnimation {
                     duration: Appearance.animation.elementMoveFast.duration
@@ -229,489 +83,78 @@ Scope {
                 }
             }
 
-        // Floating icon that follows the cursor during app drag
-        Rectangle {
-            id: dragFloatIcon
-            z: 9999
-            visible: false
-            width: 56
-            height: 56
-            radius: Appearance.rounding.normal
-            color: Appearance.colors.colSecondaryContainer
-            opacity: 0.92
-            property var app: null
-            readonly property bool isFolder: app && app._isFolder === true
-
-            IconImage {
-                anchors.centerIn: parent
-                visible: dragFloatIcon.app && !dragFloatIcon.isFolder
-                source: dragFloatIcon.app && !dragFloatIcon.isFolder
-                    ? Quickshell.iconPath(AppSearch.guessIcon(
-                          dragFloatIcon.app.id || dragFloatIcon.app.icon), "image-missing")
-                    : ""
-                implicitSize: 40
-            }
-
-            // Folder ghost — mini 2x2 grid of contained app icons,
-            // mirroring the folder visual in the drawer.
-            Grid {
-                anchors.centerIn: parent
-                columns: 2
-                spacing: 2
-                visible: dragFloatIcon.isFolder
-
-                Repeater {
-                    model: dragFloatIcon.isFolder ? dragFloatIcon.app.appIds.slice(0, 4) : []
-                    IconImage {
-                        required property var modelData
-                        source: Quickshell.iconPath(AppSearch.guessIcon(modelData), "image-missing")
-                        implicitSize: 18
-                    }
-                }
-            }
-        }
-
-        Connections {
-            target: appDrawer
-
-            function onAppDragStarted(app, sceneX, sceneY) {
-                contentFade.appDragging = true
-                dragFloatIcon.app = app
-                dragFloatIcon.x = sceneX - dragFloatIcon.width / 2
-                dragFloatIcon.y = sceneY - dragFloatIcon.height / 2
-                dragFloatIcon.visible = true
-            }
-
-            function onAppDragUpdate(sceneX, sceneY) {
-                dragFloatIcon.x = sceneX - dragFloatIcon.width / 2
-                dragFloatIcon.y = sceneY - dragFloatIcon.height / 2
-                const ws = overviewLoader.item
-                    ? overviewLoader.item.workspaceAtScenePoint(sceneX, sceneY)
-                    : -1
-                if (overviewLoader.item) overviewLoader.item.appDragHoverWorkspace = ws
-            }
-
-            function onAppDropped(app, sceneX, sceneY) {
-                contentFade.appDragging = false
-                dragFloatIcon.visible = false
-                dragFloatIcon.app = null
-                if (overviewLoader.item) overviewLoader.item.appDragHoverWorkspace = -1
-
-                const ws = overviewLoader.item
-                    ? overviewLoader.item.workspaceAtScenePoint(sceneX, sceneY)
-                    : -1
-                if (ws <= 0 || !app) return
-
-                // exec_cmd's two-arg form carries the workspace rule
-                // on the spawned env; _addSpawnWatch is the fallback
-                // for D-Bus / splash flows that bypass the rule.
-                // Lua escape order: \\ first, then " — otherwise the
-                // newly-added \" gets re-escaped.
-                function dispatchExec(parts, hint) {
-                    if (!parts || parts.length === 0) return
-                    const cmd = parts.map(p => p.includes(" ") ? `"${p}"` : p).join(" ")
-                    const lua = cmd
-                        .replace(/\\/g, "\\\\")
-                        .replace(/"/g, '\\"')
-                    Hyprland.dispatch(`hl.dsp.exec_cmd("${lua}", { workspace = "${ws} silent" })`)
-                    overviewScope._addSpawnWatch(hint || parts[0], ws)
-                }
-
-                if (app._isFolder === true) {
-                    const ids = app.appIds || []
-                    for (let i = 0; i < ids.length; i++) {
-                        const entry = AppSearch.guessDesktopEntry(ids[i])
-                        const hint = entry?.startupClass || entry?.id || ids[i]
-                        dispatchExec(entry ? entry.command : null, hint)
-                    }
-                    return
-                }
-
-                const hint = app.startupClass || app.id || (app.command ? app.command[0] : null)
-                dispatchExec(app.command, hint)
-            }
-
-            function onAppDragCancelled() {
-                contentFade.appDragging = false
-                dragFloatIcon.visible = false
-                dragFloatIcon.app = null
-                if (overviewLoader.item) overviewLoader.item.appDragHoverWorkspace = -1
-            }
-        }
-
-        // An open overview captures clicks across the whole screen, but the
-        // dismiss area inside the flickable stops at the clearance kept for
-        // the bar and the dock. This backdrop sits under the flickable and
-        // takes what lands outside it: a click on either band while this is
-        // open, the dock's launcher button above all, means close.
-        MouseArea {
-            anchors.fill: parent
-            enabled: GlobalStates.overviewOpen && !contentFade.appDragging
-            onClicked: GlobalStates.overviewOpen = false
-        }
-
-        // The corner that opened this cannot close it. While the overview is
-        // up the pointer stops reaching the hot corner's surface underneath,
-        // so its own close path never runs and the gesture only works one way.
-        // This answers in the same rectangle instead, on the same dwell, and
-        // fires the same ripple, so the corner behaves the same in both
-        // directions. Only while the corner is what opens this overview.
-        //
-        // Armed by leaving rather than by a timer: the pointer is already in
-        // the corner at the moment the overview opens, and closing on that
-        // would shut it again the instant it appeared.
-        MouseArea {
-            id: cornerClose
-            z: 100
-            x: 0
-            y: 0
-            width: Appearance.sizes.hotCornerWidth
-            height: Appearance.sizes.hotCornerHeight
-            hoverEnabled: true
-            acceptedButtons: Qt.NoButton
-            enabled: GlobalStates.overviewOpen
-                && (Config.options?.bar.hotCorners.trigger ?? "off") === "default"
-            // Ready the moment the overview appears, unless the pointer is
-            // still sitting in the corner, which is where it is when the corner
-            // itself just opened this. Then it waits for the pointer to leave,
-            // so the overview does not shut again the instant it is shown.
-            //
-            // Deciding this by where the pointer already is, rather than after
-            // a wait, is what makes the first return to the corner close it.
-            // The overview appears once the ripple has played, by which time
-            // the pointer has usually already moved on, and an arming rule that
-            // ignored that spent the first visit doing nothing.
-            property bool armed: false
-            onEnabledChanged: armed = enabled && !containsMouse
-            onExited: {
-                cornerCloseDwell.stop();
-                armed = true;
-            }
-            onEntered: if (armed) cornerCloseDwell.restart()
-            Timer {
-                id: cornerCloseDwell
-                interval: 50
-                onTriggered: {
-                    GlobalStates.hotCornerTriggered();
-                    GlobalStates.overviewOpen = false;
-                }
-            }
-        }
-
-        StyledFlickable {
-            id: flickable
-            anchors.fill: parent
-            // Inset by whatever holds each edge, so nothing sits under the
-            // bar or the dock.
-            anchors.topMargin: panelWindow.edgeClearance("top")
-            anchors.bottomMargin: panelWindow.edgeClearance("bottom")
-            anchors.leftMargin: panelWindow.edgeClearance("left")
-            anchors.rightMargin: panelWindow.edgeClearance("right")
-            contentWidth: columnLayout.implicitWidth
-            contentHeight: columnLayout.implicitHeight
-            clip: true
-            visible: true
-            // Disable scrolling when workspacesOnly mode is active —
-            // there's nothing below the workspace previews in that view,
-            // so allowing the flickable to scroll just lets the user
-            // shove the workspaces off-screen with no way to recover.
-            interactive: !contentFade.appDragging && !GlobalStates.overviewWorkspacesOnly
-            boundsBehavior: GlobalStates.overviewWorkspacesOnly ? Flickable.StopAtBounds : Flickable.DragAndOvershootBounds
-
-            onContentYChanged: {
-                // Drag-overshoot past the top while expanded → collapse.
-                // Wheel-based collapse is handled by wheelOverlay below.
-                if (appDrawer.expanded && contentY < -30) {
-                    appDrawer.expanded = false;
-                    appDrawer.searchText = "";
-                    Qt.callLater(() => { flickable.contentY = 0; });
-                }
-            }
-
-            // Click empty space to close. Inside the flickable + z:-1 so it sits
-            // behind the widgets (which consume their own clicks).
+            // Backdrop: any click that does not land on a widget closes the overview.
             MouseArea {
-                id: dismissArea
-                z: -1
-                width: flickable.width
-                height: Math.max(flickable.height, columnLayout.implicitHeight)
-                enabled: GlobalStates.overviewOpen && !contentFade.appDragging
+                anchors.fill: parent
+                enabled: GlobalStates.overviewOpen
                 onClicked: GlobalStates.overviewOpen = false
             }
 
-            ColumnLayout {
-                id: columnLayout
-                width: flickable.width
-                spacing: 20
-                property real cachedOverviewWidth: Math.min(1200, flickable.width - 40)
+            // The corner that opened this cannot close it (the pointer stops
+            // reaching the hot corner's surface while the overview is up), so
+            // this answers in the same rectangle, on the same dwell.
+            // Armed by leaving: the pointer is already in the corner when the
+            // overview opens, and closing on that would shut it instantly.
+            MouseArea {
+                id: cornerClose
+                z: 100
+                x: 0
+                y: 0
+                width: Appearance.sizes.hotCornerWidth
+                height: Appearance.sizes.hotCornerHeight
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+                enabled: GlobalStates.overviewOpen
+                    && (Config.options?.bar.hotCorners.trigger ?? "off") === "default"
+                property bool armed: false
+                onEnabledChanged: armed = enabled && !containsMouse
+                onExited: {
+                    cornerCloseDwell.stop();
+                    armed = true;
+                }
+                onEntered: if (armed) cornerCloseDwell.restart()
+                Timer {
+                    id: cornerCloseDwell
+                    interval: 50
+                    onTriggered: {
+                        GlobalStates.hotCornerTriggered();
+                        GlobalStates.overviewOpen = false;
+                    }
+                }
+            }
 
+            // Keyboard: Escape closes, Left/Right switch workspace.
+            Item {
+                id: keyHandler
+                anchors.fill: parent
+                focus: true
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {
-                        if (appDrawer.expanded) {
-                            appDrawer.expanded = false;
-                            appDrawer.searchText = "";
-                            Qt.callLater(() => { flickable.contentY = 0; });
-                            columnLayout.forceActiveFocus();
-                            Qt.callLater(() => { searchWidget.focusSearchInput(); });
-                        } else if (panelWindow.searchingText !== "") {
-                            searchWidget.cancelSearch();
-                            Qt.callLater(() => { searchWidget.focusSearchInput(); });
-                        } else {
-                            GlobalStates.overviewOpen = false;
-                        }
+                        GlobalStates.overviewOpen = false;
                     } else if (event.key === Qt.Key_Left) {
-                        if (!panelWindow.searchingText)
-                            Hyprland.dispatch(`hl.dsp.focus({ workspace = "r-1" })`);
+                        Hyprland.dispatch(`hl.dsp.focus({ workspace = "r-1" })`);
                     } else if (event.key === Qt.Key_Right) {
-                        if (!panelWindow.searchingText)
-                            Hyprland.dispatch(`hl.dsp.focus({ workspace = "r+1" })`);
+                        Hyprland.dispatch(`hl.dsp.focus({ workspace = "r+1" })`);
                     }
-                }
-                    
-                // Spacer to prevent drawer from overlapping top bar when expanded.
-                Item {
-                    Layout.fillWidth: true
-                    Layout.preferredHeight: appDrawer.expanded ? 10 : 0
-                    visible: appDrawer.expanded
-
-                    Behavior on Layout.preferredHeight {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementResize.duration
-                            easing.type: Appearance.animation.elementResize.type
-                            easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                        }
-                    }
-                }
-
-                SearchWidget {
-                    id: searchWidget
-                    Layout.alignment: Qt.AlignHCenter
-                    // Hidden when the app drawer is expanded (it takes over).
-                    // Also hidden when overview was opened in workspaces-only
-                    // mode by the hot corner so the user gets a clean
-                    // workspace switcher with no chrome.
-                    visible: !appDrawer.expanded && !GlobalStates.overviewWorkspacesOnly
-                    Layout.maximumHeight: (appDrawer.expanded || GlobalStates.overviewWorkspacesOnly) ? 0 : implicitHeight
-                    opacity: (appDrawer.expanded || GlobalStates.overviewWorkspacesOnly) ? 0 : 1
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementMoveFast.duration
-                            easing.type: Appearance.animation.elementMoveFast.type
-                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                        }
-                    }
-                    Behavior on Layout.maximumHeight {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementResize.duration
-                            easing.type: Appearance.animation.elementResize.type
-                            easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                        }
-                    }
-                    Synchronizer on searchingText {
-                        property alias source: panelWindow.searchingText
-                    }
-                }
-
-                Loader {
-                    id: overviewLoader
-                    Layout.alignment: Qt.AlignHCenter
-                    active: GlobalStates.overviewOpen && panelWindow.monitorIsFocused && (Config?.options.overview.enable ?? true) && !appDrawer.expanded
-                    Layout.maximumHeight: appDrawer.expanded ? 0 : (item ? item.implicitHeight : 0)
-                    opacity: appDrawer.expanded ? 0 : 1
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementMoveFast.duration
-                            easing.type: Appearance.animation.elementMoveFast.type
-                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                        }
-                    }
-                    Behavior on Layout.maximumHeight {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementResize.duration
-                            easing.type: Appearance.animation.elementResize.type
-                            easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                        }
-                    }
-                    // Cache width so the drawer can match it after this loader deactivates
-                    onWidthChanged: if (width > 0) columnLayout.cachedOverviewWidth = width
-                    sourceComponent: OverviewWidget {
-                        screen: panelWindow.screen
-                        visible: (panelWindow.searchingText == "")
-                    }
-                }
-                    
-                ApplicationDrawer {
-                    id: appDrawer
-                    Layout.alignment: Qt.AlignHCenter
-                    Layout.fillWidth: false
-                    Layout.preferredWidth: appDrawer.expanded
-                        ? columnLayout.cachedOverviewWidth
-                        : Math.min(1200, flickable.width - 40)
-                    // Hidden when:
-                    //  - the user is searching (search results take priority), OR
-                    //  - overview was opened in workspaces-only mode by the
-                    //    hot corner (no chrome — workspace previews only)
-                    visible: panelWindow.searchingText == "" && !GlobalStates.overviewWorkspacesOnly
-                    opacity: ((panelWindow.searchingText != "" && !appDrawer.expanded) || GlobalStates.overviewWorkspacesOnly) ? 0 : 1
-                    Layout.maximumHeight: ((panelWindow.searchingText != "" && !appDrawer.expanded) || GlobalStates.overviewWorkspacesOnly) ? 0 : implicitHeight
-
-                    Behavior on opacity {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementMoveFast.duration
-                            easing.type: Appearance.animation.elementMoveFast.type
-                            easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-                        }
-                    }
-                    Behavior on Layout.maximumHeight {
-                        NumberAnimation {
-                            duration: Appearance.animation.elementResize.duration
-                            easing.type: Appearance.animation.elementResize.type
-                            easing.bezierCurve: Appearance.animation.elementResize.bezierCurve
-                        }
-                    }
-
-                    availableHeight: flickable.height
-                    availableWidth: appDrawer.expanded
-                        ? columnLayout.cachedOverviewWidth
-                        : Math.min(1200, flickable.width - 40)
                 }
             }
-        }
 
-        // ── Wheel-event interceptor ──────────────────────────────────────────
-        // Sits at z:100 — above the StyledFlickable and all its descendants,
-        // including StyledFlickable's inner MouseArea (which would otherwise
-        // consume every wheel event). Qt hit-tests siblings by z-order, so
-        // this MouseArea is evaluated first.
-        //
-        //  acceptedButtons: Qt.NoButton  — mouse presses pass through to lower-z
-        //                                  items (app icon buttons, etc.)
-        //  propagateComposedEvents: true — click/release also fall through
-        //
-        //  Scroll DOWN while collapsed     → expand drawer
-        //  Scroll UP  at grid+outer top    → collapse drawer
-        //  Otherwise                       → scroll grid (expanded)
-        //                                    or outer flickable (collapsed)
-        MouseArea {
-            id: wheelOverlay
-            anchors.fill: flickable
-            z: 100
-            enabled: GlobalStates.overviewOpen
-            acceptedButtons: Qt.NoButton
-            propagateComposedEvents: true
-
-            onWheel: function(event) {
-                // Workspaces-only mode (corner-triggered): swallow wheel
-                // events entirely. There's nothing to scroll into (the
-                // app drawer chrome is hidden and the flickable below has
-                // interactive=false), so passing them through would just
-                // let the user shove the workspace previews off-screen
-                // via the expand-drawer path below.
-                if (GlobalStates.overviewWorkspacesOnly) {
-                    event.accepted = true;
-                    return;
+            // Centered on the real screen center (ignores bar/dock clearance).
+            Loader {
+                id: overviewLoader
+                anchors.centerIn: parent
+                active: GlobalStates.overviewOpen
+                    && panelWindow.monitorIsFocused
+                    && (Config?.options.overview.enable ?? true)
+                sourceComponent: OverviewWidget {
+                    screen: panelWindow.screen
                 }
-
-                const scrollingDown = event.angleDelta.y < 0;
-                const scrollingUp   = event.angleDelta.y > 0;
-
-                // Searching: route wheel events into the search result list
-                // (SearchWidget.appResults) instead of the outer flickable.
-                // Without this branch, the fallback at the bottom of this
-                // handler scrolls `flickable.contentY`, which moves the whole
-                // overview slightly and never scrolls the actual results.
-                if (panelWindow.searchingText !== "" && !appDrawer.expanded
-                        && searchWidget.appResults && searchWidget.appResults.visible) {
-                    const list         = searchWidget.appResults;
-                    const threshold    = flickable.mouseScrollDeltaThreshold;
-                    const delta        = event.angleDelta.y / threshold;
-                    const scrollFactor = Math.abs(event.angleDelta.y) >= threshold
-                                         ? flickable.mouseScrollFactor
-                                         : flickable.touchpadScrollFactor;
-                    const maxY    = Math.max(0, list.contentHeight - list.height);
-                    const targetY = Math.max(0, Math.min(list.contentY - delta * scrollFactor, maxY));
-                    list.contentY = targetY;
-                    event.accepted = true;
-                    return;
-                }
-
-                // Collapsed: route wheel events through the grid first.
-                // Scroll down → scroll grid, or expand once at the bottom.
-                // Scroll up   → scroll grid back up, or fall through once at the top.
-                if (!appDrawer.expanded && panelWindow.searchingText === ""
-                        && (scrollingDown || !appDrawer.isGridAtTop())) {
-                    if (scrollingDown && appDrawer.isGridAtBottom()) {
-                        appDrawer.expanded = true;
-                        flickable.contentY = 0;
-                        event.accepted = true;
-                        return;
-                    }
-                    const threshold    = flickable.mouseScrollDeltaThreshold;
-                    const delta        = event.angleDelta.y / threshold;
-                    const scrollFactor = Math.abs(event.angleDelta.y) >= threshold
-                                         ? flickable.mouseScrollFactor
-                                         : flickable.touchpadScrollFactor;
-                    appDrawer.scrollGrid(delta, scrollFactor);
-                    event.accepted = true;
-                    return;
-                }
-
-                if (appDrawer.expanded && scrollingUp
-                        && flickable.scrollTargetY <= 0
-                        && appDrawer.isGridAtTop()) {
-                    appDrawer.expanded = false;
-                    appDrawer.searchText = "";
-                    Qt.callLater(() => { flickable.contentY = 0; });
-                    columnLayout.forceActiveFocus();
-                    Qt.callLater(() => { searchWidget.focusSearchInput(); });
-                    event.accepted = true;
-                    return;
-                }
-
-                const threshold    = flickable.mouseScrollDeltaThreshold;
-                const delta        = event.angleDelta.y / threshold;
-                const scrollFactor = Math.abs(event.angleDelta.y) >= threshold
-                                     ? flickable.mouseScrollFactor
-                                     : flickable.touchpadScrollFactor;
-
-                if (appDrawer.expanded) {
-                    appDrawer.scrollGrid(delta, scrollFactor);
-                } else {
-                    const maxY    = Math.max(0, flickable.contentHeight - flickable.height);
-                    const targetY = Math.max(0, Math.min(
-                        flickable.scrollTargetY - delta * scrollFactor, maxY));
-                    flickable.scrollTargetY = targetY;
-                    flickable.contentY      = targetY;
-                }
-                event.accepted = true;
             }
-        }
-
         }   // end contentFade
 
     }   // end PanelWindow
 
     }   // end Variants
-
-    function toggleClipboard() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
-            GlobalStates.overviewOpen = false;
-            return;
-        }
-        overviewScope.dontAutoCancelSearch = true;
-        for (const w of overviewVariants.instances) w.setSearchingText(Config.options.search.prefix.clipboard);
-        GlobalStates.overviewOpen = true;
-    }
-
-    function toggleEmojis() {
-        if (GlobalStates.overviewOpen && overviewScope.dontAutoCancelSearch) {
-            GlobalStates.overviewOpen = false;
-            return;
-        }
-        overviewScope.dontAutoCancelSearch = true;
-        for (const w of overviewVariants.instances) w.setSearchingText(Config.options.search.prefix.emojis);
-        GlobalStates.overviewOpen = true;
-    }
 
     IpcHandler {
         target: "search"
@@ -731,14 +174,11 @@ Scope {
         function toggleReleaseInterrupt() {
             GlobalStates.superReleaseMightTrigger = false;
         }
-        function clipboardToggle() {
-            overviewScope.toggleClipboard();
-        }
     }
 
     GlobalShortcut {
         name: "searchToggle"
-        description: "Toggles search on press"
+        description: "Toggles overview on press"
 
         onPressed: {
             GlobalStates.overviewOpen = !GlobalStates.overviewOpen;
@@ -762,7 +202,7 @@ Scope {
     }
     GlobalShortcut {
         name: "searchToggleRelease"
-        description: "Toggles search on release"
+        description: "Toggles overview on release"
 
         onPressed: {
             GlobalStates.superReleaseMightTrigger = true;
@@ -778,27 +218,10 @@ Scope {
     }
     GlobalShortcut {
         name: "searchToggleReleaseInterrupt"
-        description: "Interrupts possibility of search being toggled on release. " + "This is necessary because GlobalShortcut.onReleased in quickshell triggers whether or not you press something else while holding the key. " + "To make sure this works consistently, use binditn = MODKEYS, catchall in an automatically triggered submap that includes everything."
+        description: "Interrupts possibility of overview being toggled on release. " + "This is necessary because GlobalShortcut.onReleased in quickshell triggers whether or not you press something else while holding the key. " + "To make sure this works consistently, use binditn = MODKEYS, catchall in an automatically triggered submap that includes everything."
 
         onPressed: {
             GlobalStates.superReleaseMightTrigger = false;
-        }
-    }
-    GlobalShortcut {
-        name: "overviewClipboardToggle"
-        description: "Toggle clipboard query on overview widget"
-
-        onPressed: {
-            overviewScope.toggleClipboard();
-        }
-    }
-
-    GlobalShortcut {
-        name: "overviewEmojiToggle"
-        description: "Toggle emoji query on overview widget"
-
-        onPressed: {
-            overviewScope.toggleEmojis();
         }
     }
 }

@@ -13,6 +13,9 @@ import "./services"
 PanelWindow {
     id: root
 
+    // =====================================================================
+    //  JANELA
+    // =====================================================================
     screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0]
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
@@ -20,12 +23,18 @@ PanelWindow {
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "macos:spotlight"
     WlrLayershell.layer: WlrLayer.Overlay
-        WlrLayershell.keyboardFocus: root._shown
+    WlrLayershell.keyboardFocus: root._shown
         ? (root._screenshotSelecting ? WlrKeyboardFocus.OnDemand : WlrKeyboardFocus.Exclusive)
         : WlrKeyboardFocus.None
 
+    // =====================================================================
+    //  CONFIGURAÇÃO
+    // =====================================================================
     property string terminal: "kitty"
     property bool aiAutoQuestion: true
+    property bool showSysStats: true
+    property string weatherCity: "Itapira"
+    property bool aiPersistentHistory: false
 
     readonly property string hermesUrl: Quickshell.env("HERMES_URL") || "http://127.0.0.1:8642"
     readonly property string hermesKey: Quickshell.env("HERMES_API_KEY") || ""
@@ -45,97 +54,69 @@ PanelWindow {
         ddg:   ["DuckDuckGo",     "https://duckduckgo.com/?q="]
     })
 
-    property bool _shown: false
-    property string query: ""
-    property int selectedIndex: 0
-    property var items: []
-    property var results: []
-    property var fileItems: []
-    property string mode: "search"
-    property var recentItems: []
-    property string browseDir: ""
-    property bool _userNavigated: false
-    property string _clipPrevKey: ""
-    property string _pendingMode: ""
-    property var clipItems: []
-    property bool _opened: false
-    property bool railOpen: root.railProgress > 0.001
-    property bool hasBody: (root.mode !== "search"
-            || root.query.length > 0
-            || root.items.length > 0
-            || root.nowPlayingText.length > 0)
-        && !(root.railOpen && root.query.length === 0)
-    property bool slashMode: root.query.startsWith("/")
-    property string nowPlayingText: ""
-    property string nowPlayingStatus: ""
-    property string weatherText: ""
-    property string timeText: ""
-    property string _timeKey: ""
-    property int _timeReq: 0
-    property var _timeXhr: null
-    property var devResult: ({ q: "", text: "", label: "" })
-    property string _devQ: ""
-    property string _devLabel: ""
-    property int _devReq: 0
-    property var procItems: []
-    property string _procKey: ""
-    property int _psReq: 0
-    property bool showSysStats: true
-    property string weatherCity: "Itapira"
-    property string _wxLastCity: ""
-    property int _wxReq: 0
-    property var _wxGeoXhr: null
-    property var _wxDataXhr: null
-    property string dictText: ""
-    property string previewPath: ""
-    property string previewKind: ""
-    property string previewText: ""
-    property string previewThumbPath: ""
-    readonly property bool previewAudioPlaying: audioPlayer.playbackState === MediaPlayer.PlayingState
-    property string _previewKeyShown: ""
-    property real previewNatW: 0
-    property real previewNatH: 0
-    property string batteryText: ""
-    property string ipText: ""
-    property string sysStatsText: ""
-    property string currencyText: ""
-    property var _pendingCurrency: null
-    property var windowItems: []
-    property var wifiItems: []
-    property var btItems: []
-    property var contentResults: []
-    property string _lastContentQuery: ""
-    property var usageCounts: ({})
-    property var _pendingPreview: ({ for: "", path: "", kind: "" })
-    property string _buildSig: ""
-    property var _cache: ({})
+    readonly property var slashCommands: [
+        { kind: "cmd", name: "/apps",       category: "Switch to Applications",         action: "mode:apps" },
+        { kind: "cmd", name: "/files",      category: "Switch to Files",                action: "mode:files" },
+        { kind: "cmd", name: "/clipboard",  category: "Switch to Clipboard",            action: "mode:clipboard" },
+        { kind: "cmd", name: "/actions",    category: "Switch to Actions",              action: "mode:actions" },
+        { kind: "cmd", name: "/wallpaper",  category: "Change wallpaper (ii)",          action: "ipc:wallpaperSelector:toggle" },
+        { kind: "cmd", name: "/tema",       category: "Toggle light/dark theme (ii)",   action: "ipc:theme:toggleLightDark" },
+        { kind: "cmd", name: "/barra",      category: "Show/hide bar (ii)",             action: "ipc:bar:toggle" },
+        { kind: "cmd", name: "/screen",     category: "Hermes reads everything on screen (OCR + windows)", action: "screen:" },
+        { kind: "cmd", name: "/screenshot", category: "Analyze screen with OCR + AI",   action: "screenshot:" },
+        { kind: "cmd", name: "/traduzir",   category: "Translate screen area (OCR + Hermes)", action: "ocrtr:" },
+        { kind: "cmd", name: "/record",     category: "Record screen (ii)",             action: "ipc:region:record" },
+        { kind: "cmd", name: "/ocr",        category: "Screen OCR (ii)",                action: "ipc:region:ocr" },
+        { kind: "cmd", name: "/cor",        category: "Color picker (copies hex)",      action: "colorpick:" },
+        { kind: "cmd", name: "/janelas",    category: "Switch between open windows",    action: "mode:windows" },
+        { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
+        { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
+        { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
+        { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
+        { kind: "cmd", name: "/nova",       category: "New AI conversation",            action: "ai-new:" },
+        { kind: "cmd", name: "/nota",       category: "Create Obsidian note",           action: "aiintent:note:" },
+        { kind: "cmd", name: "/email",      category: "Send email",                     action: "aiintent:email:" },
+        { kind: "cmd", name: "/foco",       category: "Focus mode",                     action: "focus:" },
+        { kind: "cmd", name: "/reuniao",    category: "Meeting mode",                   action: "meeting:" },
+        { kind: "cmd", name: "/briefing",   category: "Morning briefing",               action: "briefing:" },
+        { kind: "cmd", name: "/git",        category: "Generate git commit message",    action: "git:" },
+        { kind: "cmd", name: "/sum",        category: "Summarize a web page or PDF",    action: "sum:" },
+        { kind: "cmd", name: "/memoria-on", category: "Enable persistent AI history",   action: "mem-on:" },
+        { kind: "cmd", name: "/memoria-off",category: "Disable persistent AI history",  action: "mem-off:" },
+        { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
+        { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
+        { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
+        { kind: "cmd", name: "/notes",      category: "Add a ToDo task",                action: "todo:" },
+        { kind: "cmd", name: "/lock",       category: "Lock Screen",                    action: "sys:lock" },
+        { kind: "cmd", name: "/sleep",      category: "Sleep",                          action: "sys:sleep" },
+        { kind: "cmd", name: "/restart",    category: "Restart",                        action: "sys:restart" },
+        { kind: "cmd", name: "/shutdown",   category: "Shut Down",                      action: "sys:shutdown" },
+        { kind: "cmd", name: "/logout",     category: "Log Out",                        action: "sys:logout" },
+        { kind: "cmd", name: "/web",        category: "Search the Web",                 action: "web:" },
+        { kind: "cmd", name: "/calc",       category: "Calculator",                     action: "calc:" }
+    ]
 
-    property int _fdReq: 0
-    property int _rgReq: 0
-
-    property string passText: ""
-    property string _passKey: ""
-    property int _passWanted: 0
-
-    property string aiText: ""
-    property string _lastAiQuery: ""
-    property bool aiLoading: false
-    property int _aiReq: 0
-    property var _aiXhr: null
-    property string _pendingAiPrompt: ""
-    property int _aiRetries: 0
-    property var aiHistory: []
-    property bool aiConversationMode: false
-    property bool aiPersistentHistory: false
-    property bool _screenshotSelecting: false
-    property string _ocrMode: "analyze"   // "analyze" | "translate"
-    property string _ocrLang: "pt"
-    property bool _capturing: false          // esconde o Spotlight enquanto captura a tela
-    property string _screenQuestion: ""
-
-    readonly property bool aiErrored: root.aiText.startsWith("Sem resposta")
-                                     || root.aiText.startsWith("Hermes Agent:")
-                                     || root.aiText.startsWith("Erro ao consultar")
+    // Intenções estruturadas detectadas em prompts de IA (ordem importa).
+    readonly property var _intentRules: [
+        ["todo",       s => /(crie|criar|adicionar?|adiciona|nova|novo|anote|anotar)\s+(uma\s+)?(tarefa|todo|to-?do)/i.test(s)
+                            || /(me\s+lembr[ea]r?\s+de)/i.test(s)],
+        ["note",       s => /(crie|criar|salve|salvar|anote|anotar|nova)\s+(uma\s+)?(nota|anota[çc][ãa]o|note)/i.test(s)],
+        ["email",      s => /(mande|mandar|envi[ae]|enviar|escreva)\s+(um\s+)?(e-?mail|email|correio)/i.test(s)
+                            || /(email|e-?mail)\s+(pro?|para)\s+[^\s]+@/i.test(s)],
+        ["timer",      s => /(me\s+avise\s+em|timer|pomodoro|conte?|inici[ae]r?)\s+\d+/i.test(s)
+                            || /\d+\s+(minuto|min|segundo|seg|hora|h)\b/i.test(s) && /(avise|timer|conte?)/i.test(s)],
+        ["alias",      s => /(crie|criar|novo|nova)\s+(um\s+)?atalho/i.test(s)],
+        ["block",      s => /(bloqueie|bloquear|bloqueia)\s+([\w.-]+\.\w+)/i.test(s)],
+        ["focus",      s => /(modo\s+foco|foco\s+por)/i.test(s)],
+        ["meeting",    s => /(vou\s+entrar\s+(numa|em)\s+reuni[ãa]o|modo\s+reuni[ãa]o|iniciar\s+reuni[ãa]o)/i.test(s)],
+        ["briefing",   s => /^(bom\s+dia|briefing|resumo\s+do\s+dia|o\s+que\s+tenho\s+hoje)\s*[?!.]?$/i.test(s)],
+        ["git",        s => /^(git\s+commit|commit|mensagem\s+de\s+commit)$/i.test(s)],
+        ["screenshot", s => /(o\s+que|analise?|analisa|veja?|olhe?|leia?|traduza?|explica?|explique)\s+(est[áa]|ness[ae]|na|essa?)\s+(tela|screenshot|captura|imagem)/i.test(s)
+                            || /(o\s+que\s+est[áa]\s+na\s+tela)/i.test(s)],
+        ["web",        s => /(resuma?|resumir|analise?|analisa|o\s+que\s+diz)\s+(esse\s+)?(link|url|site)/i.test(s)
+                            || /https?:\/\/\S+/i.test(s) && /(resuma?|analise?|o\s+que)/i.test(s)],
+        ["pdf",        s => /(resuma?|resumir|analise?|analisa)\s+(o\s+|esse\s+|esta\s+)?(pdf|documento)/i.test(s)]
+    ]
 
     readonly property var emojiList: [
         { e: "😀", n: "grinning" }, { e: "😃", n: "smiley" }, { e: "😄", n: "smile" },
@@ -166,23 +147,175 @@ PanelWindow {
         { e: "🐻", n: "bear" }, { e: "🐼", n: "panda" }, { e: "🐸", n: "frog" }
     ]
 
-    function shellQuote(s) {
-        return "'" + String(s).replace(/'/g, "'\\''") + "'";
+    readonly property var _imgExts:   ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"]
+    readonly property var _textExts:  ["txt", "md", "json", "qml", "js", "ts", "py", "sh", "conf", "yaml", "yml", "xml", "html", "css", "c", "cpp", "h", "lua", "toml", "ini", "log"]
+    readonly property var _videoExts: ["mp4", "mkv", "webm", "avi", "mov", "m4v", "flv"]
+    readonly property var _audioExts: ["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac"]
+
+    // =====================================================================
+    //  TEMA / GEOMETRIA
+    // =====================================================================
+    readonly property color glassBg:        Qt.rgba(30 / 255, 30 / 255, 30 / 255, 0.72)
+    readonly property color glassBorder:    Qt.rgba(1, 1, 1, 0.12)
+    readonly property color glassHighlight: Qt.rgba(1, 1, 1, 0.06)
+    readonly property color selectionBg:    Qt.rgba(0.0, 0.48, 1.0, 0.45)
+    readonly property color hoverBg:        Qt.rgba(1, 1, 1, 0.08)
+    readonly property color divider:        Qt.rgba(1, 1, 1, 0.10)
+    readonly property color headerFg:       Qt.rgba(1, 1, 1, 0.45)
+    readonly property color sFg:            Qt.rgba(1, 1, 1, 0.92)
+    readonly property color sFgDim:         Qt.rgba(1, 1, 1, 0.55)
+    readonly property color placeholderFg:  Qt.rgba(1, 1, 1, 0.40)
+    readonly property color accent:         "#0A84FF"
+
+    readonly property real panelWidth: 680
+    readonly property real panelRadius: 22
+    readonly property real searchH: 56
+    readonly property real circleSize: 56
+    readonly property real circlesGap: 8
+    readonly property real rowH: 44
+    readonly property real headerH: 22
+    readonly property real iconSize: 28
+    readonly property real footerH: 0
+    readonly property real stripH: 0
+    readonly property real nowPlayingH: 46
+
+    // =====================================================================
+    //  ESTADO
+    // =====================================================================
+    // -- Interface / navegação
+    property bool _shown: false
+    property bool _opened: false
+    property bool _capturing: false          // esconde o Spotlight enquanto captura a tela
+    property string query: ""
+    property string mode: "search"
+    property string _pendingMode: ""
+    property int selectedIndex: 0
+    property bool _userNavigated: false
+    property var items: []
+    property var results: []
+    property string _buildSig: ""
+    property var selectedItem: (root.items.length ? root.items[root.selectedIndex] : null)
+    readonly property string selectedKey: root.itemKey(root.selectedItem)
+    property bool slashMode: root.query.startsWith("/")
+    property string placeholderText: "Search or Ask"
+
+    // -- Animação
+    property real panelOpacity: 0.0
+    property real panelScale: 0.96
+    property real panelYOffset: 12
+    property bool circlesVisible: false
+    property bool circlesLocked: false
+    property real railProgress: 0.0
+    property bool railOpen: root.railProgress > 0.001
+
+    // -- Dados por modo
+    property var fileItems: []
+    property var recentItems: []
+    property string browseDir: ""
+    property var clipItems: []
+    property string _clipPrevKey: ""
+    property var windowItems: []
+    property var wifiItems: []
+    property var btItems: []
+    property var contentResults: []
+    property string _lastContentQuery: ""
+    property var procItems: []
+    property string _procKey: ""
+    property var usageCounts: ({})
+    property var _cache: ({})
+
+    // -- Ferramentas inline
+    property string nowPlayingText: ""
+    property string nowPlayingStatus: ""
+    property string sysStatsText: ""
+    property string weatherText: ""
+    property string _wxLastCity: ""
+    property string timeText: ""
+    property string _timeKey: ""
+    property string dictText: ""
+    property string batteryText: ""
+    property string ipText: ""
+    property string currencyText: ""
+    property var _pendingCurrency: null
+    property string passText: ""
+    property string _passKey: ""
+    property int _passWanted: 0
+    property var devResult: ({ q: "", text: "", label: "" })
+    property string _devQ: ""
+    property string _devLabel: ""
+
+    // -- Contadores de requisição (descartam respostas obsoletas)
+    property int _fdReq: 0
+    property int _rgReq: 0
+    property int _psReq: 0
+    property int _devReq: 0
+    property int _wxReq: 0
+    property int _timeReq: 0
+    property int _aiReq: 0
+    property var _wxGeoXhr: null
+    property var _wxDataXhr: null
+    property var _timeXhr: null
+    property var _aiXhr: null
+
+    // -- Preview
+    property string previewPath: ""
+    property string previewKind: ""
+    property string previewText: ""
+    property string previewThumbPath: ""
+    property real previewNatW: 0
+    property real previewNatH: 0
+    property string _previewKeyShown: ""
+    property var _pendingPreview: ({ for: "", path: "", kind: "" })
+    readonly property bool previewAudioPlaying: audioPlayer.playbackState === MediaPlayer.PlayingState
+    readonly property var previewBox: {
+        const k = root.previewKind;
+        if (k === "text" || k === "markdown") return { w: 420, h: 660 };
+        if (k === "pdf" || k === "image" || k === "video") return root.previewSizeLarge();
+        return root.previewSize();
     }
 
-    function urlq(s) {
-        return encodeURIComponent(String(s)).replace(/'/g, "%27");
-    }
+    // -- IA
+    property string aiText: ""
+    property string _lastAiQuery: ""
+    property bool aiLoading: false
+    property string _pendingAiPrompt: ""
+    property int _aiRetries: 0
+    property var aiHistory: []
+    property bool aiConversationMode: false
+    readonly property bool aiErrored: root.aiText.startsWith("Sem resposta")
+                                     || root.aiText.startsWith("Hermes Agent:")
+                                     || root.aiText.startsWith("Erro ao consultar")
+
+    // -- Captura de tela / OCR
+    property bool _screenshotSelecting: false
+    property string _ocrMode: "analyze"   // "analyze" | "translate"
+    property string _ocrLang: "pt"
+    property string _screenQuestion: ""
+    property string _resumeFocus: ""
+
+    // -- Altura do corpo (avaliada uma única vez por mudança)
+    property bool hasBody: (root.mode !== "search"
+            || root.query.length > 0
+            || root.items.length > 0
+            || root.nowPlayingText.length > 0)
+        && !(root.railOpen && root.query.length === 0)
+    readonly property real resultsHeight: root.computeResultsHeight()
+
+    // =====================================================================
+    //  UTILITÁRIOS BÁSICOS
+    // =====================================================================
+    function pad2(n) { return n < 10 ? "0" + n : String(n); }
+    function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
+
+    function shellQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
+    function urlq(s) { return encodeURIComponent(String(s)).replace(/'/g, "%27"); }
 
     function xdgOpenCmd(target) {
         return "setsid nohup env XDG_RUNTIME_DIR=/run/user/$(id -u) " +
                "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus " +
                "xdg-open " + root.shellQuote(target) + " </dev/null >/dev/null 2>&1";
     }
-
-    function xdgOpen(target) {
-        SpotlightController.run(root.xdgOpenCmd(target) + " &");
-    }
+    function xdgOpen(target) { SpotlightController.run(root.xdgOpenCmd(target) + " &"); }
 
     function fileUrl(path) {
         if (!path) return "";
@@ -203,18 +336,38 @@ PanelWindow {
         SpotlightController.run("printf '%s' " + root.shellQuote(s) + " | wl-copy 2>/dev/null || true");
     }
 
+    function notify(msg, critical) {
+        SpotlightController.run("notify-send " + (critical ? "-u critical " : "") + "'Spotlight' " + root.shellQuote(msg));
+    }
+
+    function rebuildIfShown() { if (root._shown) root.scheduleRebuild(); }
+
+    function splitPath(p) {
+        const i = p.lastIndexOf("/");
+        return { name: i >= 0 ? p.slice(i + 1) : p, dir: i > 0 ? p.slice(0, i) : "~" };
+    }
+
     function _msg(role, content, label) {
         return { role: role, content: content, label: label || "", ts: Qt.formatTime(new Date(), "hh:mm") };
     }
 
-    function startTimer(secs, label) {
-        const n = parseInt(secs);
-        if (isNaN(n) || n <= 0) return;
-        TimerService.setCountdownTime(n);
-        TimerService.toggleCountdown();
-        SpotlightController.run("notify-send 'Spotlight Timer' " + root.shellQuote("Timer started (" + label + ")"));
+    function abortXhr(x) { if (x) { try { x.abort(); } catch (e) { } } }
+
+    function httpJson(url, timeoutMs, cb) {
+        const x = new XMLHttpRequest();
+        x.timeout = timeoutMs;
+        x.onreadystatechange = function () {
+            if (x.readyState !== XMLHttpRequest.DONE) return;
+            let data = null;
+            try { data = JSON.parse(x.responseText); } catch (e) { data = null; }
+            cb(data, x);
+        };
+        x.open("GET", url);
+        x.send();
+        return x;
     }
 
+    // -- Cache em memória (mutação in-place, sem copiar o objeto a cada escrita)
     function cacheGet(key, ttlMs) {
         const c = root._cache[key];
         if (!c) return null;
@@ -223,19 +376,58 @@ PanelWindow {
     }
 
     function cacheSet(key, value) {
-        const c = Object.assign({}, root._cache);
+        const c = root._cache;
         c[key] = { v: value, t: Date.now() };
         const keys = Object.keys(c);
         if (keys.length > 200) {
             keys.sort((a, b) => c[a].t - c[b].t);
             for (let i = 0; i < keys.length - 150; i++) delete c[keys[i]];
         }
-        root._cache = c;
+    }
+
+    // -- Contagem de uso (também in-place)
+    function itemKey(it) {
+        if (!it) return "";
+        return it.kind + ":" + (it.path || it.exec || it.address || it.action || it.id || it.text || it.name || "");
+    }
+
+    function recordUsage(key) {
+        const counts = root.usageCounts;
+        counts[key] = (counts[key] || 0) + 1;
+        const keys = Object.keys(counts);
+        if (keys.length > 600) {
+            const fk = keys.filter(k => k.startsWith("file:")).sort((a, b) => counts[a] - counts[b]);
+            for (let i = 0; i < keys.length - 500 && i < fk.length; i++) delete counts[fk[i]];
+        }
+        _saveUsage.command = ["bash", "-c", "mkdir -p ~/.cache && printf '%s' " + root.shellQuote(JSON.stringify(counts)) + " > ~/.cache/spotlight-usage.json"];
+        _saveUsage.running = true;
+    }
+
+    function usageOf(key) { return root.usageCounts[key] || 0; }
+
+    // =====================================================================
+    //  TIMER / REMINDERS / TODO / EVENTOS
+    // =====================================================================
+    function startTimer(secs, label) {
+        const n = parseInt(secs);
+        if (isNaN(n) || n <= 0) return;
+        TimerService.setCountdownTime(n);
+        TimerService.toggleCountdown();
+        root.notify("Timer started (" + label + ")");
+    }
+
+    function scheduleReminder(whenStr, text) {
+        const script = 'qs -c ii ipc call todoReminder fire "$1" || notify-send -a Shell Lembrete "$1"';
+        SpotlightController.run(
+            "systemd-run --user --quiet --collect --on-calendar=" + root.shellQuote(whenStr) +
+            " --timer-property=AccuracySec=1s" +
+            " bash -c " + root.shellQuote(script) + " _ " + root.shellQuote(text)
+        );
     }
 
     function parseTodoInput(raw) {
         let text = String(raw).trim();
-        const pad = n => (n < 10 ? "0" : "") + n;
+        const pad = root.pad2;
         let hh = -1, mm = 0;
         let hasDate = false, dY = 0, dM = 0, dD = 0;
         const timeRe = /\s+(?:[àa]s\s+(\d{1,2})(?::(\d{2})|h(\d{2})?)?|(\d{1,2})(?::(\d{2})|h(\d{2})?))$/i;
@@ -307,40 +499,42 @@ PanelWindow {
         return { text: t.text, dueStr: t.dueStr, dueLabel: t.dueLabel, remindAt: t.remindAt, remindMs: t.remindMs, duration: duration };
     }
 
-    function scheduleReminder(whenStr, text) {
-        const script = 'qs -c ii ipc call todoReminder fire "$1" || notify-send -a Shell Lembrete "$1"';
-        SpotlightController.run(
-            "systemd-run --user --quiet --collect --on-calendar=" + root.shellQuote(whenStr) +
-            " --timer-property=AccuracySec=1s" +
-            " bash -c " + root.shellQuote(script) + " _ " + root.shellQuote(text)
-        );
+    function todoActionItem(t) {
+        return {
+            kind: "action",
+            name: "Add to ToDo: \u201c" + t.text + "\u201d" + (t.dueLabel ? " \u00b7 " + t.dueLabel : ""),
+            action: "addtodo:",
+            todoText: t.text,
+            todoDue: t.dueStr,
+            todoRemind: t.remindAt,
+            todoRemindMs: t.remindMs,
+            iconKey: "note",
+            category: t.remindAt ? "ToDo \u00b7 vai avisar na hora" : "ToDo"
+        };
+    }
+
+    function addTodoFromItem(e) {
+        let due = undefined;
+        if (e.todoDue) {
+            const p = e.todoDue.split("-").map(Number);
+            due = new Date(Date.UTC(p[0], p[1] - 1, p[2], 12));
+        }
+        Todo.addTask(e.todoText, due);
+        if (e.todoRemind && e.todoRemindMs > Date.now()) {
+            root.scheduleReminder(e.todoRemind, e.todoText);
+            root.notify("Added to ToDo \u00b7 aviso agendado");
+        } else {
+            root.notify("Added to ToDo");
+        }
     }
 
     function focusWindow(address) {
         SpotlightController.run("hyprctl dispatch focuswindow " + root.shellQuote("address:" + address));
     }
 
-    function itemKey(it) {
-        if (!it) return "";
-        return it.kind + ":" + (it.path || it.exec || it.address || it.action || it.id || it.text || it.name || "");
-    }
-
-    function recordUsage(key) {
-        const counts = Object.assign({}, root.usageCounts);
-        counts[key] = (counts[key] || 0) + 1;
-        const keys = Object.keys(counts);
-        if (keys.length > 600) {
-            const fk = keys.filter(k => k.startsWith("file:")).sort((a, b) => counts[a] - counts[b]);
-            for (let i = 0; i < keys.length - 500 && i < fk.length; i++) delete counts[fk[i]];
-        }
-        root.usageCounts = counts;
-        const payload = JSON.stringify(counts);
-        _saveUsage.command = ["bash", "-c", "mkdir -p ~/.cache && printf '%s' " + root.shellQuote(payload) + " > ~/.cache/spotlight-usage.json"];
-        _saveUsage.running = true;
-    }
-
-    function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
-
+    // =====================================================================
+    //  PARSERS / CONVERSORES (cor, calc, unidades, controles do sistema)
+    // =====================================================================
     function bangItem(q) {
         const m = q.match(/^([a-z]+)\s+(.+)$/i);
         if (!m) return null;
@@ -409,128 +603,13 @@ PanelWindow {
         return out;
     }
 
-    function splitPath(p) {
-        const i = p.lastIndexOf("/");
-        return { name: i >= 0 ? p.slice(i + 1) : p, dir: i > 0 ? p.slice(0, i) : "~" };
-    }
-
-    function parseFdLines(lines) {
-        const out = [];
-        const seen = {};
-        for (const line of lines) {
-            if (!line) continue;
-            const tab = line.indexOf("\t");
-            const isDirectory = tab >= 0 && line.slice(0, tab) === "d";
-            let p = tab >= 0 ? line.slice(tab + 1) : line;
-            p = p.replace(/\/+$/, "");
-            if (!p || seen[p]) continue;
-            seen[p] = true;
-            const sp = root.splitPath(p);
-            out.push({ name: sp.name, path: p, dir: sp.dir, isDirectory: isDirectory });
-        }
-        return out;
-    }
-
-    function previewSize() {
-        const maxW = 480, maxH = 480, minW = 220, minH = 160;
-        const w = root.previewNatW, h = root.previewNatH;
-        if (!w || !h) return { w: 300, h: 260 };
-        let scaleFit = Math.min(maxW / w, maxH / h);
-        let outW = w * scaleFit, outH = h * scaleFit;
-        if (outW < minW) { const s = minW / outW; outW = minW; outH = outH * s; }
-        if (outH < minH) { const s = minH / outH; outH = minH; outW = outW * s; }
-        outW = Math.min(outW, maxW); outH = Math.min(outH, maxH);
-        return { w: outW, h: outH };
-    }
-
-    function previewSizeLarge() {
-        const maxW = 580, maxH = 700, minW = 300, minH = 400;
-        const w = root.previewNatW, h = root.previewNatH;
-        if (!w || !h) return { w: 420, h: 560 };
-        let scaleFit = Math.min(maxW / w, maxH / h);
-        let outW = w * scaleFit, outH = h * scaleFit;
-        if (outW < minW) { const s = minW / outW; outW = minW; outH = outH * s; }
-        if (outH < minH) { const s = minH / outH; outH = minH; outW = outW * s; }
-        outW = Math.min(outW, maxW); outH = Math.min(outH, maxH);
-        return { w: outW, h: outH };
-    }
-
-    readonly property color glassBg: Qt.rgba(30 / 255, 30 / 255, 30 / 255, 0.72)
-    readonly property color glassBorder: Qt.rgba(1, 1, 1, 0.12)
-    readonly property color glassHighlight: Qt.rgba(1, 1, 1, 0.06)
-    readonly property color selectionBg: Qt.rgba(0.0, 0.48, 1.0, 0.45)
-    readonly property color hoverBg: Qt.rgba(1, 1, 1, 0.08)
-    readonly property color divider: Qt.rgba(1, 1, 1, 0.10)
-    readonly property color headerFg: Qt.rgba(1, 1, 1, 0.45)
-    readonly property color sFg: Qt.rgba(1, 1, 1, 0.92)
-    readonly property color sFgDim: Qt.rgba(1, 1, 1, 0.55)
-    readonly property color placeholderFg: Qt.rgba(1, 1, 1, 0.40)
-    readonly property color accent: "#0A84FF"
-
-    readonly property real panelWidth: 680
-    readonly property real panelRadius: 22
-    readonly property real searchH: 56
-    readonly property real circleSize: 56
-    readonly property real circlesGap: 8
-    readonly property real rowH: 44
-    readonly property real headerH: 22
-    readonly property real iconSize: 28
-    readonly property real footerH: 0
-    readonly property real stripH: 0
-    readonly property real nowPlayingH: 46
-
-    property real panelOpacity: 0.0
-    property real panelScale: 0.96
-    property real panelYOffset: 12
-    property bool circlesVisible: false
-    property bool circlesLocked: false
-    property string placeholderText: "Search or Ask"
-    property real railProgress: 0.0
-
-    function animateRail(target) {
-        _railAnim.stop()
-        _railAnim.from = root.railProgress
-        _railAnim.to = target
-        _railAnim.duration = Math.max(100, Math.round(620 * Math.abs(target - root.railProgress)))
-        _railAnim.start()
-    }
-
-    onCirclesVisibleChanged: root.animateRail(circlesVisible ? 1.0 : 0.0)
-
-    NumberAnimation {
-        id: _railAnim
-        target: root
-        property: "railProgress"
-        duration: 620
-        easing.type: Easing.Linear
-    }
-
-    function runFd() {
-        if (root.slashMode || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
-            root.fileItems = [];
-            root.scheduleRebuild();
-            return;
-        }
-        const q = root.query.trim();
-        const id = ++root._fdReq;
-        _fd.exec(["bash", "-c",
-            "echo " + id + "; " +
-            "Q=" + root.shellQuote(q.toLowerCase()) + "; " +
-            "fd -i -F -d 5 -- \"$Q\" ~ 2>/dev/null | head -80 | while IFS= read -r p; do " +
-            "  if [ -d \"$p\" ]; then printf 'd\\t%s\\n' \"$p\"; else printf 'f\\t%s\\n' \"$p\"; fi; " +
-            "done; " +
-            "fd -i -F -t d -d 4 -- \"$Q\" ~ 2>/dev/null | head -5 | while IFS= read -r d; do " +
-            "  fd . \"$d\" -d 1 2>/dev/null | head -40 | while IFS= read -r p; do " +
-            "    if [ -d \"$p\" ]; then printf 'd\\t%s\\n' \"$p\"; else printf 'f\\t%s\\n' \"$p\"; fi; " +
-            "  done; " +
-            "done"
-        ]);
-    }
-
-    function runContentSearch(term) {
-        if (!term) return;
-        const id = ++root._rgReq;
-        _rg.exec(["bash", "-c", "echo " + id + "; rg -l -i -F --max-count 1 -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"]);
+    function evalMath(q) {
+        if (!/^[0-9+\-*/%.()\s]+$/.test(q)) return null;
+        try {
+            const r = Function('"use strict";return (' + q + ')')();
+            if (typeof r !== "number" || !isFinite(r)) return null;
+            return r;
+        } catch (e) { return null; }
     }
 
     function convertUnits(q) {
@@ -584,6 +663,33 @@ PanelWindow {
         return null;
     }
 
+    function urlTarget(q) {
+        const t = q.trim();
+        if (!t || /\s/.test(t)) return "";
+        try {
+            const u = new URL(/^https?:\/\//i.test(t) ? t : "https://" + t);
+            const host = u.hostname;
+            if (!host.includes(".")) return "";
+            const tld = host.split(".").pop();
+            if (tld.length < 2) return "";
+            return u.toString();
+        } catch (e) { return ""; }
+    }
+
+    function looksLikeUrl(t) {
+        return /^(https?:\/\/|www\.)\S+$/i.test(t) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t);
+    }
+
+    function langName(c) {
+        const n = { en: "English", pt: "Brazilian Portuguese", es: "Spanish", fr: "French", de: "German", it: "Italian",
+                    ja: "Japanese", ko: "Korean", zh: "Chinese", ru: "Russian", ar: "Arabic", nl: "Dutch", pl: "Polish", tr: "Turkish" };
+        const k = c.toLowerCase();
+        return root.hasOwn(n, k) ? n[k] : c;
+    }
+
+    // =====================================================================
+    //  FERRAMENTAS INLINE (clima, hora, dicionário, câmbio, bateria, IP, etc.)
+    // =====================================================================
     function wxDescribe(code) {
         const m = {
             0: ["\u2600\ufe0f", "Céu limpo"], 1: ["\ud83c\udf24\ufe0f", "Predominantemente limpo"],
@@ -602,50 +708,41 @@ PanelWindow {
     function fetchWeather(city, preferBR) {
         const cacheKey = "wx:" + city.toLowerCase() + ":" + (preferBR ? "br" : "any");
         const cached = root.cacheGet(cacheKey, 5 * 60 * 1000);
-        if (cached) {
-            root.weatherText = cached;
-            if (root._shown) root.scheduleRebuild();
-            return;
-        }
+        if (cached) { root.weatherText = cached; root.rebuildIfShown(); return; }
+
         const req = ++root._wxReq;
-        if (root._wxGeoXhr) { try { root._wxGeoXhr.abort(); } catch (e) {} }
-        if (root._wxDataXhr) { try { root._wxDataXhr.abort(); } catch (e) {} }
-        const geo = new XMLHttpRequest();
-        root._wxGeoXhr = geo;
-        geo.timeout = 10000;
-        geo.onreadystatechange = function () {
-            if (geo.readyState !== XMLHttpRequest.DONE || req !== root._wxReq) return;
-            let place = null;
-            try {
-                const data = JSON.parse(geo.responseText);
-                const list = data.results || [];
-                place = (preferBR && list.find(r => r.country_code === "BR")) || list[0] || null;
-            } catch (e) { place = null; }
-            if (!place) { root.weatherText = "Cidade não encontrada: " + city; if (root._shown) root.scheduleRebuild(); return; }
-            const wx = new XMLHttpRequest();
-            root._wxDataXhr = wx;
-            wx.timeout = 10000;
-            wx.onreadystatechange = function () {
-                if (wx.readyState !== XMLHttpRequest.DONE || req !== root._wxReq) return;
-                try {
-                    const c = JSON.parse(wx.responseText).current;
-                    const d = root.wxDescribe(c.weather_code);
-                    const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
-                                  (place.country_code !== "BR" && place.country ? ", " + place.country : "");
-                    const txt = where + ": " + d[0] + " " + Math.round(c.temperature_2m) + "°C" +
-                        " (sensação " + Math.round(c.apparent_temperature) + "°C) · " + d[1] +
-                        " · umidade " + Math.round(c.relative_humidity_2m) + "% · vento " + Math.round(c.wind_speed_10m) + " km/h";
-                    root.weatherText = txt;
-                    root.cacheSet(cacheKey, txt);
-                } catch (e) { root.weatherText = "Não foi possível obter o clima"; }
-                if (root._shown) root.scheduleRebuild();
-            };
-            wx.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude +
-                "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto");
-            wx.send();
-        };
-        geo.open("GET", "https://geocoding-api.open-meteo.com/v1/search?count=10&language=pt&name=" + encodeURIComponent(city));
-        geo.send();
+        root.abortXhr(root._wxGeoXhr);
+        root.abortXhr(root._wxDataXhr);
+        const done = (txt) => { root.weatherText = txt; root.rebuildIfShown(); };
+
+        root._wxGeoXhr = root.httpJson(
+            "https://geocoding-api.open-meteo.com/v1/search?count=10&language=pt&name=" + encodeURIComponent(city),
+            10000,
+            function (geo) {
+                if (req !== root._wxReq) return;
+                const list = (geo && geo.results) || [];
+                const place = (preferBR && list.find(r => r.country_code === "BR")) || list[0] || null;
+                if (!place) { done("Cidade não encontrada: " + city); return; }
+
+                root._wxDataXhr = root.httpJson(
+                    "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude +
+                    "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto",
+                    10000,
+                    function (wd) {
+                        if (req !== root._wxReq) return;
+                        try {
+                            const c = wd.current;
+                            const d = root.wxDescribe(c.weather_code);
+                            const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
+                                          (place.country_code !== "BR" && place.country ? ", " + place.country : "");
+                            const txt = where + ": " + d[0] + " " + Math.round(c.temperature_2m) + "°C" +
+                                " (sensação " + Math.round(c.apparent_temperature) + "°C) · " + d[1] +
+                                " · umidade " + Math.round(c.relative_humidity_2m) + "% · vento " + Math.round(c.wind_speed_10m) + " km/h";
+                            root.cacheSet(cacheKey, txt);
+                            done(txt);
+                        } catch (e) { done("Não foi possível obter o clima"); }
+                    });
+            });
     }
 
     function checkWeather() {
@@ -675,7 +772,7 @@ PanelWindow {
             if (!word) { if (root.dictText !== "") root.dictText = ""; return; }
             const cacheKey = "dict:" + lang + ":" + word;
             const cached = root.cacheGet(cacheKey, 24 * 60 * 60 * 1000);
-            if (cached !== null) { root.dictText = cached; if (root._shown) root.scheduleRebuild(); return; }
+            if (cached !== null) { root.dictText = cached; root.rebuildIfShown(); return; }
             _dict.exec(["bash", "-c", "curl -s --max-time 10 'https://api.dictionaryapi.dev/api/v2/entries/" + lang + "/" + root.urlq(word) + "' 2>/dev/null"]);
         } else if (root.dictText !== "") {
             root.dictText = "";
@@ -698,7 +795,7 @@ PanelWindow {
         if (!m || !from || !to) { if (root.currencyText) root.currencyText = ""; return; }
         const cacheKey = "cur:" + from + ":" + to + ":" + m[1];
         const cached = root.cacheGet(cacheKey, 10 * 60 * 1000);
-        if (cached !== null) { root.currencyText = cached; if (root._shown) root.scheduleRebuild(); return; }
+        if (cached !== null) { root.currencyText = cached; root.rebuildIfShown(); return; }
         root._pendingCurrency = { val: parseFloat(m[1]), from: from.toUpperCase(), to: to.toUpperCase() };
         _currency.exec(["bash", "-c", "curl -s --max-time 10 'https://api.exchangerate-api.com/v4/latest/" + from.toUpperCase() + "' 2>/dev/null"]);
     }
@@ -726,455 +823,57 @@ PanelWindow {
         _pass.exec(["bash", "-c", "LC_ALL=C tr -dc 'A-Za-z0-9!@#$%&*' </dev/urandom | head -c " + len]);
     }
 
-    function isTodoIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(crie|criar|adicionar?|adiciona|nova|novo|anote|anotar)\s+(uma\s+)?(tarefa|todo|to-?do)/i.test(s)
-            || /(me\s+lembr[ea]r?\s+de)/i.test(s);
-    }
-    function isNoteIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(crie|criar|salve|salvar|anote|anotar|nova)\s+(uma\s+)?(nota|anota[çc][ãa]o|note)/i.test(s);
-    }
-    function isEmailIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(mande|mandar|envi[ae]|enviar|escreva)\s+(um\s+)?(e-?mail|email|correio)/i.test(s)
-            || /(email|e-?mail)\s+(pro?|para)\s+[^\s]+@/i.test(s);
-    }
-    function isTimerIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(me\s+avise\s+em|timer|pomodoro|conte?|inici[ae]r?)\s+\d+/i.test(s)
-            || /\d+\s+(minuto|min|segundo|seg|hora|h)\b/i.test(s) && /(avise|timer|conte?)/i.test(s);
-    }
-    function isAliasIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(crie|criar|novo|nova)\s+(um\s+)?atalho/i.test(s);
-    }
-    function isBlockIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(bloqueie|bloquear|bloqueia)\s+([\w.-]+\.\w+)/i.test(s);
-    }
-    function isFocusIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(modo\s+foco|foco\s+por)/i.test(s);
-    }
-    function isMeetingIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(vou\s+entrar\s+(numa|em)\s+reuni[ãa]o|modo\s+reuni[ãa]o|iniciar\s+reuni[ãa]o)/i.test(s);
-    }
-    function isBriefingIntent(p) {
-        const s = String(p).toLowerCase();
-        return /^(bom\s+dia|briefing|resumo\s+do\s+dia|o\s+que\s+tenho\s+hoje)\s*[?!.]?$/i.test(s);
-    }
-    function isGitIntent(p) {
-        const s = String(p).toLowerCase();
-        return /^(git\s+commit|commit|mensagem\s+de\s+commit)$/i.test(s);
-    }
-    function isScreenshotIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(o\s+que|analise?|analisa|veja?|olhe?|leia?|traduza?|explica?|explique)\s+(est[áa]|ness[ae]|na|essa?)\s+(tela|screenshot|captura|imagem)/i.test(s)
-            || /(o\s+que\s+est[áa]\s+na\s+tela)/i.test(s);
-    }
-    function isWebSummaryIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(resuma?|resumir|analise?|analisa|o\s+que\s+diz)\s+(esse\s+)?(link|url|site)/i.test(s)
-            || /https?:\/\/\S+/i.test(s) && /(resuma?|analise?|o\s+que)/i.test(s);
-    }
-    function isPdfSummaryIntent(p) {
-        const s = String(p).toLowerCase();
-        return /(resuma?|resumir|analise?|analisa)\s+(o\s+|esse\s+|esta\s+)?(pdf|documento)/i.test(s);
-    }
-
-    function structuredIntent(p) {
-        if (root.isTodoIntent(p))        return "todo";
-        if (root.isNoteIntent(p))        return "note";
-        if (root.isEmailIntent(p))       return "email";
-        if (root.isTimerIntent(p))       return "timer";
-        if (root.isAliasIntent(p))       return "alias";
-        if (root.isBlockIntent(p))       return "block";
-        if (root.isFocusIntent(p))       return "focus";
-        if (root.isMeetingIntent(p))     return "meeting";
-        if (root.isBriefingIntent(p))    return "briefing";
-        if (root.isGitIntent(p))         return "git";
-        if (root.isScreenshotIntent(p))  return "screenshot";
-        if (root.isWebSummaryIntent(p))  return "web";
-        if (root.isPdfSummaryIntent(p))  return "pdf";
-        return "";
-    }
-
-    function buildSystemPrompt(intent, nowStr) {
-        const base = "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma.";
-        const extra = {
-            todo: `\nO usuário quer criar uma tarefa. Data atual: ${nowStr}. RESPONDA APENAS com JSON:\n{"action":"add_todo","text":"...","due":"YYYY-MM-DD HH:MM"}`,
-            note: `\nO usuário quer criar uma nota. RESPONDA APENAS com JSON:\n{"action":"add_note","title":"...","content":"..."}`,
-            email: `\nO usuário quer enviar email. RESPONDA APENAS com JSON:\n{"action":"send_email","to":"...","subject":"...","body":"..."}`,
-            timer: `\nO usuário quer um timer. RESPONDA APENAS com JSON:\n{"action":"start_timer","seconds":N,"label":"..."}`,
-            alias: `\nO usuário quer criar um atalho. RESPONDA APENAS com JSON:\n{"action":"create_alias","name":"...","actions":["..."]}`,
-            block: `\nO usuário quer bloquear sites. RESPONDA APENAS com JSON:\n{"action":"block_sites","sites":["..."],"minutes":N}`,
-            focus: `\nO usuário quer modo foco. RESPONDA APENAS com JSON:\n{"action":"focus_mode","minutes":N}`,
-            screenshot: `\nO usuário quer analisar ou traduzir a tela. RESPONDA APENAS com JSON:\n{"action":"screenshot","selectArea":true,"translate":false,"lang":"pt"}\nUse translate:true se ele pedir tradução e lang com o código do idioma de destino.`,
-            web: `\nO usuário quer resumir um link. RESPONDA APENAS com JSON:\n{"action":"web_summary","url":"<url>"}`,
-            pdf: `\nO usuário quer resumir um PDF. RESPONDA APENAS com JSON:\n{"action":"pdf_summary","path":"<caminho>"}`
-        };
-        return base + (extra[intent] ? extra[intent] : "");
-    }
-
-    function runHermes(prompt, isRetry, label) {
-        isRetry = !!isRetry;
-        if (!prompt) return;
-        if (!root.hermesKey) {
-            root.aiText = "Hermes Agent: configure HERMES_API_KEY no ambiente";
-            root.aiLoading = false;
-            if (root._shown) root.scheduleRebuild();
-            return;
-        }
-        if (!isRetry && prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
-
-        if (!isRetry) root._aiRetries = 0;
-        root._lastAiQuery = prompt;
-        root.aiLoading = true;
-        root.aiText = "Thinking…";
-
-        const h = root.aiHistory.slice();
-        if (!isRetry) h.push(root._msg("user", prompt, label));
-        while (h.length > 20) h.shift();
-        root.aiHistory = h;
-        const history = root.aiHistory.slice();
-
-        const now = new Date();
-        const pad2 = n => String(n).padStart(2, "0");
-        const nowStr = now.getFullYear() + "-" + pad2(now.getMonth()+1) + "-" + pad2(now.getDate())
-                     + " " + pad2(now.getHours()) + ":" + pad2(now.getMinutes());
-        const internal = /^(Translate the following text|Analise este texto extra|Resuma este|Gere mensagem de commit|Formate este briefing|Contexto da tela)/.test(prompt);
-        const intent = internal ? "" : root.structuredIntent(prompt);
-        const sysContent = root.buildSystemPrompt(intent, nowStr);
-
-        const req = ++root._aiReq;
-        if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} }
-        const xhr = new XMLHttpRequest();
-        root._aiXhr = xhr;
-
-        const finish = (answer) => {
-            if (req !== root._aiReq) return;
-            if (answer.length > 4000) answer = answer.slice(0, 4000) + "…";
-
-            const trimmed = String(answer).trim();
-            const cleaned = trimmed
-                .replace(/^```json\s*/i, "")
-                .replace(/^```\s*/i, "")
-                .replace(/```\s*$/i, "")
-                .trim();
-
-            if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
-                try {
-                    const obj = JSON.parse(cleaned);
-                    if (obj.action === "screenshot") {
-                        root._ocrMode = obj.translate === true ? "translate" : "analyze";
-                        root._ocrLang = obj.lang || "pt";
-                        root.aiText = "📸 Capturando tela…";
-                        SpotlightActions.runScreenshotOcr(obj.selectArea === true);
-                        return;
-                    }
-                    if (obj.action === "web_summary" && obj.url) {
-                        root.aiText = "🌐 Baixando " + obj.url + "…";
-                        SpotlightActions.scrapeUrl(obj.url);
-                        return;
-                    }
-                    if (obj.action === "pdf_summary" && obj.path) {
-                        root.aiText = "📄 Lendo " + obj.path + "…";
-                        SpotlightActions.summarizePdf(obj.path);
-                        return;
-                    }
-                    const handled = root.handleStructuredAction(obj, prompt);
-                    if (handled) {
-                        root.aiText = handled;
-                        root.aiLoading = false;
-                        root._aiXhr = null;
-                        const h2 = root.aiHistory.slice();
-                        h2.push(root._msg("assistant", handled));
-                        while (h2.length > 20) h2.shift();
-                        root.aiHistory = h2;
-                        if (root.aiPersistentHistory) SpotlightActions.saveHistory(JSON.stringify(root.aiHistory));
-                        SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote(handled));
-                        if (root._shown) root.scheduleRebuild();
-                        return;
-                    }
-                } catch (e) { }
-            }
-
-            root.aiText = answer;
-            root.aiLoading = false;
-            root._aiXhr = null;
-            if (!root.aiErrored) {
-                const h2 = root.aiHistory.slice();
-                h2.push(root._msg("assistant", answer));
-                while (h2.length > 20) h2.shift();
-                root.aiHistory = h2;
-                if (root.aiPersistentHistory) SpotlightActions.saveHistory(JSON.stringify(root.aiHistory));
-            }
-            if (root._shown) root.scheduleRebuild();
-        };
-
-        xhr.onreadystatechange = function () {
-            if (xhr.readyState !== XMLHttpRequest.DONE) return;
-            if (req !== root._aiReq) return;
-            let answer = "";
-            let shouldRetry = false;
-            try {
-                const data = JSON.parse(xhr.responseText);
-                const msg = data.choices && data.choices[0] && data.choices[0].message;
-                if (msg && msg.content) {
-                    answer = String(msg.content)
-                        .replace(/<think>[\s\S]*?<\/think>/g, "")
-                        .replace(/^[\s\S]*<\/think>/, "")
-                        .trim();
-                }
-                if (!answer) {
-                    if (data.error) answer = "Hermes Agent error: " + (data.error.message || data.error);
-                    else answer = "No AI response";
-                }
-            } catch (e) {
-                if (xhr.status === 0) {
-                    if (!isRetry && root._aiRetries < 1) shouldRetry = true;
-                    else answer = "Sem resposta do Hermes Agent (gateway parado ou timeout)";
-                }
-                else if (xhr.status === 401) answer = "Hermes Agent: chave inválida (API_SERVER_KEY)";
-                else answer = "Erro ao consultar a IA (HTTP " + xhr.status + ")";
-            }
-            if (shouldRetry) {
-                root._aiRetries++;
-                root.aiLoading = false;
-                _aiRetryTimer.prompt = prompt;
-                _aiRetryTimer.restart();
-                return;
-            }
-            finish(answer);
-        };
-
-        xhr.open("POST", root.hermesUrl + "/v1/chat/completions");
-        xhr.setRequestHeader("Content-Type", "application/json");
-        xhr.setRequestHeader("Authorization", "Bearer " + root.hermesKey);
-        xhr.timeout = 60000;
-        xhr.send(JSON.stringify({
-            model: root.hermesModel,
-            stream: false,
-            messages: [
-                { role: "system", content: sysContent },
-                ...history.map(m => ({ role: m.role, content: m.content }))
-            ]
-        }));
-        root.scheduleRebuild();
-    }
-
-    function handleStructuredAction(obj, prompt) {
-        if (!obj || !obj.action) return "";
-        switch (obj.action) {
-            case "add_todo": {
-                if (!obj.text) return "";
-                let due = undefined;
-                let dueLabel = "";
-                if (obj.due) {
-                    const parts = String(obj.due).trim().split(/\s+/);
-                    const datePart = parts[0];
-                    const timePart = parts[1] || "09:00";
-                    const [y, m, d] = datePart.split("-").map(Number);
-                    const [hh, mm] = timePart.split(":").map(Number);
-                    if ([y, m, d, hh, mm].every(n => !isNaN(n))) {
-                        due = new Date(Date.UTC(y, m - 1, d, hh, mm));
-                        dueLabel = String(d).padStart(2, "0") + "/" + String(m).padStart(2, "0")
-                                 + " às " + String(hh).padStart(2, "0") + ":" + String(mm).padStart(2, "0");
-                    }
-                }
-                Todo.addTask(obj.text, due);
-                if (due && due.getTime() > Date.now()) {
-                    const whenStr = due.getFullYear() + "-"
-                        + String(due.getMonth() + 1).padStart(2, "0") + "-"
-                        + String(due.getDate()).padStart(2, "0") + " "
-                        + String(due.getHours()).padStart(2, "0") + ":"
-                        + String(due.getMinutes()).padStart(2, "0") + ":00";
-                    root.scheduleReminder(whenStr, obj.text);
-                }
-                return "✅ Tarefa criada: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
-            }
-            case "add_note": return SpotlightActions.addObsidianNote(obj.title || "Nota", obj.content || "");
-            case "send_email": return SpotlightActions.sendEmail(obj.to, obj.subject || "", obj.body || "");
-            case "start_timer": {
-                const s = parseInt(obj.seconds) || 0;
-                if (s <= 0) return "";
-                root.startTimer(s, obj.label || (s + "s"));
-                return "⏱ Timer iniciado: " + (obj.label || (s + "s"));
-            }
-            case "create_alias": return SpotlightActions.createAlias(obj.name, obj.actions || []);
-            case "block_sites": return SpotlightActions.blockSites(obj.sites || [], obj.minutes || 60);
-            case "focus_mode": return SpotlightActions.enterFocusMode(obj.minutes || 120);
-            default: return "";
-        }
-    }
-
-    function looksLikeUrl(t) {
-        return /^(https?:\/\/|www\.)\S+$/i.test(t) || /^[\w-]+(\.[\w-]+)+(\/\S*)?$/.test(t);
-    }
-
-    function onPageReady(page) {
-        if (!page || !page.ok) {
-            root.aiText = "❌ " + ((page && page.error) || "Não consegui ler o link");
-            root.aiLoading = false;
-            if (root._shown) root.scheduleRebuild();
-            return;
-        }
-        root._lastAiQuery = "";
-        root.runHermes(
-            "Resuma este conteúdo de página web de forma concisa:\n\n"
-            + "TÍTULO: " + (page.title || "") + "\n"
-            + "LINK: " + page.url + "\n\n"
-            + (page.text || "").slice(0, 5000),
-            false,
-            "🌐 Resumir: " + (page.title || page.url)
-        );
-    }
-
-    function buildScreenPrompt(windows, ocr, question) {
-        const ask = question
-            || "Explique o que está sendo mostrado na tela: qual é a atividade do usuário, o que há em cada janela e o que for relevante ou fora do normal. Seja objetivo.";
-        return "Contexto da tela do usuário (capturada agora).\n\n"
-            + "JANELAS NA ÁREA DE TRABALHO ATUAL:\n" + (windows || "(indisponível)") + "\n\n"
-            + "TEXTO LIDO NA TELA POR OCR (pode ter erros, ordem aproximada e texto de várias janelas misturado):\n"
-            + (ocr ? ocr.slice(0, 6000) : "(nenhum texto reconhecido)") + "\n\n"
-            + "PEDIDO: " + ask;
-    }
-
-    function langName(c) {
-        const n = { en: "English", pt: "Brazilian Portuguese", es: "Spanish", fr: "French", de: "German", it: "Italian",
-                    ja: "Japanese", ko: "Korean", zh: "Chinese", ru: "Russian", ar: "Arabic", nl: "Dutch", pl: "Polish", tr: "Turkish" };
-        const k = c.toLowerCase();
-        return root.hasOwn(n, k) ? n[k] : c;
-    }
-
-    function aiIsAuto(s) {
-        return root.aiAutoQuestion && !s.startsWith("/") && s.endsWith("?") && s.length > 3
-            && !/^\/?(ai|gpt|ia)\s/i.test(s)
-            && !/^(?:tr|traduzir|translate)\s+/i.test(s);
-    }
-
-    function aiPromptFor(s) {
-        const tm = s.match(/^(?:tr|traduzir|translate)\s+([a-z]{2}(?:-[a-z]{2})?)\s+(.+)$/i);
-        const m = s.match(/^\/?(ai|gpt|ia)\s+(.+)$/i);
-        if (tm) return "Translate the following text to " + root.langName(tm[1]) +
-                       ". Reply with ONLY the translation, without quotes or explanations.\n\n" + tm[2];
-        if (m && m[2] && (!s.startsWith("/") || m[1].toLowerCase() === "ai")) return m[2].trim();
-        if (root.aiIsAuto(s)) return s;
-        return "";
-    }
-
-    function clearAi() {
-        root._aiReq++;
-        if (root._aiXhr) { try { root._aiXhr.abort(); } catch (e) {} root._aiXhr = null; }
-        root.aiText = "";
-        root.aiLoading = false;
-        root._lastAiQuery = "";
-        root._aiRetries = 0;
-    }
-
-    function _aiResultItems() {
-        if (root.aiText) {
-            return [{
-                kind: "info", isAi: true,
-                name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado",
-                category: root.aiLoading ? "Hermes Agent · thinking…" : "Hermes Agent — Enter to copy"
-            }];
-        }
-        if (root.aiPromptFor(root.query.trim()) !== "") {
-            return [{ kind: "info", isAi: true, name: "Perguntar ao Hermes Agent", category: "Pressione Enter para enviar" }];
-        }
-        return [];
-    }
-
-    function checkAI() {
-        const s = root.query.trim();
-        const isSlashOther = s.startsWith("/") && !/^\/ai\s/i.test(s);
-        const prompt = isSlashOther ? "" : root.aiPromptFor(s);
-        if (!prompt) {
-            _aiDeb.stop();
-            if (root.aiText !== "") {
-                root.clearAi();
-                if (root._shown) root.scheduleRebuild();
-            }
-            return;
-        }
-        root._pendingAiPrompt = prompt;
-        if (root.aiIsAuto(s)) _aiDeb.restart();
-        else {
-            _aiDeb.stop();
-            if (prompt !== root._lastAiQuery && root.aiText !== "") {
-                root.clearAi();
-                if (root._shown) root.scheduleRebuild();
-            }
-        }
-    }
-
+    // -- Hora em outra cidade
     function fetchTime(city) {
         const cacheKey = "time:" + city.toLowerCase();
         const cached = root.cacheGet(cacheKey, 30 * 1000);
-        if (cached) {
-            root.timeText = cached;
-            if (root._shown) root.scheduleRebuild();
-            return;
-        }
+        if (cached) { root.timeText = cached; root.rebuildIfShown(); return; }
+
         const req = ++root._timeReq;
-        if (root._timeXhr) { try { root._timeXhr.abort(); } catch (e) {} }
-        const geo = new XMLHttpRequest();
-        root._timeXhr = geo;
-        geo.timeout = 10000;
-        geo.onreadystatechange = function () {
-            if (geo.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
-            let place = null;
-            try { place = (JSON.parse(geo.responseText).results || [])[0] || null; } catch (e) { place = null; }
-            if (!place) { root.timeText = "Cidade não encontrada: " + city; if (root._shown) root.scheduleRebuild(); return; }
-            const tz = new XMLHttpRequest();
-            root._timeXhr = tz;
-            tz.timeout = 10000;
-            tz.onreadystatechange = function () {
-                if (tz.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
-                let tzName = "", utcOffset = null;
-                try {
-                    const data = JSON.parse(tz.responseText);
-                    tzName = data.timezone || "";
-                    if (typeof data.utc_offset_seconds === "number") utcOffset = data.utc_offset_seconds;
-                } catch (e) { }
-                if (utcOffset === null) {
-                    root.fetchTimezoneFallback(city, place, req, cacheKey);
-                    return;
-                }
-                root.renderTime(place, tzName, utcOffset, cacheKey);
-            };
-            tz.open("GET", "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude + "&current=temperature_2m&timezone=auto");
-            tz.send();
-        };
-        geo.open("GET", "https://geocoding-api.open-meteo.com/v1/search?count=3&language=pt&name=" + encodeURIComponent(city));
-        geo.send();
+        root.abortXhr(root._timeXhr);
+        const fail = (msg) => { root.timeText = msg; root.rebuildIfShown(); };
+
+        root._timeXhr = root.httpJson(
+            "https://geocoding-api.open-meteo.com/v1/search?count=3&language=pt&name=" + encodeURIComponent(city),
+            10000,
+            function (geo) {
+                if (req !== root._timeReq) return;
+                const place = (geo && geo.results && geo.results[0]) || null;
+                if (!place) { fail("Cidade não encontrada: " + city); return; }
+
+                root._timeXhr = root.httpJson(
+                    "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude + "&current=temperature_2m&timezone=auto",
+                    10000,
+                    function (data) {
+                        if (req !== root._timeReq) return;
+                        const tzName = (data && data.timezone) || "";
+                        if (!data || typeof data.utc_offset_seconds !== "number") {
+                            root.fetchTimezoneFallback(city, place, req, cacheKey);
+                            return;
+                        }
+                        root.renderTime(place, tzName, data.utc_offset_seconds, cacheKey);
+                    });
+            });
     }
 
     function fetchTimezoneFallback(city, place, req, cacheKey) {
-        const fb = new XMLHttpRequest();
-        root._timeXhr = fb;
-        fb.timeout = 10000;
-        fb.onreadystatechange = function () {
-            if (fb.readyState !== XMLHttpRequest.DONE || req !== root._timeReq) return;
-            try {
-                const data = JSON.parse(fb.responseText);
-                if (!data.utc_offset) throw new Error("sem utc_offset");
-                const sign = data.utc_offset[0] === "-" ? -1 : 1;
-                const [hh, mm] = data.utc_offset.slice(1).split(":").map(Number);
-                const seconds = sign * (hh * 3600 + mm * 60);
-                root.renderTime(place, data.timezone || "", seconds, cacheKey);
-            } catch (e) {
-                root.timeText = "Não foi possível obter a hora de " + city;
-                if (root._shown) root.scheduleRebuild();
-            }
-        };
         const gmtOffset = Math.round(-place.longitude / 15);
         const gmtSign = gmtOffset >= 0 ? "+" : "-";
-        fb.open("GET", "https://worldtimeapi.org/api/timezone/Etc/GMT" + gmtSign + Math.abs(gmtOffset));
-        fb.send();
+        root._timeXhr = root.httpJson(
+            "https://worldtimeapi.org/api/timezone/Etc/GMT" + gmtSign + Math.abs(gmtOffset),
+            10000,
+            function (data) {
+                if (req !== root._timeReq) return;
+                try {
+                    if (!data || !data.utc_offset) throw new Error("sem utc_offset");
+                    const sign = data.utc_offset[0] === "-" ? -1 : 1;
+                    const [hh, mm] = data.utc_offset.slice(1).split(":").map(Number);
+                    root.renderTime(place, data.timezone || "", sign * (hh * 3600 + mm * 60), cacheKey);
+                } catch (e) {
+                    root.timeText = "Não foi possível obter a hora de " + city;
+                    root.rebuildIfShown();
+                }
+            });
     }
 
     function renderTime(place, tzName, utcOffsetSeconds, cacheKey) {
@@ -1182,10 +881,9 @@ PanelWindow {
         const localOffsetSec = -now.getTimezoneOffset() * 60;
         const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
         const there = new Date(utcMs + utcOffsetSeconds * 1000);
-        const pad = (n) => (n < 10 ? "0" : "") + n;
         const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "s\u00e1b"][there.getUTCDay()];
-        const timeStr = pad(there.getUTCHours()) + ":" + pad(there.getUTCMinutes());
-        const dateStr = wd + " " + pad(there.getUTCDate()) + "/" + pad(there.getUTCMonth() + 1);
+        const timeStr = root.pad2(there.getUTCHours()) + ":" + root.pad2(there.getUTCMinutes());
+        const dateStr = wd + " " + root.pad2(there.getUTCDate()) + "/" + root.pad2(there.getUTCMonth() + 1);
         const diffH = (utcOffsetSeconds - localOffsetSec) / 3600;
         const diffStr = diffH === 0 ? "mesmo fuso que você"
                       : (diffH > 0 ? "+" : "") + (Number.isInteger(diffH) ? diffH : diffH.toFixed(1)) + "h em relação a você";
@@ -1194,7 +892,7 @@ PanelWindow {
         const txt = where + ": " + timeStr + " \u00b7 " + dateStr + " \u00b7 " + diffStr + tzSuffix;
         root.timeText = txt;
         if (cacheKey) root.cacheSet(cacheKey, txt);
-        if (root._shown) root.scheduleRebuild();
+        root.rebuildIfShown();
     }
 
     function checkTime() {
@@ -1210,6 +908,7 @@ PanelWindow {
         root.fetchTime(city);
     }
 
+    // -- Processos (kill)
     function checkKill() {
         const m = root.query.trim().match(/^(?:kill|matar|encerrar|pkill)\s+(\S.*)$/i);
         if (!m) {
@@ -1224,6 +923,7 @@ PanelWindow {
         _ps.exec(["bash", "-c", "echo " + id + "; ps -u \"$USER\" -o pid=,rss=,comm= --sort=-rss | grep -i -F -- " + root.shellQuote(name) + " | head -12"]);
     }
 
+    // -- Ferramentas de dev (uuid, base64, hashes)
     function checkDev() {
         const q = root.query.trim();
         let kind = "", arg = "", m;
@@ -1278,138 +978,80 @@ PanelWindow {
         root.checkDev();
     }
 
-    function resetPreview() {
-        audioPlayer.stop();
-        root.previewThumbPath = "";
-        root.previewNatW = 0;
-        root.previewNatH = 0;
-        root.previewPath = "";
-        root.previewKind = "";
-        root.previewText = "";
-    }
-
-    function previewFile(p, isDirectory) {
-        audioPlayer.stop();
-        root.previewThumbPath = "";
-        root.previewNatW = 0;
-        root.previewNatH = 0;
-        const ext = p.split(".").pop().toLowerCase();
-        const imgExts = ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"];
-        const textExts = ["txt", "md", "json", "qml", "js", "ts", "py", "sh", "conf", "yaml", "yml", "xml", "html", "css", "c", "cpp", "h", "lua", "toml", "ini", "log"];
-        const videoExts = ["mp4", "mkv", "webm", "avi", "mov", "m4v", "flv"];
-        const audioExts = ["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac"];
-        if (isDirectory) { root.previewKind = ""; root.previewPath = ""; root.previewText = ""; }
-        else if (imgExts.indexOf(ext) !== -1) {
-            root.previewKind = "image";
-            root.previewPath = p;
-            root.previewText = "";
-        } else if (textExts.indexOf(ext) !== -1) {
-            root.previewKind = (ext === "md") ? "markdown" : "text";
-            root.previewPath = p;
-            _preview.exec(["bash", "-c", "head -c 4000 " + root.shellQuote(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
-        } else if (videoExts.indexOf(ext) !== -1) {
-            root.previewKind = "video";
-            root.previewPath = p;
-            const thumbPath = "/tmp/spotlight_thumb_" + Date.now() + ".jpg";
-            root._pendingPreview = { for: p, path: thumbPath, kind: "video" };
-            _videoThumb.exec(["bash", "-c", "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + root.shellQuote(p) + " -o " + root.shellQuote(thumbPath) + " -s 400 2>/dev/null"]);
-        } else if (audioExts.indexOf(ext) !== -1) {
-            root.previewKind = "audio";
-            root.previewPath = p;
-            const coverPath = "/tmp/spotlight_cover_" + Date.now() + ".jpg";
-            root._pendingPreview = { for: p, path: coverPath, kind: "audio" };
-            _audioCover.exec(["bash", "-c", "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + root.shellQuote(p) + " -an -frames:v 1 " + root.shellQuote(coverPath) + " 2>/dev/null"]);
-        } else if (ext === "pdf") {
-            root.previewKind = "pdf";
-            root.previewPath = p;
-            const thumbBase = "/tmp/spotlight_pdf_" + Date.now();
-            root._pendingPreview = { for: p, path: thumbBase + ".jpg", kind: "pdf" };
-            _pdfThumb.exec(["bash", "-c",
-                "rm -f /tmp/spotlight_pdf_*.jpg; " +
-                "pdftoppm -jpeg -f 1 -l 1 -scale-to 1200 " + root.shellQuote(p) + " " + root.shellQuote(thumbBase) + " 2>/dev/null; " +
-                "f=$(ls " + root.shellQuote(thumbBase) + "*.jpg 2>/dev/null | head -1); " +
-                "[ -n \"$f\" ] && mv \"$f\" " + root.shellQuote(thumbBase + ".jpg")
-            ]);
-        } else { root.previewKind = ""; root.previewPath = ""; root.previewText = ""; }
-    }
-
-    function previewClipText(id) {
-        root._clipPrevKey = root.selectedKey;
-        const script = [
-            "c=$(cliphist decode " + id + " 2>/dev/null | head -c 4000)",
-            "n=$(printf '%s\\n' \"$c\" | wc -l)",
-            "first=$(printf '%s\\n' \"$c\" | tr -d '\\r' | grep -m1 -E '^(file://|/)')",
-            "case \"$first\" in",
-            "  file://*) p=$(printf '%s' \"$first\" | sed 's#^file://##' | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))' 2>/dev/null) ;;",
-            "  /*) p=\"$first\" ;;",
-            "  *) p=\"\" ;;",
-            "esac",
-            "if [ \"$n\" -le 3 ] && [ -n \"$p\" ] && [ -f \"$p\" ]; then printf 'FILE\\t%s\\n' \"$p\"; else printf 'TEXT\\n%s' \"$c\"; fi"
-        ].join("\n");
-        _clipPreview.exec(["bash", "-c", script]);
-    }
-
-    function updatePreview() {
-        const key = root.selectedKey;
-        if (key === root._previewKeyShown) return;
-        root._previewKeyShown = key;
-        const it = root.selectedItem;
-        if (it && it.kind === "file") { root.previewFile(it.path, !!it.isDirectory); return; }
-        if (it && it.kind === "clip") {
-            if (it.isImage && it.imagePath) { root.previewFile(it.imagePath, false); return; }
-            if (/^\d+$/.test(it.id || "")) { root.previewClipText(it.id); return; }
+    // =====================================================================
+    //  BUSCA DE ARQUIVOS
+    // =====================================================================
+    function parseFdLines(lines) {
+        const out = [];
+        const seen = {};
+        for (const line of lines) {
+            if (!line) continue;
+            const tab = line.indexOf("\t");
+            const isDirectory = tab >= 0 && line.slice(0, tab) === "d";
+            let p = tab >= 0 ? line.slice(tab + 1) : line;
+            p = p.replace(/\/+$/, "");
+            if (!p || seen[p]) continue;
+            seen[p] = true;
+            const sp = root.splitPath(p);
+            out.push({ name: sp.name, path: p, dir: sp.dir, isDirectory: isDirectory });
         }
-        root.resetPreview();
+        return out;
     }
 
-    Timer {
-        id: _previewDeb; interval: 120; repeat: false; onTriggered: root.updatePreview()
-    }
-    Timer {
-        id: _screenshotDeb
-        interval: 150
-        repeat: false
-        property bool useSelectArea: true
-        onTriggered: SpotlightActions.runScreenshotOcr(useSelectArea)
-    }
-
-    function computeResultsHeight() {
-        const maxH = Math.round(root.screen.height * 0.65);
-        if (!root.hasBody) return 0;
-        if (root.mode === "apps") {
-            const cols = 2;
-            const rows = Math.max(1, Math.ceil(root.items.length / cols));
-            let h = Math.min(8, rows) * root.rowH + 16;
-            return Math.min(maxH, h);
+    function runFd() {
+        if (root.slashMode || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
+            root.fileItems = [];
+            root.scheduleRebuild();
+            return;
         }
-        let h = 12;
-        if (root.nowPlayingText.length > 0 && root.query.length === 0 && root.mode === "search") h += root.nowPlayingH;
-        if (root.sysStatsText.length > 0 && root.query.length === 0 && root.mode === "search") h += 24;
-        for (const r of root.results) h += r.isHeader ? root.headerH : root.rowH;
-        if (root.items.length === 0 && root.query.length > 0) h += 56;
-        return Math.min(maxH, Math.max(48, h + 12));
+        const q = root.query.trim();
+        const id = ++root._fdReq;
+        _fd.exec(["bash", "-c",
+            "echo " + id + "; " +
+            "Q=" + root.shellQuote(q.toLowerCase()) + "; " +
+            "fd -i -F -d 5 -- \"$Q\" ~ 2>/dev/null | head -80 | while IFS= read -r p; do " +
+            "  if [ -d \"$p\" ]; then printf 'd\\t%s\\n' \"$p\"; else printf 'f\\t%s\\n' \"$p\"; fi; " +
+            "done; " +
+            "fd -i -F -t d -d 4 -- \"$Q\" ~ 2>/dev/null | head -5 | while IFS= read -r d; do " +
+            "  fd . \"$d\" -d 1 2>/dev/null | head -40 | while IFS= read -r p; do " +
+            "    if [ -d \"$p\" ]; then printf 'd\\t%s\\n' \"$p\"; else printf 'f\\t%s\\n' \"$p\"; fi; " +
+            "  done; " +
+            "done"
+        ]);
     }
 
-    function evalMath(q) {
-        if (!/^[0-9+\-*/%.()\s]+$/.test(q)) return null;
-        try {
-            const r = Function('"use strict";return (' + q + ')')();
-            if (typeof r !== "number" || !isFinite(r)) return null;
-            return r;
-        } catch (e) { return null; }
+    function runContentSearch(term) {
+        if (!term) return;
+        const id = ++root._rgReq;
+        _rg.exec(["bash", "-c", "echo " + id + "; rg -l -i -F --max-count 1 -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"]);
     }
 
-    function _addItems(items, disp, arr, title) {
-        if (!arr.length) return;
-        if (title) disp.push({ isHeader: true, title: title });
-        for (const it of arr) {
-            if (!it) continue;
-            const copy = Object.assign({}, it);
-            copy._idx = items.length;
-            copy._dispIdx = disp.length;
-            items.push(copy);
-            disp.push(copy);
-        }
+    function runRecents() {
+        _recents.exec(["bash", "-c",
+            "cd " + (root.browseDir !== "" ? root.shellQuote(root.browseDir) : "~") + " 2>/dev/null || exit 0; " +
+            "pwd; " +
+            "{ ls -1 --group-directories-first 2>/dev/null; " +
+            "  ls -1A --group-directories-first 2>/dev/null | grep '^\\.'; " +
+            "} | head -300 | while IFS= read -r n; do " +
+            "  p=\"$PWD/$n\"; " +
+            "  if [ -d \"$p\" ]; then printf 'd\\t%s\\n' \"$p\"; else printf 'f\\t%s\\n' \"$p\"; fi; " +
+            "done"
+        ]);
+    }
+
+    function runClip() { _clip.running = true; }
+    function clearClipboard() { _clipClear.running = true; }
+
+    function runInTerminal(command) {
+        terminalProcess.commandText = command;
+        terminalProcess.running = true;
+    }
+
+    function browseUp() {
+        const i = root.browseDir.lastIndexOf("/");
+        root.browseDir = i > 0 ? root.browseDir.slice(0, i) : "/";
+        root.selectedIndex = 0;
+        root.runRecents();
     }
 
     function naturalCompare(a, b) {
@@ -1450,18 +1092,13 @@ PanelWindow {
                 const da = a.isDirectory ? 1 : 0;
                 const db = b.isDirectory ? 1 : 0;
                 if (da !== db) return db - da;
-                const ua = root.usageCounts["file:" + a.path] || 0, ub = root.usageCounts["file:" + b.path] || 0;
+                const ua = root.usageOf("file:" + a.path), ub = root.usageOf("file:" + b.path);
                 if (ua !== ub) return ub - ua;
                 return root.naturalCompare(a.name, b.name);
             });
         }
-        const targetPath = targetDir.path;
-        const prefix = targetPath + "/";
-        const groupOf = (f) => {
-            if (f === targetDir) return 0;
-            if (f.path.startsWith(prefix)) return 1;
-            return 2;
-        };
+        const prefix = targetDir.path + "/";
+        const groupOf = (f) => f === targetDir ? 0 : (f.path.startsWith(prefix) ? 1 : 2);
         return arr.slice().sort((a, b) => {
             const ga = groupOf(a), gb = groupOf(b);
             if (ga !== gb) return ga - gb;
@@ -1474,65 +1111,512 @@ PanelWindow {
         });
     }
 
-    function _buildSlashMode(items, disp, ql) {
+    // =====================================================================
+    //  IA (HERMES AGENT)
+    // =====================================================================
+    function structuredIntent(p) {
+        const s = String(p).toLowerCase();
+        for (const r of root._intentRules) if (r[1](s)) return r[0];
+        return "";
+    }
+
+    function buildSystemPrompt(intent, nowStr) {
+        const base = "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma.";
+        const extra = {
+            todo: `\nO usuário quer criar uma tarefa. Data atual: ${nowStr}. RESPONDA APENAS com JSON:\n{"action":"add_todo","text":"...","due":"YYYY-MM-DD HH:MM"}`,
+            note: `\nO usuário quer criar uma nota. RESPONDA APENAS com JSON:\n{"action":"add_note","title":"...","content":"..."}`,
+            email: `\nO usuário quer enviar email. RESPONDA APENAS com JSON:\n{"action":"send_email","to":"...","subject":"...","body":"..."}`,
+            timer: `\nO usuário quer um timer. RESPONDA APENAS com JSON:\n{"action":"start_timer","seconds":N,"label":"..."}`,
+            alias: `\nO usuário quer criar um atalho. RESPONDA APENAS com JSON:\n{"action":"create_alias","name":"...","actions":["..."]}`,
+            block: `\nO usuário quer bloquear sites. RESPONDA APENAS com JSON:\n{"action":"block_sites","sites":["..."],"minutes":N}`,
+            focus: `\nO usuário quer modo foco. RESPONDA APENAS com JSON:\n{"action":"focus_mode","minutes":N}`,
+            screenshot: `\nO usuário quer analisar ou traduzir a tela. RESPONDA APENAS com JSON:\n{"action":"screenshot","selectArea":true,"translate":false,"lang":"pt"}\nUse translate:true se ele pedir tradução e lang com o código do idioma de destino.`,
+            web: `\nO usuário quer resumir um link. RESPONDA APENAS com JSON:\n{"action":"web_summary","url":"<url>"}`,
+            pdf: `\nO usuário quer resumir um PDF. RESPONDA APENAS com JSON:\n{"action":"pdf_summary","path":"<caminho>"}`
+        };
+        return base + (extra[intent] ? extra[intent] : "");
+    }
+
+    function pushHistory(role, content, label) {
+        const h = root.aiHistory.slice();
+        h.push(root._msg(role, content, label));
+        while (h.length > 20) h.shift();
+        root.aiHistory = h;
+        if (role === "assistant" && root.aiPersistentHistory) SpotlightActions.saveHistory(JSON.stringify(root.aiHistory));
+    }
+
+    function aiFail(msg) {
+        root.aiText = msg;
+        root.aiLoading = false;
+        root.rebuildIfShown();
+    }
+
+    // Reinicia o cache de "mesma pergunta" e envia um prompt interno.
+    function runInternalAi(prompt, label) {
+        root._lastAiQuery = "";
+        root.runHermes(prompt, false, label);
+    }
+
+    function runHermes(prompt, isRetry, label) {
+        isRetry = !!isRetry;
+        if (!prompt) return;
+        if (!root.hermesKey) {
+            root.aiFail("Hermes Agent: configure HERMES_API_KEY no ambiente");
+            return;
+        }
+        if (!isRetry && prompt === root._lastAiQuery && root.aiText && !root.aiLoading) return;
+
+        if (!isRetry) root._aiRetries = 0;
+        root._lastAiQuery = prompt;
+        root.aiLoading = true;
+        root.aiText = "Thinking…";
+
+        if (!isRetry) {
+            const h = root.aiHistory.slice();
+            h.push(root._msg("user", prompt, label));
+            while (h.length > 20) h.shift();
+            root.aiHistory = h;
+        }
+        const history = root.aiHistory.slice();
+
+        const now = new Date();
+        const nowStr = now.getFullYear() + "-" + root.pad2(now.getMonth() + 1) + "-" + root.pad2(now.getDate())
+                     + " " + root.pad2(now.getHours()) + ":" + root.pad2(now.getMinutes());
+        const internal = /^(Translate the following text|Analise este texto extra|Resuma este|Gere mensagem de commit|Formate este briefing|Contexto da tela)/.test(prompt);
+        const intent = internal ? "" : root.structuredIntent(prompt);
+        const sysContent = root.buildSystemPrompt(intent, nowStr);
+
+        const req = ++root._aiReq;
+        root.abortXhr(root._aiXhr);
+        const xhr = new XMLHttpRequest();
+        root._aiXhr = xhr;
+
+        xhr.onreadystatechange = function () {
+            if (xhr.readyState !== XMLHttpRequest.DONE) return;
+            if (req !== root._aiReq) return;
+            let answer = "";
+            try {
+                const data = JSON.parse(xhr.responseText);
+                const msg = data.choices && data.choices[0] && data.choices[0].message;
+                if (msg && msg.content) {
+                    answer = String(msg.content)
+                        .replace(/<think>[\s\S]*?<\/think>/g, "")
+                        .replace(/^[\s\S]*<\/think>/, "")
+                        .trim();
+                }
+                if (!answer) {
+                    if (data.error) answer = "Hermes Agent error: " + (data.error.message || data.error);
+                    else answer = "No AI response";
+                }
+            } catch (e) {
+                if (xhr.status === 0) {
+                    if (!isRetry && root._aiRetries < 1) {
+                        root._aiRetries++;
+                        root.aiLoading = false;
+                        _aiRetryTimer.prompt = prompt;
+                        _aiRetryTimer.restart();
+                        return;
+                    }
+                    answer = "Sem resposta do Hermes Agent (gateway parado ou timeout)";
+                }
+                else if (xhr.status === 401) answer = "Hermes Agent: chave inválida (API_SERVER_KEY)";
+                else answer = "Erro ao consultar a IA (HTTP " + xhr.status + ")";
+            }
+            root.finishAi(answer, prompt, req);
+        };
+
+        xhr.open("POST", root.hermesUrl + "/v1/chat/completions");
+        xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Authorization", "Bearer " + root.hermesKey);
+        xhr.timeout = 60000;
+        xhr.send(JSON.stringify({
+            model: root.hermesModel,
+            stream: false,
+            messages: [
+                { role: "system", content: sysContent },
+                ...history.map(m => ({ role: m.role, content: m.content }))
+            ]
+        }));
+        root.scheduleRebuild();
+    }
+
+    // Trata a resposta final: JSON de ação estruturada ou texto normal.
+    function finishAi(answer, prompt, req) {
+        if (req !== root._aiReq) return;
+        if (answer.length > 4000) answer = answer.slice(0, 4000) + "…";
+
+        const cleaned = String(answer).trim()
+            .replace(/^```json\s*/i, "")
+            .replace(/^```\s*/i, "")
+            .replace(/```\s*$/i, "")
+            .trim();
+
+        if (cleaned.startsWith("{") && cleaned.endsWith("}")) {
+            try {
+                const obj = JSON.parse(cleaned);
+                if (obj.action === "screenshot") {
+                    root._ocrMode = obj.translate === true ? "translate" : "analyze";
+                    root._ocrLang = obj.lang || "pt";
+                    root.aiText = "📸 Capturando tela…";
+                    SpotlightActions.runScreenshotOcr(obj.selectArea === true);
+                    return;
+                }
+                if (obj.action === "web_summary" && obj.url) {
+                    root.aiText = "🌐 Baixando " + obj.url + "…";
+                    SpotlightActions.scrapeUrl(obj.url);
+                    return;
+                }
+                if (obj.action === "pdf_summary" && obj.path) {
+                    root.aiText = "📄 Lendo " + obj.path + "…";
+                    SpotlightActions.summarizePdf(obj.path);
+                    return;
+                }
+                const handled = root.handleStructuredAction(obj, prompt);
+                if (handled) {
+                    root.aiText = handled;
+                    root.aiLoading = false;
+                    root._aiXhr = null;
+                    root.pushHistory("assistant", handled);
+                    root.notify(handled);
+                    root.rebuildIfShown();
+                    return;
+                }
+            } catch (e) { }
+        }
+
+        root.aiText = answer;
+        root.aiLoading = false;
+        root._aiXhr = null;
+        if (!root.aiErrored) root.pushHistory("assistant", answer);
+        root.rebuildIfShown();
+    }
+
+    function handleStructuredAction(obj, prompt) {
+        if (!obj || !obj.action) return "";
+        switch (obj.action) {
+            case "add_todo": {
+                if (!obj.text) return "";
+                let due = undefined;
+                let dueLabel = "";
+                if (obj.due) {
+                    const parts = String(obj.due).trim().split(/\s+/);
+                    const timePart = parts[1] || "09:00";
+                    const [y, m, d] = parts[0].split("-").map(Number);
+                    const [hh, mm] = timePart.split(":").map(Number);
+                    if ([y, m, d, hh, mm].every(n => !isNaN(n))) {
+                        due = new Date(Date.UTC(y, m - 1, d, hh, mm));
+                        dueLabel = root.pad2(d) + "/" + root.pad2(m) + " às " + root.pad2(hh) + ":" + root.pad2(mm);
+                    }
+                }
+                Todo.addTask(obj.text, due);
+                if (due && due.getTime() > Date.now()) {
+                    const whenStr = due.getFullYear() + "-" + root.pad2(due.getMonth() + 1) + "-" + root.pad2(due.getDate())
+                        + " " + root.pad2(due.getHours()) + ":" + root.pad2(due.getMinutes()) + ":00";
+                    root.scheduleReminder(whenStr, obj.text);
+                }
+                return "✅ Tarefa criada: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
+            }
+            case "add_note": return SpotlightActions.addObsidianNote(obj.title || "Nota", obj.content || "");
+            case "send_email": return SpotlightActions.sendEmail(obj.to, obj.subject || "", obj.body || "");
+            case "start_timer": {
+                const s = parseInt(obj.seconds) || 0;
+                if (s <= 0) return "";
+                root.startTimer(s, obj.label || (s + "s"));
+                return "⏱ Timer iniciado: " + (obj.label || (s + "s"));
+            }
+            case "create_alias": return SpotlightActions.createAlias(obj.name, obj.actions || []);
+            case "block_sites": return SpotlightActions.blockSites(obj.sites || [], obj.minutes || 60);
+            case "focus_mode": return SpotlightActions.enterFocusMode(obj.minutes || 120);
+            default: return "";
+        }
+    }
+
+    function buildResumePrompt(page, focus) {
+        return "Resuma este conteúdo de página web de forma concisa"
+            + (focus ? ", com foco em: " + focus : "") + ":\n\n"
+            + "TÍTULO: " + (page.title || "") + "\n"
+            + "LINK: " + page.url + "\n\n"
+            + (page.text || "").slice(0, 5000);
+    }
+
+    function buildScreenPrompt(windows, ocr, question) {
+        const ask = question
+            || "Explique o que está sendo mostrado na tela: qual é a atividade do usuário, o que há em cada janela e o que for relevante ou fora do normal. Seja objetivo.";
+        return "Contexto da tela do usuário (capturada agora).\n\n"
+            + "JANELAS NA ÁREA DE TRABALHO ATUAL:\n" + (windows || "(indisponível)") + "\n\n"
+            + "TEXTO LIDO NA TELA POR OCR (pode ter erros, ordem aproximada e texto de várias janelas misturado):\n"
+            + (ocr ? ocr.slice(0, 6000) : "(nenhum texto reconhecido)") + "\n\n"
+            + "PEDIDO: " + ask;
+    }
+
+    function aiIsAuto(s) {
+        return root.aiAutoQuestion && !s.startsWith("/") && s.endsWith("?") && s.length > 3
+            && !/^\/?(ai|gpt|ia)\s/i.test(s)
+            && !/^(?:tr|traduzir|translate)\s+/i.test(s);
+    }
+
+    function aiPromptFor(s) {
+        const tm = s.match(/^(?:tr|traduzir|translate)\s+([a-z]{2}(?:-[a-z]{2})?)\s+(.+)$/i);
+        const m = s.match(/^\/?(ai|gpt|ia)\s+(.+)$/i);
+        if (tm) return "Translate the following text to " + root.langName(tm[1]) +
+                       ". Reply with ONLY the translation, without quotes or explanations.\n\n" + tm[2];
+        if (m && m[2] && (!s.startsWith("/") || m[1].toLowerCase() === "ai")) return m[2].trim();
+        if (root.aiIsAuto(s)) return s;
+        return "";
+    }
+
+    function clearAi() {
+        root._aiReq++;
+        root.abortXhr(root._aiXhr);
+        root._aiXhr = null;
+        root.aiText = "";
+        root.aiLoading = false;
+        root._lastAiQuery = "";
+        root._aiRetries = 0;
+    }
+
+    function newAiConversation() {
+        root.aiHistory = [];
+        root.clearAi();
+        root.scheduleRebuild();
+    }
+
+    function sendChat(text) {
+        const t = text.trim();
+        if (t.length === 0 || root.aiLoading) return false;
+        root.runHermes(t);
+        return true;
+    }
+
+    function _aiResultItems() {
+        if (root.aiText) {
+            return [{
+                kind: "info", isAi: true,
+                name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado",
+                category: root.aiLoading ? "Hermes Agent · thinking…" : "Hermes Agent — Enter to copy"
+            }];
+        }
+        if (root.aiPromptFor(root.query.trim()) !== "") {
+            return [{ kind: "info", isAi: true, name: "Perguntar ao Hermes Agent", category: "Pressione Enter para enviar" }];
+        }
+        return [];
+    }
+
+    function checkAI() {
+        const s = root.query.trim();
+        const isSlashOther = s.startsWith("/") && !/^\/ai\s/i.test(s);
+        const prompt = isSlashOther ? "" : root.aiPromptFor(s);
+        if (!prompt) {
+            _aiDeb.stop();
+            if (root.aiText !== "") {
+                root.clearAi();
+                root.rebuildIfShown();
+            }
+            return;
+        }
+        root._pendingAiPrompt = prompt;
+        if (root.aiIsAuto(s)) _aiDeb.restart();
+        else {
+            _aiDeb.stop();
+            if (prompt !== root._lastAiQuery && root.aiText !== "") {
+                root.clearAi();
+                root.rebuildIfShown();
+            }
+        }
+    }
+
+    // =====================================================================
+    //  PREVIEW
+    // =====================================================================
+    function _fitPreview(maxW, maxH, minW, minH, fbW, fbH) {
+        const w = root.previewNatW, h = root.previewNatH;
+        if (!w || !h) return { w: fbW, h: fbH };
+        const fit = Math.min(maxW / w, maxH / h);
+        let outW = w * fit, outH = h * fit;
+        if (outW < minW) { const s = minW / outW; outW = minW; outH *= s; }
+        if (outH < minH) { const s = minH / outH; outH = minH; outW *= s; }
+        return { w: Math.min(outW, maxW), h: Math.min(outH, maxH) };
+    }
+    function previewSize()      { return root._fitPreview(480, 480, 220, 160, 300, 260); }
+    function previewSizeLarge() { return root._fitPreview(580, 700, 300, 400, 420, 560); }
+
+    function previewKindFor(ext) {
+        if (root._imgExts.indexOf(ext) !== -1) return "image";
+        if (root._textExts.indexOf(ext) !== -1) return ext === "md" ? "markdown" : "text";
+        if (root._videoExts.indexOf(ext) !== -1) return "video";
+        if (root._audioExts.indexOf(ext) !== -1) return "audio";
+        if (ext === "pdf") return "pdf";
+        return "";
+    }
+
+    function resetPreview() {
+        audioPlayer.stop();
+        root.previewThumbPath = "";
+        root.previewNatW = 0;
+        root.previewNatH = 0;
+        root.previewPath = "";
+        root.previewKind = "";
+        root.previewText = "";
+    }
+
+    function previewFile(p, isDirectory) {
+        root.resetPreview();
+        if (isDirectory) return;
+        const kind = root.previewKindFor(p.split(".").pop().toLowerCase());
+        if (!kind) return;
+        root.previewKind = kind;
+        root.previewPath = p;
+        const q = root.shellQuote;
+        const pend = (outPath) => { root._pendingPreview = { for: p, path: outPath, kind: kind }; };
+
+        if (kind === "text" || kind === "markdown") {
+            _preview.exec(["bash", "-c", "head -c 4000 " + q(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
+        } else if (kind === "video") {
+            const out = "/tmp/spotlight_thumb_" + Date.now() + ".jpg";
+            pend(out);
+            _videoThumb.exec(["bash", "-c", "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + q(p) + " -o " + q(out) + " -s 400 2>/dev/null"]);
+        } else if (kind === "audio") {
+            const out = "/tmp/spotlight_cover_" + Date.now() + ".jpg";
+            pend(out);
+            _audioCover.exec(["bash", "-c", "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + q(p) + " -an -frames:v 1 " + q(out) + " 2>/dev/null"]);
+        } else if (kind === "pdf") {
+            const base = "/tmp/spotlight_pdf_" + Date.now();
+            pend(base + ".jpg");
+            _pdfThumb.exec(["bash", "-c",
+                "rm -f /tmp/spotlight_pdf_*.jpg; " +
+                "pdftoppm -jpeg -f 1 -l 1 -scale-to 1200 " + q(p) + " " + q(base) + " 2>/dev/null; " +
+                "f=$(ls " + q(base) + "*.jpg 2>/dev/null | head -1); " +
+                "[ -n \"$f\" ] && mv \"$f\" " + q(base + ".jpg")
+            ]);
+        }
+    }
+
+    function previewClipText(id) {
+        root._clipPrevKey = root.selectedKey;
+        const script = [
+            "c=$(cliphist decode " + id + " 2>/dev/null | head -c 4000)",
+            "n=$(printf '%s\\n' \"$c\" | wc -l)",
+            "first=$(printf '%s\\n' \"$c\" | tr -d '\\r' | grep -m1 -E '^(file://|/)')",
+            "case \"$first\" in",
+            "  file://*) p=$(printf '%s' \"$first\" | sed 's#^file://##' | python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.stdin.read().strip()))' 2>/dev/null) ;;",
+            "  /*) p=\"$first\" ;;",
+            "  *) p=\"\" ;;",
+            "esac",
+            "if [ \"$n\" -le 3 ] && [ -n \"$p\" ] && [ -f \"$p\" ]; then printf 'FILE\\t%s\\n' \"$p\"; else printf 'TEXT\\n%s' \"$c\"; fi"
+        ].join("\n");
+        _clipPreview.exec(["bash", "-c", script]);
+    }
+
+    function updatePreview() {
+        const key = root.selectedKey;
+        if (key === root._previewKeyShown) return;
+        root._previewKeyShown = key;
+        const it = root.selectedItem;
+        if (it && it.kind === "file") { root.previewFile(it.path, !!it.isDirectory); return; }
+        if (it && it.kind === "clip") {
+            if (it.isImage && it.imagePath) { root.previewFile(it.imagePath, false); return; }
+            if (/^\d+$/.test(it.id || "")) { root.previewClipText(it.id); return; }
+        }
+        root.resetPreview();
+    }
+
+    // =====================================================================
+    //  CONSTRUÇÃO DOS RESULTADOS
+    // =====================================================================
+    function computeResultsHeight() {
+        const maxH = Math.round(root.screen.height * 0.65);
+        if (!root.hasBody) return 0;
+        if (root.mode === "apps") {
+            const rows = Math.max(1, Math.ceil(root.items.length / 2));
+            return Math.min(maxH, Math.min(8, rows) * root.rowH + 16);
+        }
+        const idleSearch = root.query.length === 0 && root.mode === "search";
+        let h = 12;
+        if (root.nowPlayingText.length > 0 && idleSearch) h += root.nowPlayingH;
+        if (root.sysStatsText.length > 0 && idleSearch) h += 24;
+        for (const r of root.results) h += r.isHeader ? root.headerH : root.rowH;
+        if (root.items.length === 0 && root.query.length > 0) h += 56;
+        return Math.min(maxH, Math.max(48, h + 12));
+    }
+
+    function _addItems(items, disp, arr, title) {
+        if (!arr.length) return;
+        if (title) disp.push({ isHeader: true, title: title });
+        for (const it of arr) {
+            if (!it) continue;
+            const copy = Object.assign({}, it);
+            copy._idx = items.length;
+            copy._dispIdx = disp.length;
+            items.push(copy);
+            disp.push(copy);
+        }
+    }
+
+    function _appRows(list) {
+        return list.map(a => ({ kind: "app", name: a.name, icon: a.icon, exec: a.exec, category: a.category || "Application" }));
+    }
+
+    function _fileRows(arr) {
+        return arr.map(f => ({ kind: "file", name: f.name, path: f.path, dir: f.dir, category: f.dir, isDirectory: f.isDirectory }));
+    }
+
+    function _infoRow(text, category) { return [{ kind: "info", name: text, category: category }]; }
+
+    function _calcRow(text, raw, category, iconKey) {
+        return [{ kind: "calc", name: text, raw: raw, category: category, iconKey: iconKey || "calc" }];
+    }
+
+    function _sortedApps(q) {
+        const apps = SpotlightApps.search(q);
+        apps.sort((a, b) => root.usageOf("app:" + b.exec) - root.usageOf("app:" + a.exec));
+        return apps;
+    }
+
+    function _buildSlashMode(items, disp, q, ql) {
         const full = ql.slice(1);
         const spaceIdx = full.indexOf(" ");
         const cmdName = spaceIdx >= 0 ? full.slice(0, spaceIdx) : full;
         const cmdArgs = spaceIdx >= 0 ? full.slice(spaceIdx + 1).trim() : "";
+        const rawArgs = spaceIdx >= 0 ? q.slice(1 + spaceIdx + 1) : "";
+        const A = (arr, title) => root._addItems(items, disp, arr, title);
+        const hasArgs = cmdArgs.length > 0;
 
-        if (cmdName === "web" && cmdArgs.length > 0) {
-            _addItems(items, disp, [{ kind: "action", name: "Search the Web for \u201c" + cmdArgs + "\u201d", action: "web:" + cmdArgs, iconKey: "web", category: "Search" }], "WEB SEARCH");
-            return true;
+        if (cmdName === "web" && hasArgs) {
+            A([{ kind: "action", name: "Search the Web for \u201c" + cmdArgs + "\u201d", action: "web:" + cmdArgs, iconKey: "web", category: "Search" }], "WEB SEARCH");
+            return;
         }
-        if (cmdName === "calc" && cmdArgs.length > 0) {
+        if (cmdName === "calc" && hasArgs) {
             const cr = root.evalMath(cmdArgs);
-            if (cr !== null) _addItems(items, disp, [{ kind: "calc", name: "= " + cr, raw: String(cr), category: "Calculator", iconKey: "calc" }], "CALCULATOR");
-            return true;
+            if (cr !== null) A(root._calcRow("= " + cr, String(cr), "Calculator"), "CALCULATOR");
+            return;
         }
-        if (cmdName === "buscar" && cmdArgs.length > 0) {
-            _addItems(items, disp, root.contentResults.map(f => ({ kind: "file", name: f.name, path: f.path, category: f.dir })), "CONTENT: " + cmdArgs);
-            return true;
+        if (cmdName === "buscar" && hasArgs) {
+            A(root.contentResults.map(f => ({ kind: "file", name: f.name, path: f.path, category: f.dir })), "CONTENT: " + cmdArgs);
+            return;
         }
-        if (cmdName === "ai" && cmdArgs.length > 0) {
-            _addItems(items, disp, root._aiResultItems(), "AI");
-            return true;
+        if (cmdName === "ai" && hasArgs) {
+            A(root._aiResultItems(), "AI");
+            return;
         }
         if (cmdName === "emoji") {
             const filter = cmdArgs.toLowerCase();
             let list = root.emojiList;
-            if (filter.length > 0) {
-                list = list.filter(function (x) { return x.n.indexOf(filter) !== -1 || x.e.indexOf(filter) !== -1; });
-            }
-            const shown = list.slice(0, 100).map(function (x) {
-                return { kind: "emoji", name: x.e + "  " + x.n, raw: x.e, category: "Emoji — Enter to copy" };
-            });
-            _addItems(items, disp, shown, filter ? "EMOJI: " + filter : "EMOJI");
-            return true;
+            if (filter.length > 0) list = list.filter(x => x.n.indexOf(filter) !== -1 || x.e.indexOf(filter) !== -1);
+            A(list.slice(0, 100).map(x => ({ kind: "emoji", name: x.e + "  " + x.n, raw: x.e, category: "Emoji — Enter to copy" })),
+              filter ? "EMOJI: " + filter : "EMOJI");
+            return;
         }
-        if ((cmdName === "todo" || cmdName === "notes") && cmdArgs.length > 0) {
-            const orig = root.query.trim().slice(1);
-            const t = root.parseTodoInput(orig.slice(spaceIdx + 1));
-            _addItems(items, disp, [{
-                kind: "action",
-                name: "Add to ToDo: \u201c" + t.text + "\u201d" + (t.dueLabel ? " \u00b7 " + t.dueLabel : ""),
-                action: "addtodo:",
-                todoText: t.text,
-                todoDue: t.dueStr,
-                todoRemind: t.remindAt,
-                todoRemindMs: t.remindMs,
-                iconKey: "note",
-                category: t.remindAt ? "ToDo \u00b7 vai avisar na hora" : "ToDo"
-            }], "TODO");
-            return true;
+        if ((cmdName === "todo" || cmdName === "notes") && hasArgs) {
+            A([root.todoActionItem(root.parseTodoInput(rawArgs))], "TODO");
+            return;
         }
-        if ((cmdName === "calendar" || cmdName === "cal" || cmdName === "evento" || cmdName === "event") && cmdArgs.length > 0) {
-            const orig = root.query.trim().slice(1);
-            const ev = root.parseEventInput(orig.slice(spaceIdx + 1));
+        if ((cmdName === "calendar" || cmdName === "cal" || cmdName === "evento" || cmdName === "event") && hasArgs) {
+            const ev = root.parseEventInput(rawArgs);
             if (!ev.dueStr) {
-                _addItems(items, disp, [{ kind: "info", name: "Informe data ou hora: /evento reunião 02/10 às 14h", category: "Evento" }], "EVENTO");
-                return true;
+                A([{ kind: "info", name: "Informe data ou hora: /evento reunião 02/10 às 14h", category: "Evento" }], "EVENTO");
+                return;
             }
-            _addItems(items, disp, [{
+            A([{
                 kind: "action",
                 name: "Add event: \u201c" + ev.text + "\u201d \u00b7 " + ev.dueLabel + (ev.remindAt ? " \u00b7 " + ev.duration + " min" : " \u00b7 dia inteiro"),
                 action: "addevent:",
@@ -1545,69 +1629,27 @@ PanelWindow {
                 iconKey: "note",
                 category: "Calendário"
             }], "EVENTO");
-            return true;
+            return;
         }
-        if (cmdName === "nota" && cmdArgs.length > 0) {
-            _addItems(items, disp, [{ kind: "action", name: "📝 Criar nota: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTA");
-            return true;
+        if (cmdName === "nota" && hasArgs) {
+            A([{ kind: "action", name: "📝 Criar nota: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTA");
+            return;
         }
-        if (cmdName === "email" && cmdArgs.length > 0) {
-            _addItems(items, disp, [{ kind: "action", name: "📧 Enviar email: \u201c" + cmdArgs + "\u201d", action: "aiintent:email:" + cmdArgs, iconKey: "message", category: "Email" }], "EMAIL");
-            return true;
+        if (cmdName === "email" && hasArgs) {
+            A([{ kind: "action", name: "📧 Enviar email: \u201c" + cmdArgs + "\u201d", action: "aiintent:email:" + cmdArgs, iconKey: "message", category: "Email" }], "EMAIL");
+            return;
         }
 
-        const allCmds = [
-            { kind: "cmd", name: "/apps",       category: "Switch to Applications",         action: "mode:apps" },
-            { kind: "cmd", name: "/files",      category: "Switch to Files",                action: "mode:files" },
-            { kind: "cmd", name: "/clipboard",  category: "Switch to Clipboard",            action: "mode:clipboard" },
-            { kind: "cmd", name: "/actions",    category: "Switch to Actions",              action: "mode:actions" },
-            { kind: "cmd", name: "/wallpaper",  category: "Change wallpaper (ii)",          action: "ipc:wallpaperSelector:toggle" },
-            { kind: "cmd", name: "/tema",       category: "Toggle light/dark theme (ii)",   action: "ipc:theme:toggleLightDark" },
-            { kind: "cmd", name: "/barra",      category: "Show/hide bar (ii)",             action: "ipc:bar:toggle" },
-            { kind: "cmd", name: "/screen",     category: "Hermes reads everything on screen (OCR + windows)", action: "screen:" },
-            { kind: "cmd", name: "/screenshot", category: "Analyze screen with OCR + AI",   action: "screenshot:" },
-            { kind: "cmd", name: "/traduzir",   category: "Translate screen area (OCR + Hermes)", action: "ocrtr:" },
-            { kind: "cmd", name: "/record",     category: "Record screen (ii)",             action: "ipc:region:record" },
-            { kind: "cmd", name: "/ocr",        category: "Screen OCR (ii)",                action: "ipc:region:ocr" },
-            { kind: "cmd", name: "/cor",        category: "Color picker (copies hex)",      action: "colorpick:" },
-            { kind: "cmd", name: "/janelas",    category: "Switch between open windows",    action: "mode:windows" },
-            { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
-            { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
-            { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
-            { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
-            { kind: "cmd", name: "/nova",       category: "New AI conversation",            action: "ai-new:" },
-            { kind: "cmd", name: "/nota",       category: "Create Obsidian note",           action: "aiintent:note:" },
-            { kind: "cmd", name: "/email",      category: "Send email",                     action: "aiintent:email:" },
-            { kind: "cmd", name: "/foco",       category: "Focus mode",                     action: "focus:" },
-            { kind: "cmd", name: "/reuniao",    category: "Meeting mode",                   action: "meeting:" },
-            { kind: "cmd", name: "/briefing",   category: "Morning briefing",               action: "briefing:" },
-            { kind: "cmd", name: "/git",        category: "Generate git commit message",    action: "git:" },
-            { kind: "cmd", name: "/sum",        category: "Summarize a web page or PDF",    action: "sum:" },
-            { kind: "cmd", name: "/memoria-on", category: "Enable persistent AI history",   action: "mem-on:" },
-            { kind: "cmd", name: "/memoria-off",category: "Disable persistent AI history",  action: "mem-off:" },
-            { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
-            { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
-            { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
-            { kind: "cmd", name: "/notes",      category: "Add a ToDo task",                action: "todo:" },
-            { kind: "cmd", name: "/lock",       category: "Lock Screen",                    action: "sys:lock" },
-            { kind: "cmd", name: "/sleep",      category: "Sleep",                          action: "sys:sleep" },
-            { kind: "cmd", name: "/restart",    category: "Restart",                        action: "sys:restart" },
-            { kind: "cmd", name: "/shutdown",   category: "Shut Down",                      action: "sys:shutdown" },
-            { kind: "cmd", name: "/logout",     category: "Log Out",                        action: "sys:logout" },
-            { kind: "cmd", name: "/web",        category: "Search the Web",                 action: "web:" },
-            { kind: "cmd", name: "/calc",       category: "Calculator",                     action: "calc:" },
-        ];
         const filtered = cmdName.length > 0
-            ? allCmds.filter(c => c.name.slice(1).toLowerCase().startsWith(cmdName))
-            : allCmds;
-        _addItems(items, disp, filtered, "COMMANDS");
-        return true;
+            ? root.slashCommands.filter(c => c.name.slice(1).toLowerCase().startsWith(cmdName))
+            : root.slashCommands;
+        A(filtered, "COMMANDS");
     }
 
     function _buildAppsMode(items, disp, q, ql) {
         const list = (ql ? SpotlightApps.search(q) : SpotlightApps.apps).slice();
-        list.sort((a, b) => (root.usageCounts["app:" + b.exec] || 0) - (root.usageCounts["app:" + a.exec] || 0));
-        _addItems(items, disp, list.slice(0, 60).map(a => ({ kind: "app", name: a.name, icon: a.icon, exec: a.exec, category: a.category || "Application" })), ql ? "APPLICATIONS" : "");
+        list.sort((a, b) => root.usageOf("app:" + b.exec) - root.usageOf("app:" + a.exec));
+        root._addItems(items, disp, root._appRows(list.slice(0, 60)), ql ? "APPLICATIONS" : "");
     }
 
     function _buildFilesMode(items, disp, ql) {
@@ -1617,14 +1659,11 @@ PanelWindow {
         else src = root.recentItems.filter(f => f.name.toLowerCase().indexOf(ql) !== -1);
         const fitems = ql ? root.sortFileResults(src, ql) : src;
         const home = root.browseDir.replace(/^\/home\/[^\/]+/, "~");
-        _addItems(items, disp, fitems.map(f => ({
-            kind: "file", name: f.name, path: f.path,
-            dir: f.dir, category: f.dir, isDirectory: f.isDirectory
-        })), ql ? "FILES" : (home || "~"));
+        root._addItems(items, disp, root._fileRows(fitems), ql ? "FILES" : (home || "~"));
     }
 
     function _buildClipboardMode(items, disp) {
-        _addItems(items, disp, root.clipItems.map(c => ({
+        root._addItems(items, disp, root.clipItems.map(c => ({
             kind: "clip", name: c.isImage ? "Image" : c.text,
             id: c.id, category: c.isImage ? (c.text || "Image") : "Clipboard",
             isImage: !!c.isImage, imagePath: c.imagePath || ""
@@ -1633,15 +1672,15 @@ PanelWindow {
 
     function _buildWindowsMode(items, disp, ql) {
         const wlist = ql ? root.windowItems.filter(w => w.title.toLowerCase().indexOf(ql) !== -1 || w.cls.toLowerCase().indexOf(ql) !== -1) : root.windowItems;
-        _addItems(items, disp, wlist.map(w => ({ kind: "window", name: w.title, address: w.address, category: w.cls })), "OPEN WINDOWS");
+        root._addItems(items, disp, wlist.map(w => ({ kind: "window", name: w.title, address: w.address, category: w.cls })), "OPEN WINDOWS");
     }
 
     function _buildWifiMode(items, disp) {
-        _addItems(items, disp, root.wifiItems.map(w => ({ kind: "wifi", name: w.ssid, category: w.active ? "Connected" : "Available" })), "WI-FI NETWORKS");
+        root._addItems(items, disp, root.wifiItems.map(w => ({ kind: "wifi", name: w.ssid, category: w.active ? "Connected" : "Available" })), "WI-FI NETWORKS");
     }
 
     function _buildBluetoothMode(items, disp) {
-        _addItems(items, disp, root.btItems.map(d => ({ kind: "bt", name: d.name, address: d.mac, category: d.mac })), "PAIRED BLUETOOTH");
+        root._addItems(items, disp, root.btItems.map(d => ({ kind: "bt", name: d.name, address: d.mac, category: d.mac })), "PAIRED BLUETOOTH");
     }
 
     function _buildActionsMode(items, disp) {
@@ -1656,115 +1695,68 @@ PanelWindow {
         A("Restart\u2026", "restart", "restart", "System");
         A("Shut Down\u2026", "shutdown", "power", "System");
         A("Log Out", "logout", "logout", "System");
-        _addItems(items, disp, acts, "ACTIONS");
+        root._addItems(items, disp, acts, "ACTIONS");
     }
 
-    function urlTarget(q) {
-        const t = q.trim();
-        if (!t || /\s/.test(t)) return "";
-        try {
-            const u = new URL(/^https?:\/\//i.test(t) ? t : "https://" + t);
-            const host = u.hostname;
-            if (!host.includes(".")) return "";
-            const tld = host.split(".").pop();
-            if (tld.length < 2) return "";
-            return u.toString();
-        } catch (e) { return ""; }
+    // -- Modo busca, dividido em blocos (a ordem das seções é preservada)
+    function _searchPrimary(items, disp, q, ql) {
+        const A = (arr, title) => root._addItems(items, disp, arr, title);
+
+        const aiItems = root._aiResultItems();
+        if (aiItems.length) A(aiItems, "AI");
+
+        const urlT = root.urlTarget(q);
+        if (urlT) A([{ kind: "action", name: "Open " + q.trim(), action: "open:" + urlT, iconKey: "web", category: "Website" }], "OPEN WEBSITE");
+
+        const bang = root.bangItem(q);
+        if (bang) A([bang], "ATALHO DE SITE");
+
+        const sc = root.sysControlItems(ql);
+        if (sc.length) A(sc, "CONTROLES");
+
+        if (root.procItems.length && /^(kill|matar|encerrar|pkill)\s/i.test(q)) {
+            A(root.procItems.map(pr => ({
+                kind: "proc", name: pr.name, pid: pr.pid,
+                category: "PID " + pr.pid + " \u00b7 " + pr.mb + " MB \u00b7 Enter = encerrar \u00b7 \u21e7Enter = for\u00e7ar"
+            })), "PROCESSOS");
+        }
+        if (root.timeText && /^(?:que\s+)?(?:hora|horas|time)\s/.test(ql)) A(root._infoRow(root.timeText, "Hora"), "HORA");
+
+        const colorIt = root.colorItem(q);
+        if (colorIt) A([colorIt], "COR");
+
+        if (root.devResult.q === q && root.devResult.text) {
+            A(root._calcRow(root.devResult.text, root.devResult.text, root.devResult.label + " \u2014 clique para copiar"), "FERRAMENTAS");
+        }
+        A(root._appRows(root._sortedApps(q)), "APPLICATIONS");
     }
 
-    function _buildSearchMode(items, disp, q, ql) {
-        if (!ql && root.nowPlayingText.length > 0) {
-            _addItems(items, disp, [{ kind: "media", name: root.nowPlayingText, category: root.nowPlayingStatus === "Playing" ? "Now playing" : "Paused" }], "NOW PLAYING");
-        }
-        if (ql) {
-            const aiItems = root._aiResultItems();
-            if (aiItems.length) _addItems(items, disp, aiItems, "AI");
-        }
-        if (ql) {
-            const urlT = root.urlTarget(q);
-            if (urlT) _addItems(items, disp, [{ kind: "action", name: "Open " + q.trim(), action: "open:" + urlT, iconKey: "web", category: "Website" }], "OPEN WEBSITE");
-            const bang = root.bangItem(q);
-            if (bang) _addItems(items, disp, [bang], "ATALHO DE SITE");
-            const sc = root.sysControlItems(ql);
-            if (sc.length) _addItems(items, disp, sc, "CONTROLES");
-            if (root.procItems.length && /^(kill|matar|encerrar|pkill)\s/i.test(q)) {
-                _addItems(items, disp, root.procItems.map(pr => ({
-                    kind: "proc", name: pr.name, pid: pr.pid,
-                    category: "PID " + pr.pid + " \u00b7 " + pr.mb + " MB \u00b7 Enter = encerrar \u00b7 \u21e7Enter = for\u00e7ar"
-                })), "PROCESSOS");
-            }
-            if (root.timeText && /^(?:que\s+)?(?:hora|horas|time)\s/.test(ql)) {
-                _addItems(items, disp, [{ kind: "info", name: root.timeText, category: "Hora" }], "HORA");
-            }
-            const colorIt = root.colorItem(q);
-            if (colorIt) _addItems(items, disp, [colorIt], "COR");
-            if (root.devResult.q === q && root.devResult.text) {
-                _addItems(items, disp, [{ kind: "calc", name: root.devResult.text, raw: root.devResult.text, category: root.devResult.label + " \u2014 clique para copiar", iconKey: "calc" }], "FERRAMENTAS");
-            }
-            const apps = SpotlightApps.search(q);
-            apps.sort((a, b) => (root.usageCounts["app:" + b.exec] || 0) - (root.usageCounts["app:" + a.exec] || 0));
-            _addItems(items, disp, apps.map(a => ({ kind: "app", name: a.name, icon: a.icon, exec: a.exec, category: a.category || "Application" })), "APPLICATIONS");
-        }
-        if (ql && root.fileItems.length) {
-            const fitems = root.sortFileResults(root.fileItems, q);
-            _addItems(items, disp, fitems.map(f => ({
-                kind: "file", name: f.name, path: f.path,
-                dir: f.dir, category: f.dir, isDirectory: f.isDirectory
-            })), "FILES");
-        }
-        if (ql && (ql.startsWith("clima") || ql.startsWith("weather")) && root.weatherText) {
-            _addItems(items, disp, [{ kind: "info", name: root.weatherText, category: "Weather" }], "WEATHER");
-        }
-        if (ql && (ql.startsWith("define ") || ql.startsWith("significado ") || ql.startsWith("meaning ")) && root.dictText) {
-            _addItems(items, disp, [{ kind: "info", name: root.dictText, category: "Definition" }], "DEFINITION");
-        }
-        if (/^(senha|password)\s*(\d+)?$/.test(ql) && root.passText) {
-            _addItems(items, disp, [{ kind: "calc", name: root.passText, raw: root.passText, category: "Senha gerada — clique para copiar", iconKey: "lock" }], "PASSWORD");
-        }
+    function _searchInfo(items, disp, q, ql) {
+        const A = (arr, title) => root._addItems(items, disp, arr, title);
+
+        if ((ql.startsWith("clima") || ql.startsWith("weather")) && root.weatherText)
+            A(root._infoRow(root.weatherText, "Weather"), "WEATHER");
+        if ((ql.startsWith("define ") || ql.startsWith("significado ") || ql.startsWith("meaning ")) && root.dictText)
+            A(root._infoRow(root.dictText, "Definition"), "DEFINITION");
+        if (/^(senha|password)\s*(\d+)?$/.test(ql) && root.passText)
+            A(root._calcRow(root.passText, root.passText, "Senha gerada — clique para copiar", "lock"), "PASSWORD");
+
         const todoMatch = q.match(/^(todo|tarefa|afazer)\s+(.+)$/i);
-        if (todoMatch) {
-            let text = todoMatch[2].trim();
-            let dueStr = "", dueLabel = "";
-            const dm = text.match(/\s+(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?)$/);
-            if (dm) {
-                const iso = !!dm[1];
-                const mo = parseInt(iso ? dm[2] : dm[5]);
-                const d = parseInt(iso ? dm[3] : dm[4]);
-                const today = new Date();
-                let y = iso ? parseInt(dm[1]) : (dm[6] ? parseInt(dm[6]) : today.getFullYear());
-                if (!iso && !dm[6] && new Date(y, mo - 1, d, 23, 59) < today) y += 1;
-                const check = new Date(Date.UTC(y, mo - 1, d, 12));
-                if (mo >= 1 && mo <= 12 && check.getUTCMonth() === mo - 1 && check.getUTCDate() === d) {
-                    const pad = n => (n < 10 ? "0" : "") + n;
-                    dueStr = y + "-" + pad(mo) + "-" + pad(d);
-                    dueLabel = pad(d) + "/" + pad(mo) + "/" + y;
-                    const rest = text.slice(0, text.length - dm[0].length).trim();
-                    if (rest) text = rest;
-                }
-            }
-            _addItems(items, disp, [{
-                kind: "action",
-                name: "Add to ToDo: \u201c" + text + "\u201d" + (dueLabel ? " \u00b7 " + dueLabel : ""),
-                action: "addtodo:",
-                todoText: text,
-                todoDue: dueStr,
-                iconKey: "note",
-                category: "ToDo"
-            }], "TODO");
-        }
-        if (ql && (ql === "bateria" || ql === "battery") && root.batteryText) {
-            _addItems(items, disp, [{ kind: "info", name: root.batteryText, category: "Battery" }], "BATTERY");
-        }
-        if (ql && (ql === "meu ip" || ql === "my ip") && root.ipText) {
-            _addItems(items, disp, [{ kind: "info", name: root.ipText, category: "Network" }], "MY IP");
-        }
-        if (ql && root.currencyText) {
-            _addItems(items, disp, [{ kind: "calc", name: root.currencyText, raw: root.currencyText, category: "Currency", iconKey: "calc" }], "CURRENCY");
-        }
+        if (todoMatch) A([root.todoActionItem(root.parseTodoInput(todoMatch[2]))], "TODO");
+
+        if ((ql === "bateria" || ql === "battery") && root.batteryText) A(root._infoRow(root.batteryText, "Battery"), "BATTERY");
+        if ((ql === "meu ip" || ql === "my ip") && root.ipText) A(root._infoRow(root.ipText, "Network"), "MY IP");
+        if (root.currencyText) A(root._calcRow(root.currencyText, root.currencyText, "Currency"), "CURRENCY");
+    }
+
+    function _searchActions(items, disp, q, ql) {
+        const A = (arr, title) => root._addItems(items, disp, arr, title);
+
         const playMatch = q.match(/^(toque|tocar|play)\s+(.+)$/i);
         if (playMatch) {
-            _addItems(items, disp, [{ kind: "action", name: "Play \u201c" + playMatch[2] + "\u201d on Spotify", action: "spotifyplay:" + playMatch[2], iconKey: "music", category: "Spotify" }], "SPOTIFY");
+            A([{ kind: "action", name: "Play \u201c" + playMatch[2] + "\u201d on Spotify", action: "spotifyplay:" + playMatch[2], iconKey: "music", category: "Spotify" }], "SPOTIFY");
         }
+
         const timerMatch = ql.match(/^timer\s+(\d+)\s*(min|m|s|sec|seg|h)?$/);
         if (timerMatch) {
             const n = parseInt(timerMatch[1]);
@@ -1772,30 +1764,41 @@ PanelWindow {
             let secs = n * 60;
             if (unit === "s" || unit === "sec" || unit === "seg") secs = n;
             else if (unit === "h") secs = n * 3600;
-            _addItems(items, disp, [{ kind: "action", name: "Start " + n + " " + unit + " timer", action: "realtimer:" + secs + ":" + n + " " + unit, iconKey: "timer", category: "Timer" }], "TIMER");
+            A([{ kind: "action", name: "Start " + n + " " + unit + " timer", action: "realtimer:" + secs + ":" + n + " " + unit, iconKey: "timer", category: "Timer" }], "TIMER");
         }
-        const sys = [];
-        if (ql && "lock screen sleep restart shut down log out".includes(ql)) {
-            sys.push({ kind: "action", name: "Lock Screen", action: "lock", iconKey: "lock", category: "System" });
-            sys.push({ kind: "action", name: "Sleep", action: "sleep", iconKey: "moon", category: "System" });
-            sys.push({ kind: "action", name: "Restart\u2026", action: "restart", iconKey: "restart", category: "System" });
-            sys.push({ kind: "action", name: "Shut Down\u2026", action: "shutdown", iconKey: "power", category: "System" });
-            sys.push({ kind: "action", name: "Log Out", action: "logout", iconKey: "logout", category: "System" });
+
+        if ("lock screen sleep restart shut down log out".includes(ql)) {
+            A([
+                { kind: "action", name: "Lock Screen",   action: "lock",     iconKey: "lock",    category: "System" },
+                { kind: "action", name: "Sleep",         action: "sleep",    iconKey: "moon",    category: "System" },
+                { kind: "action", name: "Restart\u2026", action: "restart",  iconKey: "restart", category: "System" },
+                { kind: "action", name: "Shut Down\u2026", action: "shutdown", iconKey: "power",  category: "System" },
+                { kind: "action", name: "Log Out",       action: "logout",   iconKey: "logout",  category: "System" }
+            ], "SYSTEM");
         }
-        _addItems(items, disp, sys, "SYSTEM");
-        if (ql) {
-            const mm = /^-?[\d.]+$/.test(q) ? null : root.evalMath(q);
-            if (mm !== null) {
-                _addItems(items, disp, [{ kind: "calc", name: "= " + mm, raw: String(mm), category: "Calculator", iconKey: "calc" }], "CALCULATOR");
-            } else {
-                const cv = root.convertUnits(q);
-                if (cv !== null) _addItems(items, disp, [{ kind: "calc", name: "= " + cv, raw: cv, category: "Conversion", iconKey: "calc" }], "CONVERSION");
-            }
-            const searchActions = [];
-            searchActions.push({ kind: "action", name: "Search the Web for \u201c" + q + "\u201d", action: "web:" + q, iconKey: "web", category: "Search" });
-            searchActions.push({ kind: "action", name: "Search in Files", action: "filesearch:" + q, iconKey: "finder", category: "Search" });
-            _addItems(items, disp, searchActions, "SEARCH");
+
+        const mm = /^-?[\d.]+$/.test(q) ? null : root.evalMath(q);
+        if (mm !== null) {
+            A(root._calcRow("= " + mm, String(mm), "Calculator"), "CALCULATOR");
+        } else {
+            const cv = root.convertUnits(q);
+            if (cv !== null) A(root._calcRow("= " + cv, cv, "Conversion"), "CONVERSION");
         }
+        A([
+            { kind: "action", name: "Search the Web for \u201c" + q + "\u201d", action: "web:" + q, iconKey: "web", category: "Search" },
+            { kind: "action", name: "Search in Files", action: "filesearch:" + q, iconKey: "finder", category: "Search" }
+        ], "SEARCH");
+    }
+
+    function _buildSearchMode(items, disp, q, ql) {
+        if (!ql && root.nowPlayingText.length > 0) {
+            root._addItems(items, disp, [{ kind: "media", name: root.nowPlayingText, category: root.nowPlayingStatus === "Playing" ? "Now playing" : "Paused" }], "NOW PLAYING");
+        }
+        if (!ql) return;
+        root._searchPrimary(items, disp, q, ql);
+        if (root.fileItems.length) root._addItems(items, disp, root._fileRows(root.sortFileResults(root.fileItems, q)), "FILES");
+        root._searchInfo(items, disp, q, ql);
+        root._searchActions(items, disp, q, ql);
     }
 
     function buildResults() {
@@ -1806,25 +1809,19 @@ PanelWindow {
         const m = root.mode;
         const prevKey = root.itemKey(root.items[root.selectedIndex]);
         const sig = m + "|" + q;
-        if (ql.startsWith("/")) {
-            root._buildSlashMode(items, disp, ql);
-        } else if (m === "apps") {
-            root._buildAppsMode(items, disp, q, ql);
-        } else if (m === "files") {
-            root._buildFilesMode(items, disp, ql);
-        } else if (m === "clipboard") {
-            root._buildClipboardMode(items, disp);
-        } else if (m === "windows") {
-            root._buildWindowsMode(items, disp, ql);
-        } else if (m === "wifi") {
-            root._buildWifiMode(items, disp);
-        } else if (m === "bluetooth") {
-            root._buildBluetoothMode(items, disp);
-        } else if (m === "actions") {
-            root._buildActionsMode(items, disp);
-        } else {
-            root._buildSearchMode(items, disp, q, ql);
+
+        if (ql.startsWith("/")) root._buildSlashMode(items, disp, q, ql);
+        else switch (m) {
+            case "apps":      root._buildAppsMode(items, disp, q, ql); break;
+            case "files":     root._buildFilesMode(items, disp, ql); break;
+            case "clipboard": root._buildClipboardMode(items, disp); break;
+            case "windows":   root._buildWindowsMode(items, disp, ql); break;
+            case "wifi":      root._buildWifiMode(items, disp); break;
+            case "bluetooth": root._buildBluetoothMode(items, disp); break;
+            case "actions":   root._buildActionsMode(items, disp); break;
+            default:          root._buildSearchMode(items, disp, q, ql);
         }
+
         root.items = items;
         root.results = disp;
         let idx = 0;
@@ -1845,35 +1842,25 @@ PanelWindow {
     function setMode(m) {
         root.mode = m;
         root.selectedIndex = 0;
-        if (m === "files") { root.browseDir = ""; runRecents(); }
-        if (m === "clipboard") runClip();
+        if (m === "files") { root.browseDir = ""; root.runRecents(); }
+        if (m === "clipboard") root.runClip();
         if (m === "windows") _windows.running = true;
         if (m === "wifi") _wifi.running = true;
         if (m === "bluetooth") _bt.running = true;
         root.scheduleRebuild();
     }
 
-    function runRecents() {
-        _recents.exec(["bash", "-c",
-            "cd " + (root.browseDir !== "" ? root.shellQuote(root.browseDir) : "~") + " 2>/dev/null || exit 0; " +
-            "pwd; " +
-            "{ ls -1 --group-directories-first 2>/dev/null; " +
-            "  ls -1A --group-directories-first 2>/dev/null | grep '^\\.'; " +
-            "} | head -300 | while IFS= read -r n; do " +
-            "  p=\"$PWD/$n\"; " +
-            "  if [ -d \"$p\" ]; then printf 'd\\t%s\\n' \"$p\"; else printf 'f\\t%s\\n' \"$p\"; fi; " +
-            "done"
-        ]);
+    function animateRail(target) {
+        _railAnim.stop()
+        _railAnim.from = root.railProgress
+        _railAnim.to = target
+        _railAnim.duration = Math.max(100, Math.round(620 * Math.abs(target - root.railProgress)))
+        _railAnim.start()
     }
 
-    function runClip() { _clip.running = true; }
-    function clearClipboard() { _clipClear.running = true; }
-
-    function runInTerminal(command) {
-        terminalProcess.commandText = command;
-        terminalProcess.running = true;
-    }
-
+    // =====================================================================
+    //  NAVEGAÇÃO E ATIVAÇÃO DE ITENS
+    // =====================================================================
     function moveSelection(delta) {
         if (root.items.length === 0) return;
         root._userNavigated = true;
@@ -1884,6 +1871,43 @@ PanelWindow {
         } else if (resultGrid && resultGrid.visible) {
             resultGrid.positionViewAtIndex(root.selectedIndex, GridView.Contain);
         }
+    }
+
+    function submit(event) {
+        root.openSelected(!!(event.modifiers & Qt.ShiftModifier));
+        event.accepted = true;
+    }
+
+    // Atalhos do campo de busca. Retorna true se tratou a tecla.
+    function handleSearchKey(event, hasSelection) {
+        if (event.key === Qt.Key_Backspace && root.query === ""
+                && root.mode === "files" && root.browseDir !== "" && root.browseDir !== "/") {
+            root.browseUp();
+            return true;
+        }
+        if (!(event.modifiers & Qt.ControlModifier)) return false;
+        switch (event.key) {
+            case Qt.Key_1: root.setMode("apps"); return true;
+            case Qt.Key_2: root.setMode("files"); return true;
+            case Qt.Key_3: root.setMode("actions"); return true;
+            case Qt.Key_4: root.setMode("clipboard"); return true;
+            case Qt.Key_C:
+                if (!hasSelection && root.selectedItem && root.selectedItem.kind === "file") {
+                    root.copyText(root.selectedItem.path);
+                    SpotlightController.spotlightOpen = false;
+                    return true;
+                }
+                return false;
+            case Qt.Key_R:
+                if (root.aiHistory.length > 0 && root._lastAiQuery) {
+                    const p = root._lastAiQuery;
+                    root._lastAiQuery = "";
+                    root.runHermes(p);
+                    return true;
+                }
+                return false;
+        }
+        return false;
     }
 
     function openSelected(alt) {
@@ -1901,226 +1925,237 @@ PanelWindow {
             root.runHermes(aiPrompt);
             return;
         }
-        const e = root.items[root.selectedIndex];
-        if (!e) return;
-        let keepOpen = false;
-
-        if (e.kind === "app") { root.recordUsage("app:" + e.exec); SpotlightApps.launch(e.exec); }
-        else if (e.kind === "file") {
-            root.recordUsage("file:" + e.path);
-            if (root.mode === "files" && root.query.trim() === "" && e.isDirectory && !alt) {
-                root.browseDir = e.path;
-                root.selectedIndex = 0;
-                root.runRecents();
-                return;
-            }
-            if (alt) {
-                const i = e.path.lastIndexOf("/");
-                root.xdgOpen(i > 0 ? e.path.slice(0, i) : "/");
-            } else {
-                root.xdgOpen(e.path);
-            }
-        }
-        else if (e.kind === "proc") {
-            if (/^\d+$/.test(String(e.pid))) {
-                const sig = alt ? "KILL" : "TERM";
-                SpotlightController.run("kill -" + sig + " " + e.pid + " 2>/dev/null; notify-send 'Spotlight' 'SIG" + sig + " enviado ao PID " + e.pid + "'");
-            }
-        }
-        else if (e.kind === "clip") {
-            if (/^\d+$/.test(e.id || "")) SpotlightController.run("cliphist decode " + e.id + " | wl-copy 2>/dev/null || true");
-        }
-        else if (e.kind === "calc") root.copyText(e.raw);
-        else if (e.kind === "emoji") root.copyText(e.raw);
-        else if (e.kind === "media") { SpotlightController.run("playerctl play-pause"); keepOpen = true; }
-        else if (e.kind === "info") {
-            if (e.isAi) {
-                if (!root.aiLoading && root.aiText) root.copyText(root.aiText);
-                keepOpen = true;
-            } else if (e.name && e.name !== "Thinking…") {
-                root.copyText(e.name);
-            }
-        }
-        else if (e.kind === "window") root.focusWindow(e.address);
-        else if (e.kind === "wifi") SpotlightController.run("nmcli connection up id " + root.shellQuote(e.name) + " 2>/dev/null || nmcli device wifi connect " + root.shellQuote(e.name) + " 2>/dev/null");
-        else if (e.kind === "bt") SpotlightController.run("bluetoothctl connect " + root.shellQuote(e.address));
-        else if (e.kind === "action") {
-            if (e.action === "shell") {
-                SpotlightController.run(e.cmd);
-            } else if (e.action.startsWith("open:")) {
-                root.openUrl(e.action.slice(5));
-            } else if (e.action.startsWith("web:")) {
-                root.openUrl("https://www.google.com/search?q=" + encodeURIComponent(e.action.slice(4)));
-            } else if (e.action.startsWith("filesearch:")) {
-                root.circlesLocked = true;
-                root.setMode("files");
-                root.runFd();
-                keepOpen = true;
-            } else if (e.action.startsWith("aiintent:")) {
-                const rest = e.action.slice(9);
-                const colon = rest.indexOf(":");
-                const kind = colon >= 0 ? rest.slice(0, colon) : rest;
-                const arg = colon >= 0 ? rest.slice(colon + 1) : "";
-                const promptMap = { note: "crie uma nota: " + arg, email: "mande um email " + arg };
-                root.runHermes(promptMap[kind] || arg);
-                keepOpen = true;
-            
-            } else if (e.action.startsWith("spotifyplay:")) {
-                const term = e.action.slice(12);
-                SpotlightController.run(
-                    "pgrep -x spotify >/dev/null || (setsid flatpak run com.spotify.Client </dev/null >/dev/null 2>&1 &); " +
-                    "sleep 1; " + root.xdgOpenCmd("spotify:search:" + root.urlq(term)) + "; " +
-                    "sleep 1; wtype -k Return 2>/dev/null || true"
-                );
-            } else if (e.action.startsWith("realtimer:")) {
-                const parts = e.action.slice(10).split(":");
-                root.startTimer(parts[0], parts[1] || (parts[0] + "s"));
-            } else if (e.action === "addtodo:") {
-                let due = undefined;
-                if (e.todoDue) {
-                    const p = e.todoDue.split("-").map(Number);
-                    due = new Date(Date.UTC(p[0], p[1] - 1, p[2], 12));
-                }
-                Todo.addTask(e.todoText, due);
-                if (e.todoRemind && e.todoRemindMs > Date.now()) {
-                    root.scheduleReminder(e.todoRemind, e.todoText);
-                    SpotlightController.run("notify-send 'Spotlight' 'Added to ToDo \u00b7 aviso agendado'");
-                } else {
-                    SpotlightController.run("notify-send 'Spotlight' 'Added to ToDo'");
-                }
-            } else if (e.action === "addevent:") {
-                if (!e.evText || !e.evDate) return;
-                _addEvent.title = e.evText;
-                _addEvent.command = ["python3", Quickshell.shellPath("scripts/calendar/eds-add-event.py"),
-                                    e.evText, e.evDate, e.evTime, String(e.evDuration)];
-                _addEvent.running = true;
-                if (e.evRemind && e.evRemindMs > Date.now()) root.scheduleReminder(e.evRemind, e.evText);
-            } else if (e.action.startsWith("action:")) {
-                const sub = e.action.slice(7);
-                if (sub === "msg") root.xdgOpen("https://messages.google.com/web");
-                else if (sub === "note") root.xdgOpen("obsidian://new");
-                else if (sub === "timer") root.startTimer(300, "5 min");
-                else if (sub === "shortcut") root.xdgOpen("shortcuts://");
-                else SpotlightController.requestAction(e.action);
-            } else if (e.action === "clipboard:clear") {
-                root.clearClipboard();
-                keepOpen = true;
-            } else {
-                SpotlightController.requestAction(e.action);
-            }
-        }
-        else if (e.kind === "cmd") {
-            if (e.action === "screen:") {
-                // /screen                -> explica a tela
-                // /screen <pergunta>     -> responde sobre a tela
-                root._screenQuestion = root.query.replace(/^\/screen\s*/i, "").trim();
-                root.aiText = "🖥️ Capturando a tela…";
-                root._capturing = true;          // some com o Spotlight antes do print
-                _captureGuard.restart();
-                SpotlightActions.runScreenContext();
-                keepOpen = true;
-                return;
-            } else if (e.action === "ocrtr:") {
-                // /traduzir      -> português
-                // /traduzir en   -> inglês, etc.
-                root._ocrLang = root.query.replace(/^\/traduzir\s*/i, "").trim().toLowerCase() || "pt";
-                root._ocrMode = "translate";
-                root._screenshotSelecting = true;
-                root.aiText = "📸 Selecione o texto a traduzir…";
-                _screenshotDeb.useSelectArea = true;
-                _screenshotDeb.restart();
-                keepOpen = true;
-                return;
-            } else if (e.action === "screenshot:") {
-                root._ocrMode = "analyze";
-                root._screenshotSelecting = true;
-                root.aiText = "📸 Selecione a área…";
-                _screenshotDeb.useSelectArea = true;
-                _screenshotDeb.restart();
-                keepOpen = true;
-                return;
-            } else if (e.action === "sum:") {
-                const arg = root.query.replace(/^\/sum\s*/i, "").trim();
-                if (!arg) return;
-
-                // URL → scrape + resumo
-                if (root.looksLikeUrl(arg) || /^https?:\/\//i.test(arg) || /^www\./i.test(arg)) {
-                    const url = /^https?:\/\//i.test(arg) ? arg : "https://" + arg;
-                    root.aiText = "🌐 Baixando…";
-                    SpotlightActions.scrapeUrl(url);
-                    keepOpen = true;
-                } else {
-                    // Caminho de arquivo (PDF, etc.) → summarizePdf
-                    root.aiText = "📄 Lendo…";
-                    SpotlightActions.summarizePdf(arg);
-                    keepOpen = true;
-                }
-                return;
-            } else if (e.action === "mem-on:") {
-                root.aiPersistentHistory = true;
-                root.aiText = "💾 Memória persistente ATIVADA";
-                root.scheduleRebuild();
-                keepOpen = true;
-                return;
-            } else if (e.action === "mem-off:") {
-                root.aiPersistentHistory = false;
-                root.aiText = "💾 Memória persistente DESATIVADA";
-                root.scheduleRebuild();
-                keepOpen = true;
-                return;
-            } else if (e.action.startsWith("focus:")) {
-                const mins = parseInt(e.action.slice(6)) || 120;
-                SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote(SpotlightActions.enterFocusMode(mins)));
-                return;
-            } else if (e.action.startsWith("meeting:")) {
-                SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote(SpotlightActions.enterMeetingMode()));
-                return;
-            } else if (e.action.startsWith("briefing:")) {
-                SpotlightActions.runBriefing();
-                keepOpen = true;
-                return;
-            } else if (e.action.startsWith("git:")) {
-                SpotlightActions.runGitCommit();
-                keepOpen = true;
-                return;
-            } else if (e.action.startsWith("mode:")) {
-                searchField.text = "";
-                root.query = "";
-                root.setMode(e.action.slice(5));
-                return;
-            } else if (e.action.startsWith("sys:")) {
-                SpotlightController.requestAction(e.action.slice(4));
-            } else if (e.action === "emoji:") {
-                const em = SpotlightApps.apps.find(a => a.name.toLowerCase().indexOf("emoji") !== -1);
-                if (em) SpotlightApps.launch(em.exec);
-                else SpotlightController.run("rofimoji 2>/dev/null || wtype 2>/dev/null || true");
-            } else if (e.action === "colorpick:") {
-                SpotlightController.run("hyprpicker -a 2>/dev/null || true");
-            } else if (e.action.startsWith("ipc:")) {
-                const parts = e.action.split(":");
-                SpotlightController.run("qs -c ii ipc call " + parts[1] + " " + parts[2]);
-            } else if (e.action === "ai-new:") {
-                root.aiHistory = [];
-                root.clearAi();
-                searchField.text = "";
-                root.query = "";
-                root.scheduleRebuild();
-                searchField.forceActiveFocus();
-                return;
-            } else if (e.action === "web:" || e.action === "calc:" || e.action === "buscar:"
-                       || e.action === "ai:" || e.action === "todo:") {
-                searchField.text = e.name + " ";
-                searchField.cursorPosition = searchField.text.length;
-                searchField.forceActiveFocus();
-                return;
-            }
-        }
+        if (!sel) return;
+        const keepOpen = root._activate(sel, alt);
         if (!keepOpen) SpotlightController.spotlightOpen = false;
     }
 
-    property var selectedItem: (root.items.length ? root.items[root.selectedIndex] : null)
-    readonly property string selectedKey: root.itemKey(root.selectedItem)
+    // Executa o item; retorna true se o Spotlight deve continuar aberto.
+    function _activate(e, alt) {
+        switch (e.kind) {
+            case "app":
+                root.recordUsage("app:" + e.exec);
+                SpotlightApps.launch(e.exec);
+                return false;
+            case "file":
+                return root._activateFile(e, alt);
+            case "proc":
+                if (/^\d+$/.test(String(e.pid))) {
+                    const sig = alt ? "KILL" : "TERM";
+                    SpotlightController.run("kill -" + sig + " " + e.pid + " 2>/dev/null; notify-send 'Spotlight' 'SIG" + sig + " enviado ao PID " + e.pid + "'");
+                }
+                return false;
+            case "clip":
+                if (/^\d+$/.test(e.id || "")) SpotlightController.run("cliphist decode " + e.id + " | wl-copy 2>/dev/null || true");
+                return false;
+            case "calc":
+            case "emoji":
+                root.copyText(e.raw);
+                return false;
+            case "media":
+                SpotlightController.run("playerctl play-pause");
+                return true;
+            case "info":
+                if (e.isAi) {
+                    if (!root.aiLoading && root.aiText) root.copyText(root.aiText);
+                    return true;
+                }
+                if (e.name && e.name !== "Thinking…") root.copyText(e.name);
+                return false;
+            case "window":
+                root.focusWindow(e.address);
+                return false;
+            case "wifi":
+                SpotlightController.run("nmcli connection up id " + root.shellQuote(e.name) + " 2>/dev/null || nmcli device wifi connect " + root.shellQuote(e.name) + " 2>/dev/null");
+                return false;
+            case "bt":
+                SpotlightController.run("bluetoothctl connect " + root.shellQuote(e.address));
+                return false;
+            case "action":
+                return root._activateAction(e);
+            case "cmd":
+                return root._activateCmd(e);
+        }
+        return false;
+    }
+
+    function _activateFile(e, alt) {
+        root.recordUsage("file:" + e.path);
+        if (root.mode === "files" && root.query.trim() === "" && e.isDirectory && !alt) {
+            root.browseDir = e.path;
+            root.selectedIndex = 0;
+            root.runRecents();
+            return true;
+        }
+        if (alt) {
+            const i = e.path.lastIndexOf("/");
+            root.xdgOpen(i > 0 ? e.path.slice(0, i) : "/");
+        } else {
+            root.xdgOpen(e.path);
+        }
+        return false;
+    }
+
+    function _activateAction(e) {
+        const a = e.action;
+        if (a === "shell") { SpotlightController.run(e.cmd); return false; }
+        if (a.startsWith("open:")) { root.openUrl(a.slice(5)); return false; }
+        if (a.startsWith("web:")) { root.openUrl("https://www.google.com/search?q=" + encodeURIComponent(a.slice(4))); return false; }
+        if (a.startsWith("filesearch:")) {
+            root.circlesLocked = true;
+            root.setMode("files");
+            root.runFd();
+            return true;
+        }
+        if (a.startsWith("aiintent:")) {
+            const rest = a.slice(9);
+            const colon = rest.indexOf(":");
+            const kind = colon >= 0 ? rest.slice(0, colon) : rest;
+            const arg = colon >= 0 ? rest.slice(colon + 1) : "";
+            const promptMap = { note: "crie uma nota: " + arg, email: "mande um email " + arg };
+            root.runHermes(promptMap[kind] || arg);
+            return true;
+        }
+        if (a.startsWith("spotifyplay:")) {
+            const term = a.slice(12);
+            SpotlightController.run(
+                "pgrep -x spotify >/dev/null || (setsid flatpak run com.spotify.Client </dev/null >/dev/null 2>&1 &); " +
+                "sleep 1; " + root.xdgOpenCmd("spotify:search:" + root.urlq(term)) + "; " +
+                "sleep 1; wtype -k Return 2>/dev/null || true"
+            );
+            return false;
+        }
+        if (a.startsWith("realtimer:")) {
+            const parts = a.slice(10).split(":");
+            root.startTimer(parts[0], parts[1] || (parts[0] + "s"));
+            return false;
+        }
+        if (a === "addtodo:") { root.addTodoFromItem(e); return false; }
+        if (a === "addevent:") {
+            if (!e.evText || !e.evDate) return true;
+            _addEvent.title = e.evText;
+            _addEvent.command = ["python3", Quickshell.shellPath("scripts/calendar/eds-add-event.py"),
+                                e.evText, e.evDate, e.evTime, String(e.evDuration)];
+            _addEvent.running = true;
+            if (e.evRemind && e.evRemindMs > Date.now()) root.scheduleReminder(e.evRemind, e.evText);
+            return false;
+        }
+        if (a.startsWith("action:")) {
+            const sub = a.slice(7);
+            if (sub === "msg") root.xdgOpen("https://messages.google.com/web");
+            else if (sub === "note") root.xdgOpen("obsidian://new");
+            else if (sub === "timer") root.startTimer(300, "5 min");
+            else if (sub === "shortcut") root.xdgOpen("shortcuts://");
+            else SpotlightController.requestAction(a);
+            return false;
+        }
+        if (a === "clipboard:clear") { root.clearClipboard(); return true; }
+        SpotlightController.requestAction(a);
+        return false;
+    }
+
+    function _beginScreenshotSelect(mode, lang, hint) {
+        root._ocrMode = mode;
+        if (lang !== undefined) root._ocrLang = lang;
+        root._screenshotSelecting = true;
+        root.aiText = hint;
+        _screenshotDeb.useSelectArea = true;
+        _screenshotDeb.restart();
+    }
+
+    function _activateCmd(e) {
+        const a = e.action;
+        if (a === "screen:") {
+            // /screen -> explica a tela | /screen <pergunta> -> responde sobre a tela
+            root._screenQuestion = root.query.replace(/^\/screen\s*/i, "").trim();
+            root.aiText = "🖥️ Capturando a tela…";
+            root._capturing = true;          // some com o Spotlight antes do print
+            _captureGuard.restart();
+            SpotlightActions.runScreenContext();
+            return true;
+        }
+        if (a === "ocrtr:") {
+            // /traduzir -> português | /traduzir en -> inglês, etc.
+            root._beginScreenshotSelect("translate",
+                root.query.replace(/^\/traduzir\s*/i, "").trim().toLowerCase() || "pt",
+                "📸 Selecione o texto a traduzir…");
+            return true;
+        }
+        if (a === "screenshot:") {
+            root._beginScreenshotSelect("analyze", undefined, "📸 Selecione a área…");
+            return true;
+        }
+        if (a === "sum:") {
+            const arg = root.query.replace(/^\/sum\s*/i, "").trim();
+            if (!arg) return true;
+            if (root.looksLikeUrl(arg) || /^https?:\/\//i.test(arg) || /^www\./i.test(arg)) {
+                root.aiText = "🌐 Baixando…";
+                SpotlightActions.scrapeUrl(/^https?:\/\//i.test(arg) ? arg : "https://" + arg);
+            } else {
+                root.aiText = "📄 Lendo…";
+                SpotlightActions.summarizePdf(arg);
+            }
+            return true;
+        }
+        if (a === "mem-on:" || a === "mem-off:") {
+            const on = a === "mem-on:";
+            root.aiPersistentHistory = on;
+            root.aiText = on ? "💾 Memória persistente ATIVADA" : "💾 Memória persistente DESATIVADA";
+            root.scheduleRebuild();
+            return true;
+        }
+        if (a.startsWith("focus:")) {
+            root.notify(SpotlightActions.enterFocusMode(parseInt(a.slice(6)) || 120));
+            return true;
+        }
+        if (a.startsWith("meeting:")) {
+            root.notify(SpotlightActions.enterMeetingMode());
+            return true;
+        }
+        if (a.startsWith("briefing:")) { SpotlightActions.runBriefing(); return true; }
+        if (a.startsWith("git:")) { SpotlightActions.runGitCommit(); return true; }
+        if (a.startsWith("mode:")) {
+            searchField.text = "";
+            root.query = "";
+            root.setMode(a.slice(5));
+            return true;
+        }
+        if (a.startsWith("sys:")) { SpotlightController.requestAction(a.slice(4)); return false; }
+        if (a === "emoji:") {
+            const em = SpotlightApps.apps.find(x => x.name.toLowerCase().indexOf("emoji") !== -1);
+            if (em) SpotlightApps.launch(em.exec);
+            else SpotlightController.run("rofimoji 2>/dev/null || wtype 2>/dev/null || true");
+            return false;
+        }
+        if (a === "colorpick:") { SpotlightController.run("hyprpicker -a 2>/dev/null || true"); return false; }
+        if (a.startsWith("ipc:")) {
+            const parts = a.split(":");
+            SpotlightController.run("qs -c ii ipc call " + parts[1] + " " + parts[2]);
+            return false;
+        }
+        if (a === "ai-new:") {
+            root.aiHistory = [];
+            root.clearAi();
+            searchField.text = "";
+            root.query = "";
+            root.scheduleRebuild();
+            searchField.forceActiveFocus();
+            return true;
+        }
+        if (a === "web:" || a === "calc:" || a === "buscar:" || a === "ai:" || a === "todo:") {
+            searchField.text = e.name + " ";
+            searchField.cursorPosition = searchField.text.length;
+            searchField.forceActiveFocus();
+            return true;
+        }
+        return false;
+    }
+
+    // =====================================================================
+    //  REAÇÕES / CONEXÕES
+    // =====================================================================
     onSelectedKeyChanged: _previewDeb.restart()
+    onCirclesVisibleChanged: root.animateRail(circlesVisible ? 1.0 : 0.0)
 
     Connections {
         target: SpotlightActions
@@ -2130,32 +2165,25 @@ PanelWindow {
             root._ocrMode = "analyze";          // não deixa o modo "grudar"
 
             if (!ocrText || ocrText === "Nenhuma imagem capturada") {
-                root.aiText = "❌ OCR não retornou texto (tela vazia?)";
-                root.aiLoading = false;
-                if (root._shown) root.scheduleRebuild();
+                root.aiFail("❌ OCR não retornou texto (tela vazia?)");
                 return;
             }
-            root._lastAiQuery = "";             // permite repetir o mesmo texto
             if (mode === "translate") {
-                root.runHermes("Translate the following text to " + root.langName(root._ocrLang)
+                root.runInternalAi("Translate the following text to " + root.langName(root._ocrLang)
                     + ". Reply with ONLY the translation, without quotes or explanations. Preserve line breaks.\n\n"
                     + ocrText.slice(0, 3000));
                 return;
             }
-            root.runHermes("Analise este texto extraído de uma screenshot e responda de forma útil:\n\n" + ocrText.slice(0, 3000));
+            root.runInternalAi("Analise este texto extraído de uma screenshot e responda de forma útil:\n\n" + ocrText.slice(0, 3000));
         }
         function onPageReady(page) {
             const focus = root._resumeFocus;
             root._resumeFocus = "";
             if (!page || !page.ok) {
-                root.aiText = "❌ " + ((page && page.error) || "Não consegui ler o link");
-                root.aiLoading = false;
-                if (root._shown) root.scheduleRebuild();
+                root.aiFail("❌ " + ((page && page.error) || "Não consegui ler o link"));
                 return;
             }
-            root._lastAiQuery = "";
-            root.runHermes(root.buildResumePrompt(page, focus), false,
-                           "🌐 Resumir: " + (page.title || page.url));
+            root.runInternalAi(root.buildResumePrompt(page, focus), "🌐 Resumir: " + (page.title || page.url));
         }
         function onScreenContextReady(windows, ocr) {
             _captureGuard.stop();
@@ -2164,48 +2192,34 @@ PanelWindow {
             const q = root._screenQuestion;
             root._screenQuestion = "";
             if (!windows && !ocr) {
-                root.aiText = "❌ Não consegui capturar a tela (grim/hyprctl)";
-                root.aiLoading = false;
-                if (root._shown) root.scheduleRebuild();
+                root.aiFail("❌ Não consegui capturar a tela (grim/hyprctl)");
                 return;
             }
-            root._lastAiQuery = "";
-            root.runHermes(root.buildScreenPrompt(windows, ocr, q), false,
-                           "🖥️ " + (q || "O que está na minha tela?"));
+            root.runInternalAi(root.buildScreenPrompt(windows, ocr, q), "🖥️ " + (q || "O que está na minha tela?"));
         }
         function onScrapeReady(text) {
-            if (!text) {
-                root.aiText = "❌ Não consegui baixar o link";
-                root.aiLoading = false;
-                if (root._shown) root.scheduleRebuild();
-                return;
-            }
-            root.runHermes("Resuma este conteúdo de página web de forma concisa:\n\n" + text.slice(0, 5000));
+            if (!text) { root.aiFail("❌ Não consegui baixar o link"); return; }
+            root.runInternalAi("Resuma este conteúdo de página web de forma concisa:\n\n" + text.slice(0, 5000));
         }
         function onPdfReady(text) {
-            if (!text) {
-                root.aiText = "❌ Não consegui ler o PDF";
-                root.aiLoading = false;
-                if (root._shown) root.scheduleRebuild();
-                return;
-            }
-            root.runHermes("Resuma este PDF de forma concisa:\n\n" + text.slice(0, 6000));
+            if (!text) { root.aiFail("❌ Não consegui ler o PDF"); return; }
+            root.runInternalAi("Resuma este PDF de forma concisa:\n\n" + text.slice(0, 6000));
         }
         function onGitDiffReady(diff) {
             if (!diff) {
                 root.aiText = "📭 Nada pra commitar";
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
                 return;
             }
-            root.runHermes("Gere mensagem de commit (Conventional Commits) para:\n\n" + diff);
+            root.runInternalAi("Gere mensagem de commit (Conventional Commits) para:\n\n" + diff);
         }
         function onBriefingReady(text) {
             if (!text) {
                 root.aiText = "❌ Briefing indisponível";
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
                 return;
             }
-            root.runHermes("Formate este briefing matinal de forma bonita:\n\n" + text);
+            root.runInternalAi("Formate este briefing matinal de forma bonita:\n\n" + text);
         }
         function onHistoryReady(history) {
             if (Array.isArray(history) && history.length > 0) root.aiHistory = history;
@@ -2215,46 +2229,51 @@ PanelWindow {
     Connections {
         target: SpotlightController
         function onSpotlightOpenChanged() {
-            if (SpotlightController.spotlightOpen) {
-                root._userNavigated = false;
-                root._opened = true;
-                root._shown = true;
-                root.query = "";
-                root.mode = "search";
-                root.selectedIndex = 0;
-                searchField.text = "";
-                root.circlesVisible = false;
-                root.circlesLocked = false;
-                root.clearAi();
-                if (!root.aiPersistentHistory) {
-                    root.aiHistory = [];
-                } else {
-                    SpotlightActions.loadHistory();
-                }
-                root.passText = "";
-                root._passKey = "";
-                root.timeText = "";
-                root._timeKey = "";
-                root.procItems = [];
-                root._procKey = "";
-                root.devResult = { q: "", text: "", label: "" };
-                root._devQ = "";
-                root._buildSig = "";
-                root._previewKeyShown = "";
-                root.previewKind = "";
-                root.previewPath = "";
-                root._lastContentQuery = "";
-                root.scheduleRebuild();
-                if (root._pendingMode !== "") {
-                    root.setMode(root._pendingMode);
-                    root._pendingMode = "";
-                }
-                openAnim.start();
-                Qt.callLater(() => searchField.forceActiveFocus());
-            } else {
+            if (!SpotlightController.spotlightOpen) {
                 root._opened = false;
                 closeAnim.start();
+                return;
             }
+            root._userNavigated = false;
+            root._opened = true;
+            root._shown = true;
+            root.query = "";
+            root.mode = "search";
+            root.selectedIndex = 0;
+            searchField.text = "";
+            root.circlesVisible = false;
+            root.circlesLocked = false;
+            root.clearAi();
+            if (!root.aiPersistentHistory) root.aiHistory = [];
+            else SpotlightActions.loadHistory();
+            root.passText = "";
+            root._passKey = "";
+            root.timeText = "";
+            root._timeKey = "";
+            root.procItems = [];
+            root._procKey = "";
+            root.devResult = { q: "", text: "", label: "" };
+            root._devQ = "";
+            root._buildSig = "";
+            root._previewKeyShown = "";
+            root.previewKind = "";
+            root.previewPath = "";
+            root._lastContentQuery = "";
+            root.scheduleRebuild();
+            if (root._pendingMode !== "") {
+                root.setMode(root._pendingMode);
+                root._pendingMode = "";
+            }
+            openAnim.start();
+            Qt.callLater(() => searchField.forceActiveFocus());
+        }
+    }
+
+    Connections {
+        target: SpotlightApps
+        ignoreUnknownSignals: true
+        function onReadyChanged() {
+            if (SpotlightController.spotlightOpen) root.scheduleRebuild();
         }
     }
 
@@ -2286,12 +2305,15 @@ PanelWindow {
         }
     }
 
-    Connections {
-        target: SpotlightApps
-        ignoreUnknownSignals: true
-        function onReadyChanged() {
-            if (SpotlightController.spotlightOpen) root.scheduleRebuild();
-        }
+    // =====================================================================
+    //  ANIMAÇÕES
+    // =====================================================================
+    NumberAnimation {
+        id: _railAnim
+        target: root
+        property: "railProgress"
+        duration: 620
+        easing.type: Easing.Linear
     }
 
     SequentialAnimation {
@@ -2317,6 +2339,9 @@ PanelWindow {
         } }
     }
 
+    // =====================================================================
+    //  INTERFACE
+    // =====================================================================
     MouseArea {
         anchors.fill: parent
         enabled: !root._screenshotSelecting
@@ -2329,19 +2354,20 @@ PanelWindow {
         anchors.top: parent.top
         anchors.topMargin: Math.round(root.screen.height * 0.22) + root.panelYOffset
         width: root.panelWidth
-        height: root.searchH + (root.hasBody ? root.computeResultsHeight() + 8 : 0)
+        height: root.searchH + (root.hasBody ? root.resultsHeight + 8 : 0)
         transformOrigin: Item.Top
         scale: root.panelScale
         opacity: root.panelOpacity
 
         Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
 
+        // ---- Fundo "vidro"
         Rectangle {
             id: panelChrome
             anchors.left: parent.left
             anchors.top: parent.top
             width: root.hasBody ? parent.width : morphSurface.mainWidth
-            height: root.searchH + (root.hasBody ? root.computeResultsHeight() + 8 : 0)
+            height: root.searchH + (root.hasBody ? root.resultsHeight + 8 : 0)
             radius: root.panelRadius
             color: root.glassBg
             border.color: root.glassBorder
@@ -2358,6 +2384,7 @@ PanelWindow {
             }
         }
 
+        // ---- Barra de busca
         Item {
             id: searchHeader
             anchors.left: parent.left
@@ -2437,52 +2464,20 @@ PanelWindow {
                         onActiveFocusChanged: { if (activeFocus) root.circlesLocked = false }
                         Keys.onUpPressed: (event) => { root.moveSelection(-1); event.accepted = true }
                         Keys.onDownPressed: (event) => { root.moveSelection(1); event.accepted = true }
-                        Keys.onReturnPressed: (event) => { root.openSelected(!!(event.modifiers & Qt.ShiftModifier)); event.accepted = true }
-                        Keys.onEnterPressed: (event) => { root.openSelected(!!(event.modifiers & Qt.ShiftModifier)); event.accepted = true }
+                        Keys.onReturnPressed: (event) => root.submit(event)
+                        Keys.onEnterPressed: (event) => root.submit(event)
                         Keys.onEscapePressed: (event) => {
-                            if (root._screenshotSelecting) {
-                                event.accepted = true;
-                                return;
-                            }
-                            SpotlightController.spotlightOpen = false;
+                            if (!root._screenshotSelecting) SpotlightController.spotlightOpen = false;
                             event.accepted = true;
                         }
                         Keys.onTabPressed: (event) => { root.circlesVisible = !root.circlesVisible; event.accepted = true }
                         Keys.onPressed: (event) => {
-                            if (event.key === Qt.Key_Backspace && searchField.text === ""
-                                    && root.mode === "files" && root.browseDir !== "" && root.browseDir !== "/") {
-                                const i = root.browseDir.lastIndexOf("/");
-                                root.browseDir = i > 0 ? root.browseDir.slice(0, i) : "/";
-                                root.selectedIndex = 0;
-                                root.runRecents();
-                                event.accepted = true;
-                                return;
-                            }
-                            if (event.modifiers & Qt.ControlModifier) {
-                                if (event.key === Qt.Key_1) { root.setMode("apps"); event.accepted = true; }
-                                else if (event.key === Qt.Key_2) { root.setMode("files"); event.accepted = true; }
-                                else if (event.key === Qt.Key_3) { root.setMode("actions"); event.accepted = true; }
-                                else if (event.key === Qt.Key_4) { root.setMode("clipboard"); event.accepted = true; }
-                                else if (event.key === Qt.Key_C && searchField.selectedText === "" && root.selectedItem && root.selectedItem.kind === "file") {
-                                    root.copyText(root.selectedItem.path);
-                                    SpotlightController.spotlightOpen = false;
-                                    event.accepted = true;
-                                }
-                                else if (event.key === Qt.Key_R && root.aiHistory.length > 0 && root._lastAiQuery) {
-                                    const p = root._lastAiQuery;
-                                    root._lastAiQuery = "";
-                                    root.runHermes(p);
-                                    event.accepted = true;
-                                    return;
-                                }
-                            }
+                            if (root.handleSearchKey(event, searchField.selectedText !== "")) event.accepted = true;
                         }
                         onTextChanged: {
                             root._userNavigated = false;
                             root.query = text;
-                            if (text.length > 0 && !root.circlesLocked && root.mode !== "search") {
-                                root.mode = "search";
-                            }
+                            if (text.length > 0 && !root.circlesLocked && root.mode !== "search") root.mode = "search";
                             root.scheduleRebuild();
                             _fdDeb.restart();
                             _sideEffectsDeb.restart();
@@ -2500,6 +2495,7 @@ PanelWindow {
                 }
             }
 
+            // ---- Botões circulares de modo
             Item {
                 id: circlesContainer
                 anchors.fill: parent
@@ -2563,24 +2559,19 @@ PanelWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onEntered: {
-                                if (modelData.m === "apps") root.placeholderText = "Applications"
-                                else if (modelData.m === "files") root.placeholderText = "Files"
-                                else if (modelData.m === "actions") root.placeholderText = "Actions"
-                                else if (modelData.m === "clipboard") root.placeholderText = "Clipboard"
-                            }
+                            onEntered: root.placeholderText = modelData.tip
                             onExited: root.placeholderText = "Search or Ask"
                             onClicked: {
                                 root.circlesLocked = true
                                 root.circlesVisible = false
-                                if (root.mode === modelData.m) root.setMode("search")
-                                else root.setMode(modelData.m)
+                                root.setMode(root.mode === modelData.m ? "search" : modelData.m)
                             }
                         }
                     }
                 }
             }
 
+            // ---- Arrastar para abrir/fechar a trilha de modos
             MouseArea {
                 id: dragZone
                 anchors.right: searchHeader.right
@@ -2600,27 +2591,20 @@ PanelWindow {
                     _railAnim.stop()
                 }
                 onPositionChanged: (mouse) => {
-                    if (isDragging) {
-                        var delta = mouse.x - startMouseX
-                        var maxDist = root.circleSize * 4 + root.circlesGap * 4
-                        var targetP = Math.max(0, Math.min(1, startProgress + delta / maxDist))
-                        root.railProgress = targetP
-                    }
+                    if (!isDragging) return
+                    var maxDist = root.circleSize * 4 + root.circlesGap * 4
+                    root.railProgress = Math.max(0, Math.min(1, startProgress + (mouse.x - startMouseX) / maxDist))
                 }
                 onReleased: (mouse) => {
-                    if (isDragging) {
-                        isDragging = false
-                        if (root.railProgress > 0.25) {
-                            root.circlesVisible = true
-                            root.animateRail(1.0)
-                        } else {
-                            root.circlesVisible = false
-                            root.animateRail(0.0)
-                        }
-                    }
+                    if (!isDragging) return
+                    isDragging = false
+                    const open = root.railProgress > 0.25
+                    root.circlesVisible = open
+                    root.animateRail(open ? 1.0 : 0.0)
                 }
             }
 
+            // ---- Botão limpar
             Rectangle {
                 id: clearBtn
                 x: morphSurface.mainWidth - width - 16
@@ -2645,6 +2629,7 @@ PanelWindow {
             }
         }
 
+        // ---- Botão que abre/fecha os modos
         Rectangle {
             id: modesToggle
             x: morphSurface.mainWidth - width - 10
@@ -2679,13 +2664,14 @@ PanelWindow {
             }
         }
 
+        // ---- Cartão de resultados
         Item {
             id: resultsCard
             anchors.top: searchHeader.bottom
             anchors.topMargin: 1
             anchors.left: parent.left
             anchors.right: parent.right
-            height: root.computeResultsHeight()
+            height: root.resultsHeight
             visible: root.hasBody && height > 0
             z: 1
             clip: true
@@ -2696,6 +2682,7 @@ PanelWindow {
                 anchors.fill: parent
                 spacing: 0
 
+                // Now playing
                 RowLayout {
                     Layout.fillWidth: true; Layout.preferredHeight: root.nowPlayingH
                     Layout.leftMargin: 14; Layout.rightMargin: 14; Layout.topMargin: 4
@@ -2707,32 +2694,33 @@ PanelWindow {
                         font { family: "SF Pro Display"; pixelSize: 13 }
                         elide: Text.ElideRight; maximumLineCount: 1
                     }
-                    Rectangle {
-                        width: 26; height: 26; radius: 13
-                        color: prevMA.containsMouse ? root.hoverBg : "transparent"
-                        Text { anchors.centerIn: parent; text: "\u23ee"; color: root.sFg; font.pixelSize: 13 }
-                        MouseArea { id: prevMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl previous"]; _mediaCmd.running = true; }
-                        }
-                    }
-                    Rectangle {
-                        width: 28; height: 28; radius: 14
-                        color: playPauseMA.containsMouse ? root.hoverBg : "transparent"
-                        Text { anchors.centerIn: parent; text: root.nowPlayingStatus === "Playing" ? "\u23f8" : "\u25b6"; color: root.sFg }
-                        MouseArea { id: playPauseMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl play-pause"]; _mediaCmd.running = true; }
-                        }
-                    }
-                    Rectangle {
-                        width: 26; height: 26; radius: 13
-                        color: nextMA.containsMouse ? root.hoverBg : "transparent"
-                        Text { anchors.centerIn: parent; text: "\u23ed"; color: root.sFg; font.pixelSize: 13 }
-                        MouseArea { id: nextMA; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                            onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl next"]; _mediaCmd.running = true; }
+                    Repeater {
+                        model: [
+                            { cmd: "previous",   glyph: "\u23ee", size: 26 },
+                            { cmd: "play-pause", glyph: "",       size: 28 },
+                            { cmd: "next",       glyph: "\u23ed", size: 26 }
+                        ]
+                        delegate: Rectangle {
+                            width: modelData.size; height: modelData.size; radius: modelData.size / 2
+                            color: mediaBtnMA.containsMouse ? root.hoverBg : "transparent"
+                            Text {
+                                anchors.centerIn: parent
+                                color: root.sFg
+                                font.pixelSize: 13
+                                text: modelData.cmd === "play-pause"
+                                      ? (root.nowPlayingStatus === "Playing" ? "\u23f8" : "\u25b6")
+                                      : modelData.glyph
+                            }
+                            MouseArea {
+                                id: mediaBtnMA
+                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
+                                onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl " + modelData.cmd]; _mediaCmd.running = true; }
+                            }
                         }
                     }
                 }
 
+                // Estatísticas do sistema
                 RowLayout {
                     Layout.fillWidth: true; Layout.preferredHeight: 24
                     Layout.leftMargin: 14; Layout.rightMargin: 14
@@ -2779,24 +2767,23 @@ PanelWindow {
                         delegate: Item {
                             required property var modelData
                             readonly property bool isDanger: modelData.action === "clipboard:clear"
+                            readonly property bool isHeader: modelData.isHeader === true
+                            readonly property bool isClipImage: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
                             width: resultList.width
-                            height: modelData.isHeader === true ? root.headerH : root.rowH
+                            height: isHeader ? root.headerH : root.rowH
                             Text {
-                                visible: modelData.isHeader === true
+                                visible: isHeader
                                 anchors.left: parent.left; anchors.leftMargin: 10; anchors.bottom: parent.bottom; anchors.bottomMargin: 2
                                 text: modelData.title || ""
                                 font { family: "SF Pro Display"; pixelSize: 11; weight: Font.DemiBold }
                                 color: root.headerFg
                             }
                             Rectangle {
-                                visible: modelData.isHeader !== true
+                                visible: !isHeader
                                 anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4
                                 radius: 8
                                 color: {
-                                    if (isDanger) {
-                                        if (rowHover.containsMouse) return Qt.rgba(1, 0.27, 0.23, 0.20);
-                                        return Qt.rgba(1, 0.27, 0.23, 0.10);
-                                    }
+                                    if (isDanger) return rowHover.containsMouse ? Qt.rgba(1, 0.27, 0.23, 0.20) : Qt.rgba(1, 0.27, 0.23, 0.10);
                                     if (root.selectedIndex === modelData._idx) return root.selectionBg;
                                     if (rowHover.containsMouse) return root.hoverBg;
                                     return "transparent";
@@ -2804,7 +2791,7 @@ PanelWindow {
                                 Behavior on color { ColorAnimation { duration: 80 } }
                             }
                             RowLayout {
-                                visible: modelData.isHeader !== true
+                                visible: !isHeader
                                 anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
                                 Image {
                                     visible: modelData.kind === "app"
@@ -2814,7 +2801,7 @@ PanelWindow {
                                     asynchronous: true; smooth: true
                                 }
                                 Image {
-                                    visible: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
+                                    visible: isClipImage
                                     Layout.preferredWidth: 60; Layout.preferredHeight: 44; Layout.alignment: Qt.AlignVCenter
                                     source: visible ? ("file://" + modelData.imagePath) : ""
                                     sourceSize { width: 120; height: 88 }
@@ -2823,7 +2810,7 @@ PanelWindow {
                                     Rectangle { anchors.fill: parent; radius: 5; color: "transparent"; border.color: Qt.rgba(1, 1, 1, 0.18); border.width: 1 }
                                 }
                                 Item {
-                                    visible: modelData.kind !== "app" && !(modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath)
+                                    visible: modelData.kind !== "app" && !isClipImage
                                     Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize; Layout.alignment: Qt.AlignVCenter
                                     Rectangle {
                                         anchors.centerIn: parent
@@ -2853,8 +2840,8 @@ PanelWindow {
                                 }
                             }
                             MouseArea {
-                                visible: modelData.isHeader !== true
                                 id: rowHover
+                                visible: !isHeader
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
@@ -2865,7 +2852,6 @@ PanelWindow {
                                         root.selectedIndex = modelData._idx
                                     }
                                 }
-
                                 onClicked: (mouse) => {
                                     root.selectedIndex = modelData._idx
 
@@ -2878,9 +2864,7 @@ PanelWindow {
                                         }
                                         return
                                     }
-
-                                    // Shift + clique → abre a pasta
-                                    // Clique normal → abre o arquivo
+                                    // Shift + clique → abre a pasta | clique normal → abre o arquivo
                                     root.openSelected(!!(mouse.modifiers & Qt.ShiftModifier))
                                 }
                             }
@@ -2956,18 +2940,15 @@ PanelWindow {
             }
         }
 
+        // ---- Popup de preview (imagem, texto, markdown, PDF, vídeo, áudio)
         Rectangle {
             id: previewPopup
             visible: root.previewKind !== ""
             anchors.left: searchHeader.right
             anchors.leftMargin: 16
             anchors.top: searchHeader.top
-            width: root.previewKind === "text" || root.previewKind === "markdown" ? 420
-                 : (root.previewKind === "pdf" || root.previewKind === "image" || root.previewKind === "video") ? root.previewSizeLarge().w
-                 : root.previewSize().w
-            height: root.previewKind === "text" || root.previewKind === "markdown" ? 660
-                  : (root.previewKind === "pdf" || root.previewKind === "image" || root.previewKind === "video") ? root.previewSizeLarge().h
-                  : root.previewSize().h
+            width: root.previewBox.w
+            height: root.previewBox.h
             radius: root.panelRadius
             color: root.glassBg
             border.color: root.glassBorder
@@ -3129,6 +3110,7 @@ PanelWindow {
             }
         }
 
+        // ---- Popup da IA (Hermes Agent)
         Rectangle {
             id: aiPopup
             visible: root.aiText.length > 0 && root.previewKind === ""
@@ -3143,10 +3125,7 @@ PanelWindow {
             readonly property real aiPad: 28
             readonly property real aiExtra: 8
 
-            height: Math.min(
-                aiMaxH,
-                Math.max(aiMinH, aiBody.implicitHeight + aiPad + aiExtra)
-            )
+            height: Math.min(aiMaxH, Math.max(aiMinH, aiBody.implicitHeight + aiPad + aiExtra))
 
             radius: root.panelRadius
             color: root.glassBg
@@ -3154,12 +3133,8 @@ PanelWindow {
             border.width: 1
             clip: true
 
-            Behavior on height {
-                NumberAnimation { duration: 180; easing.type: Easing.OutCubic }
-            }
-            Behavior on width {
-                NumberAnimation { duration: 140; easing.type: Easing.OutCubic }
-            }
+            Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
             MouseArea { anchors.fill: parent; z: -1 }
 
@@ -3171,6 +3146,7 @@ PanelWindow {
                 anchors.margins: 14
                 spacing: 8
 
+                // Cabeçalho
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
@@ -3237,11 +3213,7 @@ PanelWindow {
                             anchors.fill: parent
                             hoverEnabled: true
                             cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                root.aiHistory = [];
-                                root.clearAi();
-                                root.scheduleRebuild();
-                            }
+                            onClicked: root.newAiConversation()
                         }
                     }
                 }
@@ -3252,6 +3224,7 @@ PanelWindow {
                     color: root.divider
                 }
 
+                // Mensagens
                 ScrollView {
                     id: aiScroll
                     Layout.fillWidth: true
@@ -3259,16 +3232,14 @@ PanelWindow {
                         const headerish = 40 + 1 + 8
                         const inputish = 40 + 8 + 18
                         const maxBody = aiPopup.aiMaxH - aiPopup.aiPad - headerish - inputish
-                        const natural = aiMessages.implicitHeight
-                        return Math.min(Math.max(natural, 40), maxBody)
+                        return Math.min(Math.max(aiMessages.implicitHeight, 40), maxBody)
                     }
                     clip: true
                     contentWidth: availableWidth
                     ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
                     ScrollBar.vertical: ScrollBar {
                         width: 6
-                        policy: aiScroll.contentHeight > aiScroll.height
-                                ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
+                        policy: aiScroll.contentHeight > aiScroll.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
                         contentItem: Rectangle {
                             implicitWidth: 6; radius: 3
                             color: Qt.rgba(1, 1, 1, 0.35)
@@ -3395,6 +3366,7 @@ PanelWindow {
                     }
                 }
 
+                // Entrada de chat
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
@@ -3423,20 +3395,12 @@ PanelWindow {
                                 verticalAlignment: Text.AlignVCenter
                                 visible: chatInput.text.length === 0
                             }
-                            Keys.onReturnPressed: (event) => {
-                                const t = chatInput.text.trim();
-                                if (t.length === 0 || root.aiLoading) return;
-                                chatInput.text = "";
-                                root.runHermes(t);
-                                event.accepted = true;
+                            function sendNow() {
+                                const t = text;
+                                if (root.sendChat(t)) text = "";
                             }
-                            Keys.onEnterPressed: (event) => {
-                                const t = chatInput.text.trim();
-                                if (t.length === 0 || root.aiLoading) return;
-                                chatInput.text = "";
-                                root.runHermes(t);
-                                event.accepted = true;
-                            }
+                            Keys.onReturnPressed: (event) => { sendNow(); event.accepted = true; }
+                            Keys.onEnterPressed: (event) => { sendNow(); event.accepted = true; }
                         }
                         Rectangle {
                             Layout.preferredWidth: 30
@@ -3467,12 +3431,7 @@ PanelWindow {
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
                                 enabled: !root.aiLoading
-                                onClicked: {
-                                    const t = chatInput.text.trim();
-                                    if (t.length === 0) return;
-                                    chatInput.text = "";
-                                    root.runHermes(t);
-                                }
+                                onClicked: chatInput.sendNow()
                             }
                         }
                     }
@@ -3489,9 +3448,23 @@ PanelWindow {
         }
     }
 
+    // =====================================================================
+    //  TIMERS
+    // =====================================================================
+    Timer { id: _previewDeb; interval: 120; repeat: false; onTriggered: root.updatePreview() }
     Timer { id: _fdDeb; interval: 140; repeat: false; onTriggered: root.runFd() }
     Timer { id: _sideEffectsDeb; interval: 250; repeat: false; onTriggered: root.runSideEffects() }
     Timer { id: _rebuildDeb; interval: 30; repeat: false; onTriggered: root.buildResults() }
+    Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runHermes(root._pendingAiPrompt) }
+
+    Timer {
+        id: _screenshotDeb
+        interval: 150
+        repeat: false
+        property bool useSelectArea: true
+        onTriggered: SpotlightActions.runScreenshotOcr(useSelectArea)
+    }
+
     Timer {
         id: _captureGuard
         interval: 45000; repeat: false
@@ -3499,12 +3472,10 @@ PanelWindow {
             if (!root._capturing) return;
             root._capturing = false;
             root._screenQuestion = "";
-            root.aiText = "❌ A captura da tela demorou demais";
-            root.aiLoading = false;
-            if (root._shown) root.scheduleRebuild();
+            root.aiFail("❌ A captura da tela demorou demais");
         }
     }
-    Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runHermes(root._pendingAiPrompt) }
+
     Timer {
         id: _aiRetryTimer
         interval: 1000; repeat: false
@@ -3521,14 +3492,26 @@ PanelWindow {
         onTriggered: tick++
     }
 
-    Process { id: _mediaCmd; running: false }
-
     Timer {
         id: _mprisTimer
         interval: 2000; running: root._shown; repeat: true
         triggeredOnStart: true
         onTriggered: _mprisPoll.running = true
     }
+
+    Timer {
+        id: _statsTimer
+        interval: 3000; repeat: true
+        running: root._shown && root.showSysStats
+        triggeredOnStart: true
+        onTriggered: { if (!_stats.running) _stats.running = true; }
+    }
+
+    // =====================================================================
+    //  PROCESSOS
+    // =====================================================================
+    Process { id: _mediaCmd; running: false }
+    Process { id: _saveUsage; running: false }
 
     Process {
         id: _mprisPoll; running: false
@@ -3545,7 +3528,7 @@ PanelWindow {
                 if (newText !== root.nowPlayingText || newStatus !== root.nowPlayingStatus) {
                     root.nowPlayingText = newText;
                     root.nowPlayingStatus = newStatus;
-                    if (root._shown) root.scheduleRebuild();
+                    root.rebuildIfShown();
                 }
             }
         }
@@ -3579,6 +3562,22 @@ PanelWindow {
                 root.browseDir = lines.shift().trim();
                 root.recentItems = root.parseFdLines(lines);
                 if (root.mode === "files") root.scheduleRebuild();
+            }
+        }
+    }
+
+    Process {
+        id: _rg; running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.trim().split("\n");
+                const id = parseInt(lines.shift());
+                if (id !== root._rgReq) return;
+                root.contentResults = lines.filter(Boolean).map(p => {
+                    const sp = root.splitPath(p);
+                    return { name: sp.name, path: p, dir: sp.dir };
+                });
+                root.rebuildIfShown();
             }
         }
     }
@@ -3635,12 +3634,11 @@ PanelWindow {
                     const word = m[2].trim().replace(pt ? /[^a-zà-ú-]/g : /[^a-z-]/g, "");
                     if (word) root.cacheSet("dict:" + lang + ":" + word, def);
                 }
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
     }
 
-    Process { id: _saveUsage; running: false }
     Process {
         id: _loadUsage; running: false
         command: ["bash", "-c", "cat ~/.cache/spotlight-usage.json 2>/dev/null || echo '{}'"]
@@ -3658,9 +3656,9 @@ PanelWindow {
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 CalendarEvents.refresh();
-                SpotlightController.run("notify-send 'Spotlight' " + root.shellQuote("Event added: " + title));
+                root.notify("Event added: " + title);
             } else {
-                SpotlightController.run("notify-send -u critical 'Spotlight' 'Could not add event'");
+                root.notify("Could not add event", true);
             }
         }
     }
@@ -3681,7 +3679,7 @@ PanelWindow {
                         root.currencyText = "";
                     }
                 } catch (e) { root.currencyText = ""; }
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
     }
@@ -3698,7 +3696,7 @@ PanelWindow {
                     const state = (t.match(/state:\s*(\S+)/) || [])[1] || "";
                     root.batteryText = pct + (state ? " \u2014 " + state : "");
                 }
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
     }
@@ -3709,7 +3707,7 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 root.ipText = text.trim().replace("\n", "  \u2022  ");
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
     }
@@ -3755,28 +3753,11 @@ PanelWindow {
         stdout: StdioCollector {
             onStreamFinished: {
                 const lines = text.trim().split("\n").filter(Boolean);
-                const out = lines.map(l => {
+                root.btItems = lines.map(l => {
                     const p = l.trim().split(" ");
                     return { mac: p[1] || "", name: p.slice(2).join(" ") || l };
                 });
-                root.btItems = out;
                 if (root.mode === "bluetooth") root.scheduleRebuild();
-            }
-        }
-    }
-
-    Process {
-        id: _rg; running: false
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const lines = text.trim().split("\n");
-                const id = parseInt(lines.shift());
-                if (id !== root._rgReq) return;
-                root.contentResults = lines.filter(Boolean).map(p => {
-                    const sp = root.splitPath(p);
-                    return { name: sp.name, path: p, dir: sp.dir };
-                });
-                if (root._shown) root.scheduleRebuild();
             }
         }
     }
@@ -3795,7 +3776,7 @@ PanelWindow {
                     out.push({ pid: parseInt(m[1]), mb: Math.round(parseInt(m[2]) / 1024), name: m[3] });
                 }
                 root.procItems = out;
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
     }
@@ -3810,17 +3791,9 @@ PanelWindow {
                 let out = lines.join("\n").trim();
                 if (!out) out = root._devLabel.indexOf("decodificado") >= 0 ? "Base64 inválido" : "(vazio)";
                 root.devResult = { q: root._devQ, text: out, label: root._devLabel };
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
-    }
-
-    Timer {
-        id: _statsTimer
-        interval: 3000; repeat: true
-        running: root._shown && root.showSysStats
-        triggeredOnStart: true
-        onTriggered: { if (!_stats.running) _stats.running = true; }
     }
 
     Process {
@@ -3851,7 +3824,7 @@ PanelWindow {
                 const t = text.trim();
                 if (t.length !== root._passWanted) return;
                 root.passText = t;
-                if (root._shown) root.scheduleRebuild();
+                root.rebuildIfShown();
             }
         }
     }

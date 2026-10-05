@@ -524,7 +524,10 @@ ButtonMouseArea {
                     family: Config.options?.bar.workspaces.useNerdFont ? Appearance.font.family.iconNerd : defaultFont
                 }
                 color: wsNum.contentColor
-                text: Config.options?.bar.workspaces.numberMap[wsNum.wsId - 1] || wsNum.wsId
+                text: {
+                    const label = wsModel.getLabelAt(wsNum.index);
+                    return Config.options?.bar.workspaces.numberMap[label - 1] || label;
+                }
             }
         }
     }
