@@ -82,7 +82,7 @@ hl.animation({
     enabled = true,
     speed = 3,
     bezier = "minimalEase",
-    style = "slidefadevert"
+    style = "fade"
 })
 
 -- specialWorkspace

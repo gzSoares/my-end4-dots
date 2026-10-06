@@ -55,7 +55,7 @@ tryRequire("custom.keybinds")
 -- the perWsCheckProc grep in LayoutsConfig would always match on a fresh
 -- install and the panel would open with "Per Workspace" highlighted instead
 -- of "Dwindle".
-tryRequire("workspaces")
+-- tryRequire("workspaces")
 tryRequire("monitors")
 
 -- Shell overrides (Quickshell-managed runtime knobs: GameMode, AntiFlashbang, etc.)

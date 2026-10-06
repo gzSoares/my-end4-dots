@@ -17,6 +17,54 @@ local function inheritedNumlockState()
     return true
 end
 
+-- The layout the machine was set up with, read from the same file the login
+-- screen reads: systemd-localed's X11 config, which the installer's keyboard
+-- page writes, then the console keymap. Read at every start rather than copied
+-- in once, so an update that refreshes this file cannot send the desktop back
+-- to QWERTY. Settings → Keyboard writes its own list into custom/general.lua,
+-- which is sourced after this file and wins.
+local function systemKeyboardLayout()
+    local conf = io.open("/etc/X11/xorg.conf.d/00-keyboard.conf", "r")
+    if conf then
+        local layout, variant
+        for line in conf:lines() do
+            layout = layout or line:match('Option%s+"XkbLayout"%s+"([^"]*)"')
+            variant = variant or line:match('Option%s+"XkbVariant"%s+"([^"]*)"')
+        end
+        conf:close()
+        -- localed writes XKB names here, one or a comma-separated list.
+        if layout and layout:match("^[%a,]+$") then
+            if not (variant and variant:match("^[%w_,%-]*$")) then
+                variant = ""
+            end
+            return layout, variant
+        end
+    end
+
+    local vconsole = io.open("/etc/vconsole.conf", "r")
+    if vconsole then
+        local keymap
+        for line in vconsole:lines() do
+            keymap = keymap or line:match("^KEYMAP=(.-)%s*$")
+        end
+        vconsole:close()
+        if keymap then
+            keymap = keymap:gsub('"', "")
+            -- Console keymaps carry a variant after a dash and a hardware
+            -- number at the end (fr-latin1, jp106); XKB knows neither.
+            keymap = keymap:match("^([^-]+)") or keymap
+            keymap = keymap:gsub("%d+$", "")
+            if keymap:match("^%a%a+$") then
+                return keymap, ""
+            end
+        end
+    end
+
+    return "us", ""
+end
+
+local kbLayout, kbVariant = systemKeyboardLayout()
+
 -- MONITOR CONFIG
 hl.monitor({
     output = "",
@@ -29,44 +77,19 @@ hl.monitor({
 hl.gesture({
     fingers = 3,
     direction = "horizontal",
-    action = (function()
-        local accum = 0
-        return {
-            start = function(e) accum = 0 end,
-            update = function(e)
-                accum = accum + e.delta.x
-                local threshold = 80 -- px por "passo" de coluna
-
-                -- gesto para a ESQUERDA (delta negativo) -> foca a janela da DIREITA
-                while accum < -threshold do
-                    hl.dispatch(hl.dsp.layout("move +col"))
-                    accum = accum + threshold
-                end
-
-                -- gesto para a DIREITA (delta positivo) -> foca a janela da ESQUERDA
-                while accum > threshold do
-                    hl.dispatch(hl.dsp.layout("move -col"))
-                    accum = accum - threshold
-                end
-            end,
-            finish = function(e) accum = 0 end,
-        }
-    end)()
+    action = "workspace"
 })
 hl.gesture({
     fingers = 3,
     direction = "pinch",
-    action = "fullscreen"
-})
-hl.gesture({
-    fingers = 4,
-    direction = "horizontal",
     action = "float"
 })
 hl.gesture({
     fingers = 3,
     direction = "vertical",
-    action = "workspace"
+    action = function()
+        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))
+    end
 })
 hl.gesture({
     fingers = 4,
@@ -129,19 +152,19 @@ hl.config({
     decoration = {
         -- 2 = circle, higher = squircle, 4 = very obvious squircle
         -- We use a slightly higher power here to make the rounding feel more continuous
-        rounding_power = 4,
-        rounding = 8,
+        rounding_power = 2,
+        rounding = 18,
 
         blur = {
             enabled = true,
             xray = true,
             special = false,
             new_optimizations = true,
-            size = 6,
-            passes = 2,
-            noise = 0.03,
+            size = 10,
+            passes = 3,
+            noise = 0,
             contrast = 0.89,
-            vibrancy = 0.7,
+            vibrancy = 0.5,
             vibrancy_darkness = 0.5,
             popups = true,
             popups_ignorealpha = 0.6,
@@ -159,9 +182,7 @@ hl.config({
         -- Dim
         dim_inactive = true,
         dim_strength = 0.05,
-        dim_special = 0.2,
-        inactive_opacity = 1,
-        active_opacity = 1
+        dim_special = 0.2
     },
     animations = {
         enabled = true
@@ -218,18 +239,19 @@ end
 
 hl.config({
     input = {
-        kb_layout = "br",
+        kb_layout = kbLayout,
+        kb_variant = kbVariant,
         numlock_by_default = inheritedNumlockState(),
         repeat_delay = 250,
         repeat_rate = 35,
 
-        follow_mouse = false,
+        follow_mouse = 1,
         off_window_axis_events = 2,
 
         touchpad = {
-            -- natural_scroll lives in custom/env.lua (Settings → Mouse writes
-            -- it there); a duplicate here would win on every hyprctl reload.
-            disable_while_typing = true,
+            -- natural_scroll and disable_while_typing live in custom/env.lua
+            -- (Settings → Mouse writes them there); a duplicate here would win
+            -- on every hyprctl reload.
             clickfinger_behavior = true,
             scroll_factor = 0.7
         }
@@ -249,7 +271,7 @@ hl.config({
         allow_session_lock_restore = true,
         session_lock_xray = true,
         initial_workspace_tracking = false,
-        focus_on_activate = true,
+        focus_on_activate = false,
         render_unfocused_fps = 60
     },
 

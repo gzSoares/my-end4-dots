@@ -107,7 +107,7 @@ apply_anyterm() {
   # Apply colors
   sed -i -e "$palette_sed" -e "s/\$alpha/$term_alpha/g" "$STATE_DIR"/user/generated/terminal/sequences.txt
 
-  for file in /dev/pts/*; do
+  for file in /dev/null/nenhum; do
     if [[ $file =~ ^/dev/pts/[0-9]+$ ]]; then
       {
       cat "$STATE_DIR"/user/generated/terminal/sequences.txt >"$file"

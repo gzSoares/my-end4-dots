@@ -27,7 +27,7 @@ hl.config({
         accel_profile = "adaptive",
         natural_scroll = false,
         touchpad = {
-            natural_scroll = false,
+            natural_scroll = true,
         },
     },
 })

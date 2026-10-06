@@ -90,7 +90,7 @@ hl.animation({
     enabled = true,
     speed = 7,
     bezier = "bouncyLob",
-    style = "slidefadevert"
+    style = "slide"
 })
 
 -- specialWorkspace

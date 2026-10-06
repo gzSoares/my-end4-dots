@@ -32,7 +32,7 @@ ButtonMouseArea {
     property real workspaceIconSizeShrinked: workspaceButtonWidth * 0.55
     property real workspaceIconOpacityShrinked: 1
     property real workspaceIconMarginShrinked: -4
-    property int workspaceIndexInGroup: (monitor?.activeWorkspace?.id - 1) % wsModel.shownCount
+    property int workspaceIndexInGroup: wsModel.activeIndexInPage
     property real specialTextSize: workspaceButtonWidth * 0.5
 
     // Exposed for the parent BarGroup pill to glow while a drag-to-scroll
@@ -60,8 +60,11 @@ ButtonMouseArea {
     }
 
     function switchWorkspaceToHovered() {
-        Hyprland.dispatch(`hl.dsp.focus({workspace = ${wsModel.getWorkspaceIdAt(hoverIndex)}})`);
+        const id = wsModel.getWorkspaceIdAt(hoverIndex);
+        if (id > 0)
+            Hyprland.dispatch(`hl.dsp.focus({workspace = ${id}})`);
     }
+
     onPressed: mouse => {
         if (mouse.button == Qt.LeftButton)
             switchWorkspaceToHovered();

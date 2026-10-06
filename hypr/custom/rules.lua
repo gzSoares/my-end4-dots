@@ -34,3 +34,18 @@ hl.window_rule({
     size = "1500 800",
     center = true,
 })
+
+--spotlight-blur
+hl.layer_rule({
+    name = "spotlight-blur",
+    match = { namespace = "macos:spotlight" },
+    blur = true,
+    ignore_alpha = 0.6,
+})
+
+hl.layer_rule({
+    name = "overview-dim-blur",
+    match = { namespace = "quickshell:overviewDim" },
+    blur = true,
+    ignore_alpha = 0.6,
+})

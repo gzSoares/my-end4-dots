@@ -115,13 +115,18 @@ Button {
                 width: contextMenu.width
                 height: contextMenu.height
 
-                ContextMenuCard {
+                StyledRectangularShadow {
+                    target: contextMenu
+                }
+                Rectangle {
                     id: contextMenu
                     anchors.centerIn: parent
                     opacity: root.showActions ? 1 : 0
                     visible: opacity > 0
-                    implicitHeight: contextMenuColumnLayout.implicitHeight + padding * 2
-                    implicitWidth: contextMenuColumnLayout.implicitWidth + padding * 2
+                    radius: Appearance.rounding.small
+                    color: Appearance.m3colors.m3surfaceContainer
+                    implicitHeight: contextMenuColumnLayout.implicitHeight + radius * 2
+                    implicitWidth: contextMenuColumnLayout.implicitWidth
 
                     Behavior on opacity {
                         NumberAnimation {
@@ -133,16 +138,13 @@ Button {
 
                     ColumnLayout {
                         id: contextMenuColumnLayout
-                        anchors {
-                            fill: parent
-                            margins: contextMenu.padding
-                        }
+                        anchors.centerIn: parent
                         spacing: 0
 
-                        ContextMenuItem {
+                        MenuButton {
                             id: openFileLinkButton
-                            iconName: "open_in_new"
-                            label: Translation.tr("Open file link")
+                            Layout.fillWidth: true
+                            buttonText: Translation.tr("Open file link")
                             onClicked: {
                                 root.showActions = false
                                 Hyprland.dispatch("hl.config({cursor = {no_warps = true}})")
@@ -150,11 +152,11 @@ Button {
                                 Hyprland.dispatch("hl.config({cursor = {no_warps = false}})")
                             }
                         }
-                        ContextMenuItem {
+                        MenuButton {
                             id: sourceButton
                             visible: root.imageData.source && root.imageData.source.length > 0
-                            iconName: "link"
-                            label: Translation.tr("Go to source (%1)").arg(StringUtils.getDomain(root.imageData.source))
+                            Layout.fillWidth: true
+                            buttonText: Translation.tr("Go to source (%1)").arg(StringUtils.getDomain(root.imageData.source))
                             enabled: root.imageData.source && root.imageData.source.length > 0
                             onClicked: {
                                 root.showActions = false
@@ -163,17 +165,17 @@ Button {
                                 Hyprland.dispatch("hl.config({cursor = {no_warps = false}})")
                             }
                         }
-                        ContextMenuItem {
+                        MenuButton {
                             id: downloadButton
-                            iconName: "download"
-                            label: Translation.tr("Download")
+                            Layout.fillWidth: true
+                            buttonText: Translation.tr("Download")
                             onClicked: {
                                 root.showActions = false;
                                 const targetPath = root.imageData.is_nsfw ? root.nsfwPath : root.downloadPath;
                                 const userAgent = Config.options?.networking?.userAgent ?? ""
                                 const userAgentHeader = userAgent ? ` -H 'User-Agent: ${StringUtils.shellSingleQuoteEscape(userAgent)}'` : ""
                                 Quickshell.execDetached(["bash", "-c", 
-                                    `mkdir -p '${StringUtils.shellSingleQuoteEscape(targetPath)}' && curl '${StringUtils.shellSingleQuoteEscape(root.imageData.file_url)}'${userAgentHeader} -o '${StringUtils.shellSingleQuoteEscape(targetPath)}/${StringUtils.shellSingleQuoteEscape(root.fileName)}' && notify-send '${Translation.tr("Download complete")}' '${StringUtils.shellSingleQuoteEscape(root.downloadPath)}/${StringUtils.shellSingleQuoteEscape(root.fileName)}' -a 'Shell'`
+                                    `mkdir -p '${targetPath}' && curl '${StringUtils.shellSingleQuoteEscape(root.imageData.file_url)}'${userAgentHeader} -o '${targetPath}/${root.fileName}' && notify-send '${Translation.tr("Download complete")}' '${root.downloadPath}/${root.fileName}' -a 'Shell'`
                                 ])
                             }
                         }

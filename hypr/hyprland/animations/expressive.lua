@@ -66,7 +66,7 @@ hl.animation({
 hl.animation({
     leaf = "windowsMove",
     enabled = true,
-    speed = 1.5,
+    speed = 3,
     bezier = "emphasizedDecel",
     style = "slide"
 })
@@ -111,7 +111,7 @@ hl.animation({
     enabled = true,
     speed = 7,
     bezier = "menu_decel",
-    style = "slidefadevert"
+    style = "slide"
 })
 -- specialWorkspace
 hl.animation({
