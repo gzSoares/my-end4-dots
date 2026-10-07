@@ -1388,7 +1388,9 @@ Singleton {
     }
 
     sizes: QtObject {
-        property real baseBarHeight: 40
+        readonly property real barStockHeight: 40
+        property real baseBarHeight: (Config.options?.bar.thickness ?? -1) >= 0
+            ? Config.options.bar.thickness : barStockHeight
         // A floating strip spans the whole screen unless it is told otherwise,
         // as a percentage so one setting reads the same on every monitor
         // rather than leaving a wide screen barely trimmed and a narrow one
@@ -1654,7 +1656,7 @@ Singleton {
         property real searchWidth: 360
         property real sidebarWidth: 460
         property real sidebarWidthExtended: 750
-        property real baseVerticalBarWidth: 46
+        property real baseVerticalBarWidth: 46 + (baseBarHeight - barStockHeight)
         property real verticalBarWidth: Config.options.bar.cornerStyle === 1 ? 
             (baseVerticalBarWidth + root.sizes.hyprlandGapsOut * 2) : baseVerticalBarWidth
         property real wallpaperSelectorWidth: 1200

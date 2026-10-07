@@ -472,9 +472,6 @@ Item { // Bar content region
                     reveal: Audio.sink?.audio?.muted ?? false
                     Layout.fillHeight: true
                     Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
-                    Behavior on Layout.rightMargin {
-                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                    }
                     MaterialSymbol {
                         text: "volume_off"
                         iconSize: Appearance.font.pixelSize.larger
@@ -485,9 +482,6 @@ Item { // Bar content region
                     reveal: Audio.source?.audio?.muted ?? false
                     Layout.fillHeight: true
                     Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
-                    Behavior on Layout.rightMargin {
-                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                    }
                     MaterialSymbol {
                         text: "mic_off"
                         iconSize: Appearance.font.pixelSize.larger
@@ -505,9 +499,6 @@ Item { // Bar content region
                     Layout.rightMargin: reveal ? indicatorsRowLayout.realSpacing : 0
                     implicitHeight: reveal ? notificationUnreadCount.implicitHeight : 0
                     implicitWidth: reveal ? notificationUnreadCount.implicitWidth : 0
-                    Behavior on Layout.rightMargin {
-                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                    }
                     NotificationUnreadCount {
                         id: notificationUnreadCount
                     }

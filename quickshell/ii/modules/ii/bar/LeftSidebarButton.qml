@@ -74,10 +74,6 @@ RippleButton {
             implicitHeight: 8
             radius: Appearance.rounding.full
             color: Appearance.colors.colTertiary
-
-            Behavior on opacity {
-                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-            }
         }
     }
 }

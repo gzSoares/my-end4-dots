@@ -729,6 +729,7 @@ Singleton {
                 property real notchWidth: -1
                 property bool verbose: true
                 property bool vertical: false
+                property real thickness: -1
                 // Per-section widget layout. Each section is an ordered list
                 // of groups; each group is one pill and holds an ordered list
                 // of widgets ({ id, enabled }). Widgets in the same group share

@@ -32,27 +32,6 @@ Item {
         radius: Appearance.rounding.barWidget
         border.color: root.glowing ? Appearance.colors.colPrimary : "transparent"
         border.width: root.glowing ? 1.5 : 0
-        Behavior on color {
-            ColorAnimation {
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Appearance.animation.elementMoveFast.type
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-        }
-        Behavior on border.color {
-            ColorAnimation {
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Appearance.animation.elementMoveFast.type
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-        }
-        Behavior on border.width {
-            NumberAnimation {
-                duration: Appearance.animation.elementMoveFast.duration
-                easing.type: Appearance.animation.elementMoveFast.type
-                easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
-            }
-        }
     }
 
     GridLayout {

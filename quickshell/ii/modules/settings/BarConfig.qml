@@ -289,6 +289,28 @@ ContentPage {
             }
         }
 
+                ConfigSlider {
+            text: Translation.tr("Bar size")
+            buttonIcon: "height"
+            stopIndicatorValues: [Appearance.sizes.barStockHeight]
+            from: 30
+            to: 56
+            value: Appearance.sizes.baseBarHeight
+            onMoved: {
+                const stepped = Math.round(value);
+                if (stepped === Config.options.bar.thickness)
+                    return;
+                Config.options.bar.thickness = stepped;
+            }
+        }
+
+        ConfigResetButton {
+            visible: Config.options.bar.thickness >= 0
+            Layout.leftMargin: 8
+            Layout.topMargin: 2
+            buttonText: Translation.tr("Reset to default bar size")
+            onClicked: Config.options.bar.thickness = -1
+        }
     }
 
     // Each radius appears only while the style that gives it a corner to

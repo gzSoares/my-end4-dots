@@ -47,17 +47,11 @@ ButtonMouseArea {
     implicitHeight: vertical ? occupiedIndicators.implicitHeight : barThickness
 
     property real specialBlur: (wsModel.specialWorkspaceActive && !containsMouse) ? 1 : 0
-    Behavior on specialBlur {
-        animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-    }
 
     // Interactions
     acceptedButtons: Qt.LeftButton | Qt.RightButton
     hoverEnabled: true
-    property int hoverIndex: {
-        const position = root.vertical ? mouseY : mouseX;
-        return Math.floor(position / root.workspaceButtonWidth);
-    }
+    property int hoverIndex: Math.floor((root.vertical ? mouseY : mouseX) / root.workspaceButtonWidth)
 
     function switchWorkspaceToHovered() {
         const id = wsModel.getWorkspaceIdAt(hoverIndex);
@@ -209,16 +203,6 @@ ButtonMouseArea {
                         y: root.vertical ? undirectionalOffset : 0
                         implicitWidth: root.vertical ? undirectionalWidth : undirectionalLength
                         implicitHeight: root.vertical ? undirectionalLength : undirectionalWidth
-
-                        Behavior on undirectionalWidth {
-                            animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                        }
-                        Behavior on undirectionalLength {
-                            animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                        }
-                        Behavior on undirectionalOffset {
-                            animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                        }
                     }
                 }
             }
@@ -298,9 +282,6 @@ ButtonMouseArea {
                     property var mainAppIconSource: Quickshell.iconPath(AppSearch.guessIcon(biggestWindow?.class), "image-missing")
                     readonly property color contentColor: (wsModel.occupied[index] && wsModel.getWorkspaceIdAt(index) !== wsModel.fakeWorkspace) ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1Inactive
                     property real cornerMargin: (!root.superPressAndHeld && Config.options?.bar.workspaces.showAppIcons && wsApp.biggestWindow) ? (root.workspaceButtonWidth - root.workspaceIconSize) / 2 : root.workspaceIconMarginShrinked
-                    Behavior on cornerMargin {
-                        animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                    }
 
                     // ── Circular mode: hidden AppIcon copied through a colorizer + circle mask ──
                     Loader {
@@ -336,15 +317,11 @@ ButtonMouseArea {
                                     colorization: Config.options.bar.workspaces.monochromeIcons ? 0.8 : 0.5
                                     brightness: 0
                                     source: appIcon
+
                                     opacity: !Config.options?.bar.workspaces.showAppIcons ? 0 : (wsApp.biggestWindow && !root.superPressAndHeld) ? 1 : wsApp.biggestWindow ? root.workspaceIconOpacityShrinked : 0
                                     visible: opacity > 0
                                     scale: ((!root.superPressAndHeld && Config.options?.bar.workspaces.showAppIcons) ? root.workspaceIconSize : root.workspaceIconSizeShrinked) / root.workspaceIconSize
-                                    Behavior on opacity {
-                                        animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                                    }
-                                    Behavior on scale {
-                                        animation: Appearance.animation.elementMoveSmall.numberAnimation.createObject(this)
-                                    }
+
                                     maskEnabled: true
                                     maskSource: iconMask
                                     maskThresholdMin: 0.5
@@ -362,9 +339,6 @@ ButtonMouseArea {
                             anchors.fill: parent
                             opacity: !Config.options?.bar.workspaces.showAppIcons ? 0 : (wsApp.biggestWindow && !root.superPressAndHeld) ? 1 : wsApp.biggestWindow ? root.workspaceIconOpacityShrinked : 0
                             visible: opacity > 0
-                            Behavior on opacity {
-                                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                            }
                             IconImage {
                                 id: plainAppIcon
                                 anchors {
@@ -375,9 +349,6 @@ ButtonMouseArea {
                                 }
                                 source: wsApp.mainAppIconSource
                                 implicitSize: (!root.superPressAndHeld && Config.options?.bar.workspaces.showAppIcons) ? root.workspaceIconSize : root.workspaceIconSizeShrinked
-                                Behavior on implicitSize {
-                                    animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
-                                }
                             }
                             Loader {
                                 active: Config.options.bar.workspaces.monochromeIcons
@@ -422,10 +393,6 @@ ButtonMouseArea {
 
             implicitWidth: root.vertical ? undirectionalWidth : undirectionalLength
             implicitHeight: root.vertical ? undirectionalLength : undirectionalWidth
-
-            Behavior on undirectionalLength {
-                animation: Appearance.animation.elementMoveEnter.numberAnimation.createObject(this)
-            }
         }
     }
 

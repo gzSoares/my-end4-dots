@@ -68,10 +68,6 @@ Item {
                 text: `${Math.round(percentage * 100).toString()}`
             }
         }
-
-        Behavior on x {
-            animation: Appearance.animation.elementMove.numberAnimation.createObject(this)
-        }
     }
 
     MouseArea {
