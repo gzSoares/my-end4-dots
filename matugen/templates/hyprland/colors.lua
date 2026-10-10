@@ -1,16 +1,8 @@
 hl.config({
     general = {
         col = {
-            active_border   = "rgba({{colors.primary.default.hex_stripped}}EE)",
-            inactive_border = "rgba({{colors.outline_variant.default.hex_stripped}}55)",
-        },
-    },
-    decoration = {
-        shadow = {
-            enabled      = true,
-            color        = "rgba({{colors.primary.default.hex_stripped}}66)",
-            range        = 8,
-            render_power = 3,
+            active_border   = "rgba({{colors.outline_variant.default.hex_stripped}}77)",
+            inactive_border = "rgba({{colors.surface_container_low.default.hex_stripped}}33)",
         },
     },
     misc = {
@@ -20,5 +12,5 @@ hl.config({
 
 hl.window_rule({
     match        = { pin = 1 },
-    border_color = "rgba({{colors.primary.default.hex_stripped}}FF) rgba({{colors.secondary.default.hex_stripped}}FF) rgba({{colors.tertiary.default.hex_stripped}}FF) rgba({{colors.primary.default.hex_stripped}}FF)",
+    border_color = "rgba({{colors.primary.default.hex_stripped}}AA) rgba({{colors.primary.default.hex_stripped}}77)",
 })

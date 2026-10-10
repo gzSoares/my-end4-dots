@@ -30,8 +30,22 @@ Item {
             ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
             : baseColor
         radius: Appearance.rounding.barWidget
-        border.color: root.glowing ? Appearance.colors.colPrimary : "transparent"
-        border.width: root.glowing ? 1.5 : 0
+        border.color: root.glowing ? Appearance.colors.colPrimary : Appearance.colors.colOutline
+        border.width: root.glowing ? 1.5 : (Config.options?.bar.borderless ? 0 : 1)
+
+        // Subtle top highlight for depth — catches "light" from matugen palette
+        Rectangle {
+            anchors {
+                left: parent.left
+                right: parent.right
+                top: parent.top
+            }
+            height: 1
+            color: Appearance.colors.colOnSurface
+            opacity: 0.08
+            radius: Appearance.rounding.barWidget
+            clip: true
+        }
     }
 
     GridLayout {

@@ -3,6 +3,7 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Services.UPower
+import Quickshell.Services.Mpris
 import qs
 import qs.services
 import qs.modules.common
@@ -139,6 +140,7 @@ Item { // Bar content region
     function moduleVisible(name) {
         switch (name) {
         case "battery": return Battery.available;
+        case "media": return MprisController.trackedPlayer?.isPlaying === true;
         default: return true;
         }
     }

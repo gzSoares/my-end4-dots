@@ -13,8 +13,8 @@ import qs.modules.ii.bar as Bar
 MouseArea {
     id: root
     property bool borderless: Config.options.bar.borderless
-    readonly property MprisPlayer activePlayer: MprisController.activePlayer
-    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
+    readonly property MprisPlayer player: MprisController.trackedPlayer
+    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(player?.trackTitle) || Translation.tr("No media")
 
     // What the controls popup lines itself up with. Matches the horizontal
     // widget so the popup opens beside whichever one was clicked rather than
@@ -26,21 +26,21 @@ MouseArea {
     implicitWidth: Appearance.sizes.verticalBarWidth
 
     Timer {
-        running: activePlayer?.playbackState == MprisPlaybackState.Playing
+        running: player?.playbackState == MprisPlaybackState.Playing
         interval: Config.options.resources.updateInterval
         repeat: true
-        onTriggered: activePlayer.positionChanged()
+        onTriggered: player.positionChanged()
     }
 
     acceptedButtons: Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton | Qt.RightButton | Qt.LeftButton
     hoverEnabled: !Config.options.bar.tooltips.clickToShow
     onPressed: (event) => {
         if (event.button === Qt.MiddleButton) {
-            activePlayer.togglePlaying();
+            player.togglePlaying();
         } else if (event.button === Qt.BackButton) {
-            activePlayer.previous();
+            player.previous();
         } else if (event.button === Qt.ForwardButton || event.button === Qt.RightButton) {
-            activePlayer.next();
+            player.next();
         } else if (event.button === Qt.LeftButton) {
             GlobalStates.mediaWidgetItem = root.popupAnchorItem;
             GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen
@@ -58,7 +58,7 @@ MouseArea {
         implicitSize: 20
 
         lineWidth: Appearance.rounding.unsharpen
-        value: activePlayer?.position / activePlayer?.length
+        value: player?.position / player?.length
         colPrimary: Appearance.colors.colOnSecondaryContainer
         enableAnimation: false
 
@@ -70,7 +70,7 @@ MouseArea {
             MaterialSymbol {
                 anchors.centerIn: parent
                 fill: 1
-                text: activePlayer?.isPlaying ? "pause" : "music_note"
+                text: player?.isPlaying ? "pause" : "music_note"
                 iconSize: Appearance.font.pixelSize.normal
                 color: Appearance.m3colors.m3onSecondaryContainer
             }
@@ -92,7 +92,7 @@ MouseArea {
 
             StyledText {
                 color: Appearance.colors.colOnSurfaceVariant
-                text: `${cleanedTitle}${activePlayer?.trackArtist ? '\n' + activePlayer.trackArtist : ''}`
+                text: `${cleanedTitle}${player?.trackArtist ? '\\n' + player.trackArtist : ''}`
             }
         }
     }

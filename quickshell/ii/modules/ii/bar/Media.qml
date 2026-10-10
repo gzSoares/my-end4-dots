@@ -12,8 +12,8 @@ import Quickshell.Hyprland
 Item {
     id: root
     property bool borderless: Config.options.bar.borderless
-    readonly property MprisPlayer activePlayer: MprisController.activePlayer
-    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(activePlayer?.trackTitle) || Translation.tr("No media")
+    readonly property MprisPlayer player: MprisController.activePlayer
+    readonly property string cleanedTitle: StringUtils.cleanMusicTitle(player?.trackTitle) || Translation.tr("No media")
 
     Layout.fillHeight: true
     implicitWidth: rowLayout.implicitWidth + rowLayout.spacing * 2
@@ -25,10 +25,10 @@ Item {
     readonly property Item popupAnchorItem: parent?.popupAnchor ?? root
 
     Timer {
-        running: activePlayer?.playbackState == MprisPlaybackState.Playing
+        running: player?.playbackState == MprisPlaybackState.Playing
         interval: Config.options.resources.updateInterval
         repeat: true
-        onTriggered: activePlayer.positionChanged()
+        onTriggered: player.positionChanged()
     }
 
     MouseArea {
@@ -36,11 +36,11 @@ Item {
         acceptedButtons: Qt.MiddleButton | Qt.BackButton | Qt.ForwardButton | Qt.RightButton | Qt.LeftButton
         onPressed: (event) => {
             if (event.button === Qt.MiddleButton) {
-                activePlayer.togglePlaying();
+                player.togglePlaying();
             } else if (event.button === Qt.BackButton) {
-                activePlayer.previous();
+                player.previous();
             } else if (event.button === Qt.ForwardButton) {
-                activePlayer.next();
+                player.next();
             } else if (event.button === Qt.RightButton) {
                 GlobalStates.mediaWidgetItem = root.popupAnchorItem;
                 GlobalStates.toggleReceiveView();
@@ -67,7 +67,7 @@ Item {
             Layout.alignment: Qt.AlignVCenter
             lineWidth: Appearance.rounding.unsharpen
             value: LocalSend.receiveSessionActive ? LocalSend.receiveProgressFraction
-                : activePlayer?.position / activePlayer?.length
+                : player?.position / player?.length
             implicitSize: 20
             colPrimary: LocalSend.receiveActive ? Appearance.colors.colPrimary
                 : Appearance.colors.colOnSecondaryContainer
@@ -82,7 +82,7 @@ Item {
                     anchors.centerIn: parent
                     fill: 1
                     text: LocalSend.receiveActive ? "download"
-                        : activePlayer?.isPlaying ? "pause" : "music_note"
+                        : player?.isPlaying ? "pause" : "music_note"
                     iconSize: Appearance.font.pixelSize.normal
                     color: LocalSend.receiveActive ? Appearance.colors.colPrimary
                         : Appearance.m3colors.m3onSecondaryContainer
@@ -99,7 +99,7 @@ Item {
             horizontalAlignment: Text.AlignHCenter
             elide: Text.ElideRight // Truncates the text on the right
             color: Appearance.colors.colOnLayer1
-            text: `${cleanedTitle}${activePlayer?.trackArtist ? ' • ' + activePlayer.trackArtist : ''}`
+            text: `${cleanedTitle}${player?.trackArtist ? ' • ' + player.trackArtist : ''}`
         }
 
     }

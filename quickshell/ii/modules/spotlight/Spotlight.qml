@@ -59,32 +59,33 @@ PanelWindow {
         { kind: "cmd", name: "/files",      category: "Switch to Files",                action: "mode:files" },
         { kind: "cmd", name: "/clipboard",  category: "Switch to Clipboard",            action: "mode:clipboard" },
         { kind: "cmd", name: "/actions",    category: "Switch to Actions",              action: "mode:actions" },
+        { kind: "cmd", name: "/config",     category: "Browse all II settings",         action: "mode:config" },
         { kind: "cmd", name: "/wallpaper",  category: "Change wallpaper (ii)",          action: "ipc:wallpaperSelector:toggle" },
-        { kind: "cmd", name: "/tema",       category: "Toggle light/dark theme (ii)",   action: "ipc:theme:toggleLightDark" },
-        { kind: "cmd", name: "/barra",      category: "Show/hide bar (ii)",             action: "ipc:bar:toggle" },
+        { kind: "cmd", name: "/theme",       category: "Toggle light/dark theme (ii)",   action: "ipc:theme:toggleLightDark" },
+        { kind: "cmd", name: "/bar",        category: "Show/hide bar (ii)",             action: "ipc:bar:toggle" },
         { kind: "cmd", name: "/screen",     category: "Hermes reads everything on screen (OCR + windows)", action: "screen:" },
         { kind: "cmd", name: "/screenshot", category: "Analyze screen with OCR + AI",   action: "screenshot:" },
-        { kind: "cmd", name: "/traduzir",   category: "Translate screen area (OCR + Hermes)", action: "ocrtr:" },
+        { kind: "cmd", name: "/translate",  category: "Translate screen area (OCR + Hermes)", action: "ocrtr:" },
         { kind: "cmd", name: "/record",     category: "Record screen (ii)",             action: "ipc:region:record" },
         { kind: "cmd", name: "/ocr",        category: "Screen OCR (ii)",                action: "ipc:region:ocr" },
-        { kind: "cmd", name: "/cor",        category: "Color picker (copies hex)",      action: "colorpick:" },
-        { kind: "cmd", name: "/janelas",    category: "Switch between open windows",    action: "mode:windows" },
+        { kind: "cmd", name: "/color",      category: "Color picker (copies hex)",      action: "colorpick:" },
+        { kind: "cmd", name: "/windows",    category: "Switch between open windows",    action: "mode:windows" },
         { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
         { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
-        { kind: "cmd", name: "/buscar",     category: "Search inside files (ripgrep)",  action: "buscar:" },
+        { kind: "cmd", name: "/search",     category: "Search inside files (ripgrep)",  action: "buscar:" },
         { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
-        { kind: "cmd", name: "/nova",       category: "New AI conversation",            action: "ai-new:" },
-        { kind: "cmd", name: "/nota",       category: "Create Obsidian note",           action: "aiintent:note:" },
+        { kind: "cmd", name: "/new",        category: "New AI conversation",            action: "ai-new:" },
+        { kind: "cmd", name: "/note",       category: "Create Obsidian note",           action: "aiintent:note:" },
         { kind: "cmd", name: "/email",      category: "Send email",                     action: "aiintent:email:" },
-        { kind: "cmd", name: "/foco",       category: "Focus mode",                     action: "focus:" },
-        { kind: "cmd", name: "/reuniao",    category: "Meeting mode",                   action: "meeting:" },
+        { kind: "cmd", name: "/focus",      category: "Focus mode",                     action: "focus:" },
+        { kind: "cmd", name: "/meeting",    category: "Meeting mode",                   action: "meeting:" },
         { kind: "cmd", name: "/briefing",   category: "Morning briefing",               action: "briefing:" },
         { kind: "cmd", name: "/git",        category: "Generate git commit message",    action: "git:" },
         { kind: "cmd", name: "/sum",        category: "Summarize a web page or PDF",    action: "sum:" },
-        { kind: "cmd", name: "/memoria-on", category: "Enable persistent AI history",   action: "mem-on:" },
-        { kind: "cmd", name: "/memoria-off",category: "Disable persistent AI history",  action: "mem-off:" },
+        { kind: "cmd", name: "/mem-on",     category: "Enable persistent AI history",   action: "mem-on:" },
+        { kind: "cmd", name: "/mem-off",    category: "Disable persistent AI history",  action: "mem-off:" },
         { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
-        { kind: "cmd", name: "/evento",     category: "Add a calendar event",           action: "todo:" },
+        { kind: "cmd", name: "/event",      category: "Add a calendar event",           action: "todo:" },
         { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
         { kind: "cmd", name: "/notes",      category: "Add a ToDo task",                action: "todo:" },
         { kind: "cmd", name: "/lock",       category: "Lock Screen",                    action: "sys:lock" },
@@ -98,24 +99,25 @@ PanelWindow {
 
     // Intenções estruturadas detectadas em prompts de IA (ordem importa).
     readonly property var _intentRules: [
-        ["todo",       s => /(crie|criar|adicionar?|adiciona|nova|novo|anote|anotar)\s+(uma\s+)?(tarefa|todo|to-?do)/i.test(s)
-                            || /(me\s+lembr[ea]r?\s+de)/i.test(s)],
-        ["note",       s => /(crie|criar|salve|salvar|anote|anotar|nova)\s+(uma\s+)?(nota|anota[çc][ãa]o|note)/i.test(s)],
-        ["email",      s => /(mande|mandar|envi[ae]|enviar|escreva)\s+(um\s+)?(e-?mail|email|correio)/i.test(s)
-                            || /(email|e-?mail)\s+(pro?|para)\s+[^\s]+@/i.test(s)],
-        ["timer",      s => /(me\s+avise\s+em|timer|pomodoro|conte?|inici[ae]r?)\s+\d+/i.test(s)
-                            || /\d+\s+(minuto|min|segundo|seg|hora|h)\b/i.test(s) && /(avise|timer|conte?)/i.test(s)],
-        ["alias",      s => /(crie|criar|novo|nova)\s+(um\s+)?atalho/i.test(s)],
-        ["block",      s => /(bloqueie|bloquear|bloqueia)\s+([\w.-]+\.\w+)/i.test(s)],
-        ["focus",      s => /(modo\s+foco|foco\s+por)/i.test(s)],
-        ["meeting",    s => /(vou\s+entrar\s+(numa|em)\s+reuni[ãa]o|modo\s+reuni[ãa]o|iniciar\s+reuni[ãa]o)/i.test(s)],
-        ["briefing",   s => /^(bom\s+dia|briefing|resumo\s+do\s+dia|o\s+que\s+tenho\s+hoje)\s*[?!.]?$/i.test(s)],
-        ["git",        s => /^(git\s+commit|commit|mensagem\s+de\s+commit)$/i.test(s)],
-        ["screenshot", s => /(o\s+que|analise?|analisa|veja?|olhe?|leia?|traduza?|explica?|explique)\s+(est[áa]|ness[ae]|na|essa?)\s+(tela|screenshot|captura|imagem)/i.test(s)
-                            || /(o\s+que\s+est[áa]\s+na\s+tela)/i.test(s)],
-        ["web",        s => /(resuma?|resumir|analise?|analisa|o\s+que\s+diz)\s+(esse\s+)?(link|url|site)/i.test(s)
-                            || /https?:\/\/\S+/i.test(s) && /(resuma?|analise?|o\s+que)/i.test(s)],
-        ["pdf",        s => /(resuma?|resumir|analise?|analisa)\s+(o\s+|esse\s+|esta\s+)?(pdf|documento)/i.test(s)]
+        ["todo",       s => /(create|add|new|note|task|todo|to-?do|crie|criar|adicionar?|adiciona|nova|novo|anote|anotar)\s+/i.test(s)
+                            || /(remind me to|me\s+lembr[ea]r?\s+de)/i.test(s)],
+        ["note",       s => /(create|write|save|note|crie|criar|salve|salvar|anote|anotar|nova)\s+/i.test(s)],
+        ["email",      s => /(send|write|email|mande|mandar|envi[ae]|enviar|escreva)\s+/i.test(s)
+                            || /(email|e-?mail)\s+(to|for|pro?|para)\s+[^\s]+@/i.test(s)],
+        ["timer",      s => /(remind me in|timer|pomodoro|count|start|me\s+avise\s+em|pomodoro|conte?|inici[ae]r?)\s+\d+/i.test(s)
+                            || /\d+\s+(minute|min|second|sec|hour|h|minuto|min|segundo|seg|hora|h)\b/i.test(s) && /(remind|timer|count|avise|timer|conte?)/i.test(s)],
+        ["alias",      s => /(create|new|crie|criar|novo|nova)\s+(a\s+)?(shortcut|atalho)/i.test(s)],
+        ["block",      s => /(block|bloqueie|bloquear|bloqueia)\s+([\w.-]+\.\w+)/i.test(s)],
+        ["focus",      s => /(focus mode|focus for|modo\s+foco|foco\s+por)/i.test(s)],
+        ["meeting",    s => /(going into|in a|start)\s+(a\s+)?(meeting|reuni[ãa]o|modo\s+reuni[ãa]o|iniciar\s+reuni[ãa]o)/i.test(s)],
+        ["briefing",   s => /^(good morning|briefing|summary of the day|what do i have today|bom\s+dia|briefing|resumo\s+do\s+dia|o\s+que\s+tenho\s+hoje)\s*[?!.]?$/i.test(s)],
+        ["git",        s => /^(git\s+commit|commit|commit message|mensagem\s+de\s+commit)$/i.test(s)],
+        ["screenshot", s => /(what|analyze|see|look|read|translate|explain)\s+(is|on|this)\s+(screen|screenshot|capture|image|tela|captura|imagem)/i.test(s)
+                            || /(what is on the screen|o\s+que\s+est[áa]\s+na\s+tela)/i.test(s)],
+        ["web",        s => /(summarize|analyze|what does)\s+(this|that)?\s*(link|url|site)/i.test(s)
+                            || /https?:\/\/\S+/i.test(s) && /(summarize|analyze|what|resuma?|resumir|analise?|analisa|o\s+que)/i.test(s)],
+        ["pdf",        s => /(summarize|analyze)\s+(the|this|that)?\s*(pdf|document)/i.test(s)
+                            || /(resuma?|resumir|analise?|analisa)\s+(o\s+|esse\s+|esta\s+)?(pdf|documento)/i.test(s)]
     ]
 
     readonly property var emojiList: [
@@ -223,6 +225,12 @@ PanelWindow {
     property string _procKey: ""
     property var usageCounts: ({})
     property var _cache: ({})
+
+    // -- Config browser
+    property var configItems: []
+    property string configPath: ""
+    property int configDepth: 0
+    property var configStack: []
 
     // -- Ferramentas inline
     property string nowPlayingText: ""
@@ -571,18 +579,30 @@ PanelWindow {
     }
 
     function sysControlItems(ql) {
-        const out = [];
-        const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "Controle do sistema", iconKey: "shortcut" });
-        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-        let m;
-        if ((m = ql.match(/^(?:volume|vol|som)\s*([+-])?\s*(\d{1,3})$/))) {
+            const out = [];
+            const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "Controle do sistema", iconKey: "shortcut" });
+            const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+            let m;
+        
+            // Trigger OSD when typing "volume" alone
+            if (ql === "volume" || ql === "vol" || ql === "som") {
+                add("Volume (mostrar OSD)", "qs -c ii ipc call osdVolume trigger");
+            }
+        
+            if ((m = ql.match(/^(?:volume|vol|som)\s*([+-])?\s*(\d{1,3})$/))) {
             const n = clamp(parseInt(m[2]), 0, 150);
             const fb = "; notify-send -t 1500 Volume \"$(wpctl get-volume @DEFAULT_AUDIO_SINK@)\"";
-            if (m[1]) add("Volume " + m[1] + n + "%", "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ " + n + "%" + m[1] + fb);
-            else add("Volume: " + n + "%", "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0; wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ " + n + "%" + fb);
+            if (m[1]) add("Volume " + m[1] + n + "%", "wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ " + n + "%" + m[1] + fb + "; qs -c ii ipc call osdVolume trigger");
+            else add("Volume: " + n + "%", "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0; wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ " + n + "%" + fb + "; qs -c ii ipc call osdVolume trigger");
+
+            // Auto-execute when query is exactly "volume N" (no +/-)
+            if (!m[1]) {
+                const cmd = "wpctl set-mute @DEFAULT_AUDIO_SINK@ 0; wpctl set-volume -l 1.5 @DEFAULT_AUDIO_SINK@ " + n + "%" + fb + "; qs -c ii ipc call osdVolume trigger";
+                SpotlightController.run(cmd);
+            }
         } else if (/^(mudo|mute|silenciar)$/.test(ql)) {
-            add("Alternar mudo", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle");
-        } else if ((m = ql.match(/^(?:brilho|brightness|bright)\s*([+-])?\s*(\d{1,3})$/))) {
+                add("Alternar mudo", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; qs -c ii ipc call osdVolume trigger");
+            } else if ((m = ql.match(/^(?:brilho|brightness|bright)\\s*([+-])?\\s*(\\d{1,3})$/))) {
             const n = clamp(parseInt(m[2]), m[1] ? 0 : 1, 100);
             if (m[1]) add("Brilho " + m[1] + n + "%", "brightnessctl set " + n + "%" + m[1]);
             else add("Brilho: " + n + "%", "brightnessctl set " + n + "%");
@@ -829,17 +849,60 @@ PanelWindow {
         const cached = root.cacheGet(cacheKey, 30 * 1000);
         if (cached) { root.timeText = cached; root.rebuildIfShown(); return; }
 
+        // Show immediate loading feedback
+        root.timeText = "🔍 Searching for " + city + "...";
+        root.rebuildIfShown();
+
+        // Translate common Portuguese city names to English for the API
+        const cityMap = {
+            "londres": "London",
+            "toquio": "Tokyo",
+            "tokyo": "Tokyo",
+            "nova york": "New York",
+            "new york": "New York",
+            "sao paulo": "Sao Paulo",
+            "são paulo": "Sao Paulo",
+            "rio de janeiro": "Rio de Janeiro",
+            "paris": "Paris",
+            "berlim": "Berlin",
+            "madrid": "Madrid",
+            "roma": "Rome",
+            "pequim": "Beijing",
+            "beijing": "Beijing",
+            "moscu": "Moscow",
+            "moscou": "Moscow",
+            "dubai": "Dubai",
+            "singapura": "Singapore",
+            "sydney": "Sydney",
+            "los angeles": "Los Angeles",
+            "chicago": "Chicago",
+            "toronto": "Toronto",
+            "vancouver": "Vancouver",
+            "montreal": "Montreal",
+            "buenos aires": "Buenos Aires",
+            "cidade do mexico": "Mexico City",
+            "mexico city": "Mexico City",
+            "bangkok": "Bangkok",
+            "seul": "Seoul",
+            "seoul": "Seoul",
+            "hong kong": "Hong Kong",
+            "shangai": "Shanghai",
+            "shanghai": "Shanghai",
+        };
+        const apiCity = cityMap[city.toLowerCase()] || city;
+
         const req = ++root._timeReq;
         root.abortXhr(root._timeXhr);
         const fail = (msg) => { root.timeText = msg; root.rebuildIfShown(); };
 
+        // Use English for geocoding (works better for international cities)
         root._timeXhr = root.httpJson(
-            "https://geocoding-api.open-meteo.com/v1/search?count=3&language=pt&name=" + encodeURIComponent(city),
+            "https://geocoding-api.open-meteo.com/v1/search?count=3&language=en&name=" + encodeURIComponent(apiCity),
             10000,
             function (geo) {
                 if (req !== root._timeReq) return;
                 const place = (geo && geo.results && geo.results[0]) || null;
-                if (!place) { fail("Cidade não encontrada: " + city); return; }
+                if (!place) { fail("City not found: " + city); return; }
 
                 root._timeXhr = root.httpJson(
                     "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude + "&current=temperature_2m&timezone=auto",
@@ -865,12 +928,12 @@ PanelWindow {
             function (data) {
                 if (req !== root._timeReq) return;
                 try {
-                    if (!data || !data.utc_offset) throw new Error("sem utc_offset");
+                    if (!data || !data.utc_offset) throw new Error("no utc_offset");
                     const sign = data.utc_offset[0] === "-" ? -1 : 1;
                     const [hh, mm] = data.utc_offset.slice(1).split(":").map(Number);
                     root.renderTime(place, data.timezone || "", sign * (hh * 3600 + mm * 60), cacheKey);
                 } catch (e) {
-                    root.timeText = "Não foi possível obter a hora de " + city;
+                    root.timeText = "Could not get time for " + city;
                     root.rebuildIfShown();
                 }
             });
@@ -879,8 +942,7 @@ PanelWindow {
     function renderTime(place, tzName, utcOffsetSeconds, cacheKey) {
         const now = new Date();
         const localOffsetSec = -now.getTimezoneOffset() * 60;
-        const utcMs = now.getTime() + now.getTimezoneOffset() * 60000;
-        const there = new Date(utcMs + utcOffsetSeconds * 1000);
+        const there = new Date(now.getTime() + utcOffsetSeconds * 1000);
         const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "s\u00e1b"][there.getUTCDay()];
         const timeStr = root.pad2(there.getUTCHours()) + ":" + root.pad2(there.getUTCMinutes());
         const dateStr = wd + " " + root.pad2(there.getUTCDate()) + "/" + root.pad2(there.getUTCMonth() + 1);
@@ -899,7 +961,12 @@ PanelWindow {
         const s = root.query.trim().toLowerCase();
         const m = s.match(/^(?:que\s+)?(?:hora|horas|time)\s+(?:em|in|de|no|na|do|da|for)\s+(.+)$/);
         if (!m) {
-            if (root.timeText) { root._timeReq++; root._timeKey = ""; root.timeText = ""; }
+            // Only clear if the query no longer looks like a time query at all
+            if (root.timeText && !/(?:que\s+)?(?:hora|horas|time)\s+(?:em|in|de|no|na|do|da|for)\s/.test(s)) {
+                root._timeReq++;
+                root._timeKey = "";
+                root.timeText = "";
+            }
             return;
         }
         const city = m[1].trim();
@@ -1632,11 +1699,11 @@ PanelWindow {
             return;
         }
         if (cmdName === "nota" && hasArgs) {
-            A([{ kind: "action", name: "📝 Criar nota: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTA");
+            A([{ kind: "action", name: "📝 Create note: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTE");
             return;
         }
         if (cmdName === "email" && hasArgs) {
-            A([{ kind: "action", name: "📧 Enviar email: \u201c" + cmdArgs + "\u201d", action: "aiintent:email:" + cmdArgs, iconKey: "message", category: "Email" }], "EMAIL");
+            A([{ kind: "action", name: "📧 Send email: \u201c" + cmdArgs + "\u201d", action: "aiintent:email:" + cmdArgs, iconKey: "message", category: "Email" }], "EMAIL");
             return;
         }
 
@@ -1698,6 +1765,71 @@ PanelWindow {
         root._addItems(items, disp, acts, "ACTIONS");
     }
 
+    function _buildConfigMode(items, disp, q, ql) {
+        if (!ql) {
+            // Show top-level config sections
+            const items = [];
+            const pageMap = {
+                "Quick": "QuickConfig.qml",
+                "Wi-Fi": "WifiConfig.qml",
+                "Bluetooth": "BluetoothConfig.qml",
+                "Bar": "BarConfig.qml",
+                "Dock": "DockConfig.qml",
+                "Interface": "InterfaceConfig.qml",
+                "appearance": "InterfaceConfig.qml",
+                "Background": "BackgroundConfig.qml",
+                "Decorations": "DecorationsConfig.qml",
+                "Display": "DisplayConfig.qml",
+                "Layouts": "LayoutsConfig.qml",
+                "Keyboard": "KeyboardConfig.qml",
+                "Mouse": "MouseConfig.qml",
+                "Power": "PowerConfig.qml",
+                "Accounts": "AccountsConfig.qml",
+                "Services": "ServicesConfig.qml",
+                "Manage": "ManageAppsConfig.qml"
+            };
+            for (const key in Config.options) {
+                if (!Config.options.hasOwnProperty(key)) continue;
+                const val = Config.options[key];
+                if (val && typeof val === "object" && !Array.isArray(val)) {
+                    const page = pageMap[key];
+                    items.push({
+                        kind: "configSection",
+                        name: key,
+                        path: key,
+                        category: page ? "Open settings → " + key : "Section",
+                        iconKey: page ? "settings" : "folder",
+                        settingsPage: page
+                    });
+                } else {
+                    let displayVal = "";
+                    if (typeof val === "boolean") displayVal = val ? "true" : "false";
+                    else if (typeof val === "number") displayVal = String(val);
+                    else if (typeof val === "string") displayVal = val;
+                    else if (Array.isArray(val)) displayVal = "[" + val.join(", ") + "]";
+                    else displayVal = JSON.stringify(val);
+                    
+                    items.push({
+                        kind: "configValue",
+                        name: key + ": " + displayVal,
+                        path: key,
+                        value: val,
+                        category: "Setting",
+                        iconKey: "settings"
+                    });
+                }
+            }
+            root._addItems(items, disp, items, "SETTINGS");
+        } else {
+            // Filter config items by query
+            const filtered = root.configItems.filter(it => 
+                it.name.toLowerCase().includes(ql) || 
+                it.path.toLowerCase().includes(ql)
+            );
+            root._addItems(items, disp, filtered, "CONFIG: " + root.configPath);
+        }
+    }
+
     // -- Modo busca, dividido em blocos (a ordem das seções é preservada)
     function _searchPrimary(items, disp, q, ql) {
         const A = (arr, title) => root._addItems(items, disp, arr, title);
@@ -1709,24 +1841,24 @@ PanelWindow {
         if (urlT) A([{ kind: "action", name: "Open " + q.trim(), action: "open:" + urlT, iconKey: "web", category: "Website" }], "OPEN WEBSITE");
 
         const bang = root.bangItem(q);
-        if (bang) A([bang], "ATALHO DE SITE");
+        if (bang) A([bang], "SITE SHORTCUT");
 
         const sc = root.sysControlItems(ql);
-        if (sc.length) A(sc, "CONTROLES");
+        if (sc.length) A(sc, "CONTROLS");
 
         if (root.procItems.length && /^(kill|matar|encerrar|pkill)\s/i.test(q)) {
-            A(root.procItems.map(pr => ({
-                kind: "proc", name: pr.name, pid: pr.pid,
-                category: "PID " + pr.pid + " \u00b7 " + pr.mb + " MB \u00b7 Enter = encerrar \u00b7 \u21e7Enter = for\u00e7ar"
-            })), "PROCESSOS");
-        }
-        if (root.timeText && /^(?:que\s+)?(?:hora|horas|time)\s/.test(ql)) A(root._infoRow(root.timeText, "Hora"), "HORA");
+                    A(root.procItems.map(pr => ({
+                        kind: "proc", name: pr.name, pid: pr.pid,
+                        category: "PID " + pr.pid + " · " + pr.mb + " MB · Enter = kill · Shift+Enter = force kill"
+                    })), "PROCESSES");
+                }
+                if (root.timeText && /^(?:que\s+)?(?:hora|horas|time)\s/.test(ql)) A(root._infoRow(root.timeText, "Time"), "TIME");
 
         const colorIt = root.colorItem(q);
-        if (colorIt) A([colorIt], "COR");
+        if (colorIt) A([colorIt], "COLOR");
 
         if (root.devResult.q === q && root.devResult.text) {
-            A(root._calcRow(root.devResult.text, root.devResult.text, root.devResult.label + " \u2014 clique para copiar"), "FERRAMENTAS");
+            A(root._calcRow(root.devResult.text, root.devResult.text, root.devResult.label + " \u2014 click to copy"), "TOOLS");
         }
         A(root._appRows(root._sortedApps(q)), "APPLICATIONS");
     }
@@ -1739,7 +1871,7 @@ PanelWindow {
         if ((ql.startsWith("define ") || ql.startsWith("significado ") || ql.startsWith("meaning ")) && root.dictText)
             A(root._infoRow(root.dictText, "Definition"), "DEFINITION");
         if (/^(senha|password)\s*(\d+)?$/.test(ql) && root.passText)
-            A(root._calcRow(root.passText, root.passText, "Senha gerada — clique para copiar", "lock"), "PASSWORD");
+            A(root._calcRow(root.passText, root.passText, "Generated password — click to copy", "lock"), "PASSWORD");
 
         const todoMatch = q.match(/^(todo|tarefa|afazer)\s+(.+)$/i);
         if (todoMatch) A([root.todoActionItem(root.parseTodoInput(todoMatch[2]))], "TODO");
@@ -1751,6 +1883,9 @@ PanelWindow {
 
     function _searchActions(items, disp, q, ql) {
         const A = (arr, title) => root._addItems(items, disp, arr, title);
+
+        // Fuzzy match: split query into words, all must match somewhere
+        const qWords = ql.split(/\s+/).filter(w => w.length > 0);
 
         const playMatch = q.match(/^(toque|tocar|play)\s+(.+)$/i);
         if (playMatch) {
@@ -1784,6 +1919,163 @@ PanelWindow {
             const cv = root.convertUnits(q);
             if (cv !== null) A(root._calcRow("= " + cv, cv, "Conversion"), "CONVERSION");
         }
+
+        // Settings shortcuts in main search (fuzzy match on section names + deep search grouped by parent)
+                const settingsMap = {
+                    "interface": "InterfaceConfig.qml",
+                    "appearance": "InterfaceConfig.qml",
+                    "bar": "BarConfig.qml",
+                    "dock": "DockConfig.qml",
+                    "background": "BackgroundConfig.qml",
+                    "wallpaper": "BackgroundConfig.qml",
+                    "decorations": "DecorationsConfig.qml",
+                    "display": "DisplayConfig.qml",
+                    "layouts": "LayoutsConfig.qml",
+                    "keyboard": "KeyboardConfig.qml",
+                    "mouse": "MouseConfig.qml",
+                    "power": "PowerConfig.qml",
+                    "wifi": "WifiConfig.qml",
+                    "bluetooth": "BluetoothConfig.qml",
+                    "quick": "QuickConfig.qml",
+                    "accounts": "AccountsConfig.qml",
+                    "services": "ServicesConfig.qml",
+                    "manage": "ManageAppsConfig.qml",
+                    "settings": "InterfaceConfig.qml"  // generic entry point
+                };
+        
+                // Track which parent sections we've already shown
+                const shownParents = new Set();
+                const allSectionItems = [];
+
+                // 1. Direct section name matches from settingsMap
+                const matchedSections = Object.keys(settingsMap).filter(k => 
+                    qWords.every(w => k.includes(w))
+                ).slice(0, 10);
+                for (const k of matchedSections) {
+                    const parent = k; // e.g., "background", "wallpaper"
+                    if (!shownParents.has(parent)) {
+                        shownParents.add(parent);
+                        allSectionItems.push({
+                            kind: "action",
+                            name: "Open settings \u2192 " + k.charAt(0).toUpperCase() + k.slice(1),
+                            action: "settings_open:" + settingsMap[k] + "|" + parent,
+                            iconKey: "settings",
+                            category: "Settings"
+                        });
+                    }
+                }
+
+                // 2. Deep search: find nested config items and group by parent SECTION
+                let deepPaths = [];
+                try {
+                    deepPaths = root.flattenConfigPaths(Config.options || {});
+                } catch (e) {
+                    deepPaths = [];
+                }
+                const deepMatches = deepPaths.filter(c => 
+                    !c.isSection && qWords.every(w => (c.path + " " + c.name).toLowerCase().includes(w))
+                ).slice(0, 15);
+
+                // Keyword aliases for settings not in Config.options (stored in hyprland/env)
+                const keywordMap = {
+                    "gap": ["decorations.gapsIn", "decorations.gapsOut", "interface.workspace_gap"],
+                    "gaps": ["decorations.gapsIn", "decorations.gapsOut", "interface.workspace_gap"],
+                    "workspace gap": ["interface.workspace_gap"],
+                    "round": ["decorations.windowShape.cornerRadius", "appearance.fakeScreenRounding", "bar.floatRadius", "bar.widgetRadius", "dock.radius", "dock.topRadius"],
+                    "corner": ["decorations.windowShape.cornerRadius", "appearance.fakeScreenRounding", "bar.floatRadius", "bar.widgetRadius", "dock.radius", "dock.topRadius", "bar.cornerStyle", "dock.cornerStyle"],
+                    "radius": ["decorations.windowShape.cornerRadius", "appearance.fakeScreenRounding", "bar.floatRadius", "bar.widgetRadius", "dock.radius", "dock.topRadius"],
+                    "blur": ["decorations.windowBlur.enable", "decorations.windowBlur.strength", "appearance.transparency.enable"],
+                    "opacity": ["bar.backgroundOpacity", "bar.widgetOpacity", "appearance.transparency.backgroundTransparency", "appearance.transparency.contentTransparency", "dock.backgroundOpacity"],
+                    "anim": ["decorations.animations.enabled"],
+                    "animation": ["decorations.animations.enabled"],
+                    "shadow": ["decorations.windowShadow.enable", "decorations.windowShadow.range", "decorations.windowShadow.renderPower", "bar.floatStyleShadow"],
+                    "dock position": ["dock.position"],
+                    "bar position": ["bar.bottom", "bar.vertical"],
+                    "wallpaper": ["background.wallpaperPath", "background.slideshow.enable", "background.slideshow.folder"],
+                    "slideshow": ["background.slideshow.enable", "background.slideshow.folder", "background.slideshow.intervalMinutes"],
+                    "theme": ["appearance.palette.type", "appearance.palette.accentColor", "appearance.themeSchedule.mode"],
+                    "color": ["appearance.palette.accentColor", "appearance.palette.type"],
+                    "font": ["appearance.fonts.main", "appearance.fonts.monospace", "appearance.fonts.title"],
+                    "cursor": ["cursor.shakeMode", "cursor.shakeZoomFactor", "cursor.shakeGrowFactor"],
+                    "hotkey": ["bar.hotCorners.trigger", "bar.hotCorners.animationEnabled"],
+                    "hotcorner": ["bar.hotCorners.trigger", "bar.hotCorners.animationEnabled"],
+                    "overview": ["interface.workspace_gap", "interface.scrollOverviewWorkspaceGap"],
+                };
+        
+                // Collect keyword matches
+                const keywordMatches = [];
+                for (const [keyword, paths] of Object.entries(keywordMap)) {
+                    if (qWords.every(w => keyword.includes(w))) {
+                        for (const p of paths) {
+                            let found = deepPaths.find(d => d.path === p);
+                            if (!found) {
+                                const parts = p.split(".");
+                                let prefix = "";
+                                for (let i = 0; i < parts.length - 1; i++) {
+                                    prefix += parts[i] + ".";
+                                }
+                                found = deepPaths.find(d => d.path === prefix) || { path: p, name: parts[parts.length - 1] + ": (hyprland)", isSection: false };
+                            }
+                            if (found) keywordMatches.push(found);
+                        }
+                    }
+                }
+
+                // Merge deepMatches + keywordMatches, then GROUP BY PARENT SECTION
+                const allMatches = [...deepMatches, ...keywordMatches];
+                const seen = new Set();
+                const uniqueMatches = allMatches.filter(m => {
+                    if (seen.has(m.path)) return false;
+                    seen.add(m.path);
+                    return true;
+                });
+
+                // Group by parent section (first part of path)
+                const sectionGroups = {};
+                for (const m of uniqueMatches) {
+                    const parent = m.path.split(".")[0]; // e.g., "decorations", "appearance", "bar", "background"
+                    if (!sectionGroups[parent]) sectionGroups[parent] = [];
+                    sectionGroups[parent].push(m);
+                }
+
+                // Show ONE result per parent section (if not already shown from settingsMap)
+                for (const parent of Object.keys(sectionGroups).slice(0, 8)) {
+                    if (shownParents.has(parent)) continue;
+                    shownParents.add(parent);
+                    const pageMap = {
+                        "bar": "BarConfig.qml",
+                        "dock": "DockConfig.qml",
+                        "interface": "InterfaceConfig.qml",
+                        "appearance": "InterfaceConfig.qml",
+                        "background": "BackgroundConfig.qml",
+                        "decorations": "DecorationsConfig.qml",
+                        "display": "DisplayConfig.qml",
+                        "layouts": "LayoutsConfig.qml",
+                        "keyboard": "KeyboardConfig.qml",
+                        "mouse": "MouseConfig.qml",
+                        "power": "PowerConfig.qml",
+                        "wifi": "WifiConfig.qml",
+                        "bluetooth": "BluetoothConfig.qml",
+                        "quick": "QuickConfig.qml",
+                        "accounts": "AccountsConfig.qml",
+                        "services": "ServicesConfig.qml",
+                        "manage": "ManageAppsConfig.qml",
+                    };
+                    const matchedPage = pageMap[parent] || parent + "Config.qml";
+                    const count = sectionGroups[parent].length;
+                    allSectionItems.push({
+                        kind: "action",
+                        name: "Open settings \u2192 " + parent.charAt(0).toUpperCase() + parent.slice(1) + " (" + count + " matches)",
+                        action: "settings_open:" + matchedPage + "|" + parent,
+                        iconKey: "settings",
+                        category: "Settings"
+                    });
+                }
+
+                if (allSectionItems.length) {
+                    A(allSectionItems, "SETTINGS");
+                }
+
         A([
             { kind: "action", name: "Search the Web for \u201c" + q + "\u201d", action: "web:" + q, iconKey: "web", category: "Search" },
             { kind: "action", name: "Search in Files", action: "filesearch:" + q, iconKey: "finder", category: "Search" }
@@ -1819,6 +2111,7 @@ PanelWindow {
             case "wifi":      root._buildWifiMode(items, disp); break;
             case "bluetooth": root._buildBluetoothMode(items, disp); break;
             case "actions":   root._buildActionsMode(items, disp); break;
+            case "config":    root._buildConfigMode(items, disp, q, ql); break;
             default:          root._buildSearchMode(items, disp, q, ql);
         }
 
@@ -1847,7 +2140,82 @@ PanelWindow {
         if (m === "windows") _windows.running = true;
         if (m === "wifi") _wifi.running = true;
         if (m === "bluetooth") _bt.running = true;
+        if (m === "config") root.enterConfig();
         root.scheduleRebuild();
+    }
+
+    // =====================================================================
+    //  CONFIG BROWSER
+    // =====================================================================
+    function enterConfig() {
+        root.configPath = "";
+        root.configDepth = 0;
+        root.configStack = [];
+        root.buildConfigItems(Config.options);
+    }
+
+    function buildConfigItems(obj, pathPrefix) {
+        const items = [];
+        const prefix = pathPrefix || "";
+        for (const key in obj) {
+            if (!obj.hasOwnProperty(key)) continue;
+            const val = obj[key];
+            const fullPath = prefix + key;
+            if (val && typeof val === "object" && !Array.isArray(val)) {
+                // It's a nested object (section)
+                items.push({
+                    kind: "configSection",
+                    name: key,
+                    path: fullPath,
+                    category: "Seção",
+                    iconKey: "folder"
+                });
+            } else {
+                // It's a leaf value
+                let displayVal = "";
+                if (typeof val === "boolean") displayVal = val ? "true" : "false";
+                else if (typeof val === "number") displayVal = String(val);
+                else if (typeof val === "string") displayVal = val;
+                else if (Array.isArray(val)) displayVal = "[" + val.join(", ") + "]";
+                else displayVal = JSON.stringify(val);
+                
+                items.push({
+                    kind: "configValue",
+                    name: key + ": " + displayVal,
+                    path: fullPath,
+                    value: val,
+                    category: "Configuração",
+                    iconKey: "settings"
+                });
+            }
+        }
+        root.configItems = items;
+        root.scheduleRebuild();
+    }
+
+    function navigateConfig(path) {
+        const keys = path.split(".");
+        let obj = Config.options;
+        for (const k of keys) {
+            if (!obj || !obj.hasOwnProperty(k)) return;
+            obj = obj[k];
+        }
+        root.configStack.push({ path: root.configPath, items: root.configItems });
+        root.configPath = path;
+        root.configDepth++;
+        root.buildConfigItems(obj, path + ".");
+    }
+
+    function goBackConfig() {
+        if (root.configDepth > 0) {
+            const prev = root.configStack.pop();
+            root.configPath = prev.path;
+            root.configDepth--;
+            root.configItems = prev.items;
+            root.scheduleRebuild();
+        } else if (root.mode === "config") {
+            root.setMode("search");
+        }
     }
 
     function animateRail(target) {
@@ -1885,12 +2253,18 @@ PanelWindow {
             root.browseUp();
             return true;
         }
+        if (event.key === Qt.Key_Backspace && root.query === ""
+                && root.mode === "config" && root.configDepth > 0) {
+            root.goBackConfig();
+            return true;
+        }
         if (!(event.modifiers & Qt.ControlModifier)) return false;
         switch (event.key) {
             case Qt.Key_1: root.setMode("apps"); return true;
             case Qt.Key_2: root.setMode("files"); return true;
             case Qt.Key_3: root.setMode("actions"); return true;
             case Qt.Key_4: root.setMode("clipboard"); return true;
+            case Qt.Key_5: root.setMode("config"); return true;
             case Qt.Key_C:
                 if (!hasSelection && root.selectedItem && root.selectedItem.kind === "file") {
                     root.copyText(root.selectedItem.path);
@@ -1947,6 +2321,17 @@ PanelWindow {
                 return false;
             case "clip":
                 if (/^\d+$/.test(e.id || "")) SpotlightController.run("cliphist decode " + e.id + " | wl-copy 2>/dev/null || true");
+                return false;
+            case "configSection":
+                if (e.settingsPage) {
+                    SpotlightController.run("qs -c ii ipc call settings showPage " + e.settingsPage);
+                } else {
+                    root.navigateConfig(e.path);
+                }
+                return true;
+            case "configValue":
+                root.copyText(JSON.stringify(e.value));
+                root.notify("Copiado: " + e.path + " = " + JSON.stringify(e.value));
                 return false;
             case "calc":
             case "emoji":
@@ -2050,6 +2435,18 @@ PanelWindow {
             return false;
         }
         if (a === "clipboard:clear") { root.clearClipboard(); return true; }
+        if (a.startsWith("settings_open:")) {
+            const pagePart = a.slice("settings_open:".length);
+            // Format: "PageConfig.qml|sectionHint" or just "PageConfig.qml"
+            const [page, sectionHint] = pagePart.split("|");
+            // Launch settings app with QS_SETTINGS_PAGE env var to open specific page
+            SpotlightController.run(
+                "QS_SETTINGS_PAGE=" + page + 
+                (sectionHint ? " QS_SETTINGS_SECTION=" + sectionHint : "") + 
+                " qs -p " + Quickshell.shellPath("settings.qml") + " --no-duplicate"
+            );
+            return false;
+        }
         SpotlightController.requestAction(a);
         return false;
     }
@@ -2507,7 +2904,8 @@ PanelWindow {
                         { m: "apps",      tip: "Applications", icon: Quickshell.shellPath("assets/Apps.png") },
                         { m: "files",     tip: "Files",        icon: Quickshell.shellPath("assets/Finder.png") },
                         { m: "actions",   tip: "Actions",      icon: Quickshell.shellPath("assets/Shortcuts.png") },
-                        { m: "clipboard", tip: "Clipboard",    icon: Quickshell.shellPath("assets/clipboard.png") }
+                        { m: "clipboard", tip: "Clipboard",    icon: Quickshell.shellPath("assets/clipboard.png") },
+                        { m: "config",    tip: "Settings",     icon: Quickshell.shellPath("assets/preferences-system.png") }
                     ]
                     delegate: Item {
                         id: circleBtn

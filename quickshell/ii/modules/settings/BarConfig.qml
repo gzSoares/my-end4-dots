@@ -207,23 +207,11 @@ ContentPage {
                 title: Translation.tr("Automatically hide")
                 Layout.fillWidth: false
 
-                ConfigSelectionArray {
-                    currentValue: Config.options.bar.autoHide.enable
-                    onSelected: newValue => {
-                        Config.options.bar.autoHide.enable = newValue; // Update local copy
-                    }
-                    options: [
-                        {
-                            displayName: Translation.tr("No"),
-                            icon: "close",
-                            value: false
-                        },
-                        {
-                            displayName: Translation.tr("Yes"),
-                            icon: "check",
-                            value: true
-                        }
-                    ]
+                ConfigSwitch {
+                    buttonIcon: "shelf_auto_hide"
+                    text: Translation.tr("Enable auto-hide")
+                    checked: Config.options.bar.autoHide.enable
+                    onCheckedChanged: Config.options.bar.autoHide.enable = checked
                 }
             }
         }
@@ -439,9 +427,9 @@ ContentPage {
             // Running it to zero put a step partway down that no setting
             // explains: past the cutoff the compositor drops the frosting
             // outright rather than by degrees.
-            from: Appearance.colors.surfaceOpacityFloor
+            from: 0
             to: 1
-            value: Math.max(Appearance.colors.surfaceOpacityFloor,
+            value: Math.max(0,
                 Config.options.bar.backgroundOpacity < 0
                     ? Appearance.colors.barStockAlpha : Config.options.bar.backgroundOpacity)
             onMoved: {

@@ -103,6 +103,49 @@ Item {
                     id: valueProgressBar
                     Layout.fillWidth: true
                     value: root.value
+                    
+                    // Mouse drag to control volume
+                    MouseArea {
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        drag.target: undefined
+                        property real dragStartX: 0
+                        property real dragStartValue: 0
+                        onPressed: (mouse) => {
+                            dragStartX = mouse.x;
+                            dragStartValue = root.value;
+                            // Keep OSD open while dragging
+                            if (root.currentIndicator === "volume") {
+                                osdTimeout.stop();
+                            }
+                        }
+                        onMouseXChanged: (mouse) => {
+                            if (mouse.pressed && root.currentIndicator === "volume" && Audio.ready) {
+                                const width = valueProgressBar.width;
+                                const deltaX = mouse.x - dragStartX;
+                                const deltaValue = deltaX / width;
+                                const newValue = Math.max(0, Math.min(1, dragStartValue + deltaValue));
+                                Audio.sink.audio.volume = newValue;
+                                root.value = newValue; // update progress bar visually
+                                root.triggerOsd(); // restart timeout
+                            }
+                        }
+                        onReleased: {
+                            if (root.currentIndicator === "volume") {
+                                osdTimeout.restart();
+                            }
+                        }
+                        // Wheel also works
+                        onWheel: (wheel) => {
+                            if (root.currentIndicator === "volume" && Audio.ready) {
+                                const delta = wheel.angleDelta.y > 0 ? 0.05 : -0.05;
+                                const newValue = Math.max(0, Math.min(1, root.value + delta));
+                                Audio.sink.audio.volume = newValue;
+                                root.value = newValue;
+                                root.triggerOsd();
+                            }
+                        }
+                    }
                 }
             }
         }

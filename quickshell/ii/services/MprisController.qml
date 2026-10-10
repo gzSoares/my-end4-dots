@@ -18,7 +18,7 @@ Singleton {
 	id: root;
 	property list<MprisPlayer> players: Mpris.players.values.filter(player => isRealPlayer(player));
 	property MprisPlayer trackedPlayer: null;
-	property MprisPlayer activePlayer: trackedPlayer ?? Mpris.players.values[0] ?? null;
+	property MprisPlayer activePlayer: root.preferredPlayer()
 	signal trackChanged(reverse: bool);
 
 	// Most-recently-active bus names, newest first — lets the popup show only
@@ -127,6 +127,20 @@ Singleton {
             !name.startsWith('org.mpris.MediaPlayer2.playerctld') &&
             // Non-instance mpd bus
             !(name.endsWith('.mpd') && !name.endsWith('MediaPlayer2.mpd')));
+    }
+
+    // Prefer Spotify when available
+    function preferredPlayer() {
+        // Always prefer Spotify if available
+        for (const player of players) {
+            if (player.dbusName?.includes("spotify")) return player;
+        }
+        // Fallback: currently playing player (trackedPlayer)
+        if (trackedPlayer && trackedPlayer.isPlaying) return trackedPlayer;
+        // Fallback: most recent player
+        const recent = orderByRecency(players);
+        if (recent.length > 0) return recent[0];
+        return null;
     }
 
 	// Original stuff from fox below

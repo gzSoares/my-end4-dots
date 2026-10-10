@@ -17,6 +17,29 @@ local function inheritedNumlockState()
     return true
 end
 
+-- Cache numlock state - only re-read when file changes
+local cachedNumlockState = nil
+local cachedNumlockMtime = 0
+local function getCachedNumlockState()
+    local statePath = (os.getenv("HOME") or "") .. "/.local/state/mainstream/numlock"
+    local attr = io.open(statePath, "r")
+    if attr then
+        attr:close()
+        -- Check mtime via stat equivalent - use file size as proxy
+        local f = io.open(statePath, "r")
+        if f then
+            local content = f:read("*a")
+            f:close()
+            if content ~= cachedNumlockState then
+                cachedNumlockState = content
+                return content == "1"
+            end
+            return cachedNumlockState == "1"
+        end
+    end
+    return true
+end
+
 -- The layout the machine was set up with, read from the same file the login
 -- screen reads: systemd-localed's X11 config, which the installer's keyboard
 -- page writes, then the console keymap. Read at every start rather than copied
@@ -63,7 +86,15 @@ local function systemKeyboardLayout()
     return "us", ""
 end
 
-local kbLayout, kbVariant = systemKeyboardLayout()
+-- Cache keyboard layout - only re-read when files change
+local cachedKbLayout, cachedKbVariant = nil, nil
+local function getCachedKeyboardLayout()
+    if cachedKbLayout then return cachedKbLayout, cachedKbVariant end
+    cachedKbLayout, cachedKbVariant = systemKeyboardLayout()
+    return cachedKbLayout, cachedKbVariant
+end
+
+local kbLayout, kbVariant = getCachedKeyboardLayout()
 
 -- MONITOR CONFIG
 hl.monitor({
@@ -153,7 +184,7 @@ hl.config({
         -- 2 = circle, higher = squircle, 4 = very obvious squircle
         -- We use a slightly higher power here to make the rounding feel more continuous
         rounding_power = 2,
-        rounding = 18,
+        rounding = 10,
 
         blur = {
             enabled = true,
@@ -176,8 +207,7 @@ hl.config({
             range = 20,
             offset = {0, 2},
             render_power = 4,
-            color = "rgba(00000020)"
-
+            color = "rgba(00000024)"
         },
         -- Dim
         dim_inactive = true,
@@ -230,18 +260,38 @@ local function loadAnimationProfile(file)
     return (pcall(chunk))
 end
 
-if not loadAnimationProfile(animationsDir .. animationProfile .. ".lua") then
-    -- The stock profile is loaded the same guarded way: a missing or broken
-    -- one must not abort general.lua, or the input and misc config below
-    -- never applies.
-    loadAnimationProfile(animationsDir .. "expressive.lua")
+-- Lazy-load animation profile: only reload when active file changes
+local lastLoadedProfile = ""
+local function maybeReloadAnimationProfile()
+    local activeFile = io.open(animationsDir .. "active", "r")
+    local currentProfile = animationProfile
+    if activeFile then
+        local line = activeFile:read("*l")
+        activeFile:close()
+        if line then
+            line = line:match("^%s*([%w_%-]+)%s*$")
+            if line then currentProfile = line end
+        end
+    end
+    if currentProfile ~= lastLoadedProfile then
+        if not loadAnimationProfile(animationsDir .. currentProfile .. ".lua") then
+            loadAnimationProfile(animationsDir .. "expressive.lua")
+        end
+        lastLoadedProfile = currentProfile
+    end
 end
+
+-- Initial load
+maybeReloadAnimationProfile()
+
+-- Reload only when animations/active file changes
+hl.on("config.reloaded", maybeReloadAnimationProfile)
 
 hl.config({
     input = {
         kb_layout = kbLayout,
         kb_variant = kbVariant,
-        numlock_by_default = inheritedNumlockState(),
+        numlock_by_default = getCachedNumlockState(),
         repeat_delay = 250,
         repeat_rate = 35,
 

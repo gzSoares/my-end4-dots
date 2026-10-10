@@ -1020,10 +1020,10 @@ Singleton {
         // colLayer1 carries only the opacity an overlay needs to look right on
         // top of a solid layer 0 — about a tenth — which is why widget groups
         // vanish once the strip beneath them stops being solid.
-        readonly property real barWidgetStockAlpha: colLayer1.a
+        readonly property real barWidgetStockAlpha: 0.85
         // The slot for the mode on screen; the other waits for its mode.
         readonly property string barWidgetPick: modePick(Config.options?.bar.widgetColorDark, Config.options?.bar.widgetColorLight)
-        property color colBarWidget: surfaceColor(barWidgetPick, colLayer1, Config.options?.bar.widgetOpacity, barWidgetStockAlpha)
+        property color colBarWidget: surfaceColor(barWidgetPick, colLayer0, Config.options?.bar.widgetOpacity, barWidgetStockAlpha)
         property color colOnLayer1: m3colors.m3onSurfaceVariant;
         property color colOnLayer1Inactive: ColorUtils.mix(colOnLayer1, colLayer1, 0.45);
         property color colLayer1Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.92), root.contentTransparency)
@@ -1129,9 +1129,9 @@ Singleton {
         readonly property real barFloatMax: 30
         // The notch curves as far as it can by default, the way its dock
         // does, so the two read as one shape. A floating strip keeps the
-        // roundness the rest of the interface uses.
+        // roundness the widget pills use so corners don't leak past them.
         readonly property real barFloatStock: root.sizes.barIsNotch
-            ? barFloatMax : windowRounding
+            ? barFloatMax : barWidgetStock
         readonly property real barFloat: (Config.options?.bar.floatRadius ?? -1) >= 0
             ? Config.options.bar.floatRadius : barFloatStock
         // The dock's roundness tracks run to this, and the marks on them are
@@ -1645,7 +1645,7 @@ Singleton {
         property real hyprlandGapsOut: 5
         property real mediaControlsWidth: 440
         property real mediaControlsHeight: 160
-        property real notificationPopupWidth: 410
+        property real notificationPopupWidth: 450
         // Where notification popups sit, read by the popup and by the picker in
         // Settings so the spot shown picked is always the one in use. A
         // hand-edited value neither knows lands on the stock corner.

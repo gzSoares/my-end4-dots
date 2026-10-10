@@ -24,7 +24,15 @@ Scope {
     // binding re-evaluates on every bump.
     readonly property var meaningfulPlayers: {
         const order = MprisController.recentPlayerNames;
-        return filterDuplicatePlayers(MprisController.orderByRecency(realPlayers)).slice(0, Config.options.media.maxShownPlayers);
+        const sorted = MprisController.orderByRecency(realPlayers);
+        // Move Spotify to front if present
+        const spotifyIdx = sorted.findIndex(p => p.dbusName?.includes("spotify"));
+        if (spotifyIdx > 0) {
+            const spotify = sorted[spotifyIdx];
+            sorted.splice(spotifyIdx, 1);
+            sorted.unshift(spotify);
+        }
+        return filterDuplicatePlayers(sorted).slice(0, Config.options.media.maxShownPlayers);
     }
     readonly property real osdWidth: Appearance.sizes.osdWidth
     readonly property real widgetWidth: Appearance.sizes.mediaControlsWidth

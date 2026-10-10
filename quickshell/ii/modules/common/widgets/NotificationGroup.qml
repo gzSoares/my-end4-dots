@@ -162,7 +162,7 @@ MouseArea { // Notification group area
         clip: true
         implicitHeight: root.expanded ? 
             row.implicitHeight + padding * 2 :
-            Math.min(80, row.implicitHeight + padding * 2)
+            row.implicitHeight + padding * 2
 
         Behavior on implicitHeight {
             id: implicitHeightAnim
@@ -266,7 +266,7 @@ MouseArea { // Notification group area
                     }
                     model: ScriptModel {
                         values: root.expanded ? root.notifications.slice().reverse() : 
-                            root.notifications.slice().reverse().slice(0, 2)
+                            root.notifications.slice().reverse()
                     }
                     delegate: NotificationItem {
                         required property int index
@@ -276,7 +276,7 @@ MouseArea { // Notification group area
                         expanded: root.expanded
                         onlyNotification: (root.notificationCount === 1)
                         opacity: (!root.expanded && index == 1 && root.notificationCount > 2) ? 0.5 : 1
-                        visible: root.expanded || (index < 2)
+                        visible: true
                         anchors.left: parent?.left
                         anchors.right: parent?.right
                     }
