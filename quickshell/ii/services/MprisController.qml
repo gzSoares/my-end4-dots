@@ -15,117 +15,110 @@ import qs.modules.common
  * A service that provides easy access to the active Mpris player.
  */
 Singleton {
-	id: root;
-	property list<MprisPlayer> players: Mpris.players.values.filter(player => isRealPlayer(player));
-	property MprisPlayer trackedPlayer: null;
-	property MprisPlayer activePlayer: root.preferredPlayer()
-	signal trackChanged(reverse: bool);
+    id: root;
 
-	// Most-recently-active bus names, newest first — lets the popup show only
-	// the last few players. Stored as names, not player refs, so entries from
-	// closed players can't dangle; orderByRecency simply never matches them.
-	property var recentPlayerNames: [];
-	// Last observed isPlaying per bus. Bumps only fire on a false→true
-	// transition: the browser bridge periodically re-emits state for players
-	// that never stopped, and those re-notifications must not reorder.
-	property var __wasPlaying: ({});
-	function notePlaybackChange(player) {
-		const name = player?.dbusName ?? '';
-		if (!name) return;
-		const was = root.__wasPlaying[name] === true;
-		const now = player.isPlaying === true;
-		root.__wasPlaying[name] = now;
-		if (now && !was) root.bumpRecentPlayer(player);
-	}
-	function bumpRecentPlayer(player) {
-		const name = player?.dbusName ?? '';
-		if (!name || !isRealPlayer(player)) return;
-		root.recentPlayerNames = [name, ...root.recentPlayerNames.filter(n => n !== name)].slice(0, 16);
-	}
-	function orderByRecency(list) {
-		const rank = name => {
-			const i = root.recentPlayerNames.indexOf(name);
-			return i === -1 ? root.recentPlayerNames.length : i;
-		};
-		return [...list].sort((a, b) => rank(a.dbusName) - rank(b.dbusName));
-	}
+    // Internal raw players list - updated via timer
+    property list<MprisPlayer> _rawPlayers: []
+    
+    // Debounced filtered players - updated every 200ms
+    property list<MprisPlayer> players: []
+    
+    // Tracked player (currently playing or last known)
+    property MprisPlayer trackedPlayer: null;
+    
+    // Active player - computed from cached players (no binding re-eval)
+    property MprisPlayer activePlayer: null;
+    
+    signal trackChanged(reverse: bool);
 
-	property bool __reverse: false;
+    // Most-recently-active bus names, newest first
+    property var recentPlayerNames: [];
+    
+    // Last observed isPlaying per bus
+    property var __wasPlaying: ({});
+    
+    // Cached plasma integration check (only changes when players list changes)
+    property bool _hasActivePlasmaIntegration: false;
 
-	property var activeTrack;
+    function notePlaybackChange(player) {
+        const name = player?.dbusName ?? '';
+        if (!name) return;
+        const was = root.__wasPlaying[name] === true;
+        const now = player.isPlaying === true;
+        root.__wasPlaying[name] = now;
+        if (now && !was) root.bumpRecentPlayer(player);
+    }
+    
+    function bumpRecentPlayer(player) {
+        const name = player?.dbusName ?? '';
+        if (!name || !isRealPlayer(player)) return;
+        root.recentPlayerNames = [name, ...root.recentPlayerNames.filter(n => n !== name)].slice(0, 16);
+    }
+    
+    function orderByRecency(list) {
+        const rank = name => {
+            const i = root.recentPlayerNames.indexOf(name);
+            return i === -1 ? root.recentPlayerNames.length : i;
+        };
+        return [...list].sort((a, b) => rank(a.dbusName) - rank(b.dbusName));
+    }
 
-	readonly property bool hasActivePlasmaIntegration: Mpris.players.values.some(
-		p => p.dbusName?.startsWith('org.mpris.MediaPlayer2.plasma-browser-integration')
-	)
-	// mpris-hyprland exposes one player per browser window, named
-	// org.mpris.MediaPlayer2.firefox.instance<pid>_t<windowId>. The _t<digits>
-	// segment distinguishes it from the browser's own built-in player
-	// (…firefox.instance_<n>_<m>, no _t).
-	function isFirefoxMprisBridge(name) {
-		return /\.firefox\.instance\d+_t\d+/.test(name ?? '');
-	}
-	// mpris-hyprland also bridges Chromium: a Chromium session publishes
-	// org.mpris.MediaPlayer2.chromium.instance<pid>_t<window>. The _t<digits>
-	// segment distinguishes the per-window bridge from Chromium's own native
-	// single player (…chromium.instance<n>, no _t).
-	function isChromiumMprisBridge(name) {
-		return /\.chromium\.instance\d+_t\d+/.test(name ?? '');
-	}
-	// A browser's own sparse single MPRIS player (Firefox built-in, Chromium
-	// native), as opposed to the rich per-window bridge players. Split per
-	// browser so a rich source for one browser never hides the other's player.
-	function isBuiltinFirefoxPlayer(name) {
-		name = name ?? '';
-		return name.startsWith('org.mpris.MediaPlayer2.firefox') && !isFirefoxMprisBridge(name);
-	}
-	function isBuiltinChromiumPlayer(name) {
-		name = name ?? '';
-		return (name.startsWith('org.mpris.MediaPlayer2.chromium')
-			|| name.startsWith('org.mpris.MediaPlayer2.chrome'))
-			&& !isChromiumMprisBridge(name);
-	}
-	function isBuiltinBrowserPlayer(name) {
-		return isBuiltinFirefoxPlayer(name) || isBuiltinChromiumPlayer(name);
-	}
-	// Which built-ins a running bridge covers, resolved by process ancestry:
-	// the bridge host is a child of the browser that owns the built-in's
-	// connection. No name-level linkage exists — the bridge embeds its own
-	// host pid while the browser names its player after its connection or
-	// its pid depending on version — so the resolve goes through D-Bus and
-	// /proc in a helper.
-	property var coveredBuiltins: []
-	Process {
-		id: coveredBuiltinsProc
-		stdout: StdioCollector {
-			onStreamFinished: root.coveredBuiltins = text.trim().length > 0 ? text.trim().split("\n") : []
-		}
-	}
-	// Debounced: players arrive and leave in bursts, and one resolve per
-	// burst is enough.
-	Timer {
-		id: coveredBuiltinsRefresh
-		interval: 150
-		onTriggered: {
-			const names = Mpris.players.values.map(p => p.dbusName ?? "").filter(n => n.length > 0);
-			coveredBuiltinsProc.running = false;
-			coveredBuiltinsProc.command = [Quickshell.shellPath("scripts/mpris/covered-builtins.sh"), ...names];
-			coveredBuiltinsProc.running = true;
-		}
-	}
-	function isRealPlayer(player) {
+    property bool __reverse: false;
+    property var activeTrack;
+
+    function isFirefoxMprisBridge(name) {
+        return /\.firefox\.instance\d+_t\d+/.test(name ?? '');
+    }
+    
+    function isChromiumMprisBridge(name) {
+        return /\.chromium\.instance\d+_t\d+/.test(name ?? '');
+    }
+    
+    function isBuiltinFirefoxPlayer(name) {
+        name = name ?? '';
+        return name.startsWith('org.mpris.MediaPlayer2.firefox') && !isFirefoxMprisBridge(name);
+    }
+    
+    function isBuiltinChromiumPlayer(name) {
+        name = name ?? '';
+        return (name.startsWith('org.mpris.MediaPlayer2.chromium')
+            || name.startsWith('org.mpris.MediaPlayer2.chrome'))
+            && !isChromiumMprisBridge(name);
+    }
+    
+    function isBuiltinBrowserPlayer(name) {
+        return isBuiltinFirefoxPlayer(name) || isBuiltinChromiumPlayer(name);
+    }
+    
+    // Which built-ins a running bridge covers
+    property var coveredBuiltins: []
+    Process {
+        id: coveredBuiltinsProc
+        stdout: StdioCollector {
+            onStreamFinished: root.coveredBuiltins = text.trim().length > 0 ? text.trim().split("\n") : []
+        }
+    }
+    
+    // Debounced: players arrive and leave in bursts, one resolve per burst is enough
+    Timer {
+        id: coveredBuiltinsRefresh
+        interval: 150
+        onTriggered: {
+            const names = Mpris.players.values.map(p => p.dbusName ?? "").filter(n => n.length > 0);
+            coveredBuiltinsProc.running = false;
+            coveredBuiltinsProc.command = [Quickshell.shellPath("scripts/mpris/covered-builtins.sh"), ...names];
+            coveredBuiltinsProc.running = true;
+        }
+    }
+    
+    function isRealPlayer(player) {
         if (!Config.options.media.filterDuplicatePlayers) {
             return true;
         }
         const name = player.dbusName ?? '';
-        // Hide a browser's built-in single player only when a bridge runs in
-        // that same browser (see coveredBuiltins), so it isn't duplicated;
-        // plasma integration replaces built-ins outright. A built-in from a
-        // browser without a bridge is somebody's only player and stays.
         return (
-            !(isBuiltinBrowserPlayer(name) && (hasActivePlasmaIntegration || root.coveredBuiltins.indexOf(name) !== -1)) &&
-            // playerctld just copies other buses and we don't need duplicates
+            !(isBuiltinBrowserPlayer(name) && (_hasActivePlasmaIntegration || root.coveredBuiltins.indexOf(name) !== -1)) &&
             !name.startsWith('org.mpris.MediaPlayer2.playerctld') &&
-            // Non-instance mpd bus
             !(name.endsWith('.mpd') && !name.endsWith('MediaPlayer2.mpd')));
     }
 
@@ -142,156 +135,179 @@ Singleton {
         if (recent.length > 0) return recent[0];
         return null;
     }
+    
+    // Debounced player list update - runs every 200ms instead of every binding eval
+    Timer {
+        id: playersUpdateTimer
+        interval: 200
+        running: true
+        repeat: true
+        onTriggered: {
+            const filtered = Mpris.players.values.filter(player => isRealPlayer(player));
+            // Only update if actually changed (reference check)
+            if (filtered.length !== _rawPlayers.length || 
+                filtered.some((p, i) => p !== _rawPlayers[i])) {
+                _rawPlayers = filtered;
+                players = filtered;
+                // Update cached plasma integration flag
+                _hasActivePlasmaIntegration = filtered.some(
+                    p => p.dbusName?.startsWith('org.mpris.MediaPlayer2.plasma-browser-integration')
+                );
+                // Update activePlayer from cached list
+                activePlayer = preferredPlayer();
+            }
+        }
+    }
 
-	// Original stuff from fox below
-	Instantiator {
-		model: Mpris.players;
+    // Original stuff from fox below
+    Instantiator {
+        model: Mpris.players;
 
-		Connections {
-			required property MprisPlayer modelData;
-			target: modelData;
+        Connections {
+            required property MprisPlayer modelData;
+            target: modelData;
 
-			Component.onCompleted: {
-				coveredBuiltinsRefresh.restart();
-				root.notePlaybackChange(modelData);
-				if (root.trackedPlayer == null || modelData.isPlaying) {
-					root.trackedPlayer = modelData;
-				}
-			}
+            Component.onCompleted: {
+                coveredBuiltinsRefresh.restart();
+                root.notePlaybackChange(modelData);
+                if (root.trackedPlayer == null || modelData.isPlaying) {
+                    root.trackedPlayer = modelData;
+                }
+            }
 
-			Component.onDestruction: {
-				coveredBuiltinsRefresh.restart();
-				if (root.trackedPlayer == null || !root.trackedPlayer.isPlaying) {
-					for (const player of Mpris.players.values) {
-						if (player.playbackState.isPlaying) {
-							root.trackedPlayer = player;
-							break;
-						}
-					}
+            Component.onDestruction: {
+                coveredBuiltinsRefresh.restart();
+                if (root.trackedPlayer == null || !root.trackedPlayer.isPlaying) {
+                    for (const player of Mpris.players.values) {
+                        if (player.playbackState.isPlaying) {
+                            root.trackedPlayer = player;
+                            break;
+                        }
+                    }
 
-					if (trackedPlayer == null && Mpris.players.values.length != 0) {
-						trackedPlayer = Mpris.players.values[0];
-					}
-				}
-			}
+                    if (trackedPlayer == null && Mpris.players.values.length != 0) {
+                        trackedPlayer = Mpris.players.values[0];
+                    }
+                }
+            }
 
-			// Recency rides on the isPlaying PROPERTY change, not
-			// playbackStateChanged: the state signal fires while isPlaying
-			// still holds its old value, so a starting player reads as
-			// not-playing there and never gets bumped.
-			function onIsPlayingChanged() {
-				root.notePlaybackChange(modelData);
-			}
+            // Recency rides on the isPlaying PROPERTY change, not
+            // playbackStateChanged: the state signal fires while isPlaying
+            // still holds its old value, so a starting player reads as
+            // not-playing there and never gets bumped.
+            function onIsPlayingChanged() {
+                root.notePlaybackChange(modelData);
+            }
 
-			function onPlaybackStateChanged() {
-				if (root.trackedPlayer !== modelData) root.trackedPlayer = modelData;
-			}
-		}
-	}
+            function onPlaybackStateChanged() {
+                if (root.trackedPlayer !== modelData) root.trackedPlayer = modelData;
+            }
+        }
+    }
 
-	Connections {
-		target: activePlayer
+    // Use a single Connections with dynamic target instead of binding to activePlayer
+    Connections {
+        id: activePlayerConnections
+        target: null
+        
+        function updateTarget() {
+            activePlayerConnections.target = root.activePlayer;
+        }
+        
+        Component.onCompleted: updateTarget()
+        onActivePlayerChanged: updateTarget()
+        
+        function onPostTrackChanged() {
+            root.updateTrack();
+        }
 
-		function onPostTrackChanged() {
-			root.updateTrack();
-		}
+        function onTrackArtUrlChanged() {
+            if (root.activePlayer.uniqueId == root.activeTrack.uniqueId && root.activePlayer.trackArtUrl != root.activeTrack.artUrl) {
+                const r = root.__reverse;
+                root.updateTrack();
+                root.__reverse = r;
+            }
+        }
+    }
 
-		function onTrackArtUrlChanged() {
-			// console.log("arturl:", activePlayer.trackArtUrl)
-			// root.updateTrack();
-			if (root.activePlayer.uniqueId == root.activeTrack.uniqueId && root.activePlayer.trackArtUrl != root.activeTrack.artUrl) {
-				// cantata likes to send cover updates *BEFORE* updating the track info.
-				// as such, art url changes shouldn't be able to break the reverse animation
-				const r = root.__reverse;
-				root.updateTrack();
-				root.__reverse = r;
+    function updateTrack() {
+        this.activeTrack = {
+            uniqueId: this.activePlayer?.uniqueId ?? 0,
+            artUrl: this.activePlayer?.trackArtUrl ?? "",
+            title: this.activePlayer?.trackTitle || Translation.tr("Unknown Title"),
+            artist: this.activePlayer?.trackArtist || Translation.tr("Unknown Artist"),
+            album: this.activePlayer?.trackAlbum || Translation.tr("Unknown Album"),
+        };
 
-			}
-		}
-	}
+        this.trackChanged(__reverse);
+        this.__reverse = false;
+    }
 
-	onActivePlayerChanged: this.updateTrack();
+    property bool isPlaying: this.activePlayer && this.activePlayer.isPlaying;
+    property bool canTogglePlaying: this.activePlayer?.canTogglePlaying ?? false;
+    function togglePlaying() {
+        if (this.canTogglePlaying) this.activePlayer.togglePlaying();
+    }
 
-	function updateTrack() {
-		//console.log(`update: ${this.activePlayer?.trackTitle ?? ""} : ${this.activePlayer?.trackArtists}`)
-		this.activeTrack = {
-			uniqueId: this.activePlayer?.uniqueId ?? 0,
-			artUrl: this.activePlayer?.trackArtUrl ?? "",
-			title: this.activePlayer?.trackTitle || Translation.tr("Unknown Title"),
-			artist: this.activePlayer?.trackArtist || Translation.tr("Unknown Artist"),
-			album: this.activePlayer?.trackAlbum || Translation.tr("Unknown Album"),
-		};
+    property bool canGoPrevious: this.activePlayer?.canGoPrevious ?? false;
+    function previous() {
+        if (this.canGoPrevious) {
+            this.__reverse = true;
+            this.activePlayer.previous();
+        }
+    }
 
-		this.trackChanged(__reverse);
-		this.__reverse = false;
-	}
+    property bool canGoNext: this.activePlayer?.canGoNext ?? false;
+    function next() {
+        if (this.canGoNext) {
+            this.__reverse = false;
+            this.activePlayer.next();
+        }
+    }
 
-	property bool isPlaying: this.activePlayer && this.activePlayer.isPlaying;
-	property bool canTogglePlaying: this.activePlayer?.canTogglePlaying ?? false;
-	function togglePlaying() {
-		if (this.canTogglePlaying) this.activePlayer.togglePlaying();
-	}
+    property bool canChangeVolume: this.activePlayer && this.activePlayer.volumeSupported && this.activePlayer.canControl;
 
-	property bool canGoPrevious: this.activePlayer?.canGoPrevious ?? false;
-	function previous() {
-		if (this.canGoPrevious) {
-			this.__reverse = true;
-			this.activePlayer.previous();
-		}
-	}
+    property bool loopSupported: this.activePlayer && this.activePlayer.loopSupported && this.activePlayer.canControl;
+    property var loopState: this.activePlayer?.loopState ?? MprisLoopState.None;
+    function setLoopState(loopState: var) {
+        if (this.loopSupported) {
+            this.activePlayer.loopState = loopState;
+        }
+    }
 
-	property bool canGoNext: this.activePlayer?.canGoNext ?? false;
-	function next() {
-		if (this.canGoNext) {
-			this.__reverse = false;
-			this.activePlayer.next();
-		}
-	}
+    property bool shuffleSupported: this.activePlayer && this.activePlayer.shuffleSupported && this.activePlayer.canControl;
+    property bool hasShuffle: this.activePlayer?.shuffle ?? false;
+    function setShuffle(shuffle: bool) {
+        if (this.shuffleSupported) {
+            this.activePlayer.shuffle = shuffle;
+        }
+    }
 
-	property bool canChangeVolume: this.activePlayer && this.activePlayer.volumeSupported && this.activePlayer.canControl;
+    function setActivePlayer(player: MprisPlayer) {
+        const targetPlayer = player ?? Mpris.players[0];
+        root.bumpRecentPlayer(targetPlayer);
+        console.log(`[Mpris] Active player ${targetPlayer} << ${activePlayer}`)
 
-	property bool loopSupported: this.activePlayer && this.activePlayer.loopSupported && this.activePlayer.canControl;
-	property var loopState: this.activePlayer?.loopState ?? MprisLoopState.None;
-	function setLoopState(loopState: var) {
-		if (this.loopSupported) {
-			this.activePlayer.loopState = loopState;
-		}
-	}
+        if (targetPlayer && this.activePlayer) {
+            this.__reverse = Mpris.players.indexOf(targetPlayer) < Mpris.players.indexOf(this.activePlayer);
+        } else {
+            this.__reverse = false;
+        }
 
-	property bool shuffleSupported: this.activePlayer && this.activePlayer.shuffleSupported && this.activePlayer.canControl;
-	property bool hasShuffle: this.activePlayer?.shuffle ?? false;
-	function setShuffle(shuffle: bool) {
-		if (this.shuffleSupported) {
-			this.activePlayer.shuffle = shuffle;
-		}
-	}
+        this.trackedPlayer = targetPlayer;
+    }
 
-	function setActivePlayer(player: MprisPlayer) {
-		const targetPlayer = player ?? Mpris.players[0];
-		root.bumpRecentPlayer(targetPlayer);
-		console.log(`[Mpris] Active player ${targetPlayer} << ${activePlayer}`)
+    IpcHandler {
+        target: "mpris"
 
-		if (targetPlayer && this.activePlayer) {
-			this.__reverse = Mpris.players.indexOf(targetPlayer) < Mpris.players.indexOf(this.activePlayer);
-		} else {
-			// always animate forward if going to null
-			this.__reverse = false;
-		}
+        function pauseAll(): void {
+            for (const player of Mpris.players.values) {
+                if (player.canPause) player.pause();
+            }
+        }
 
-		this.trackedPlayer = targetPlayer;
-	}
-
-	IpcHandler {
-		target: "mpris"
-
-		function pauseAll(): void {
-			for (const player of Mpris.players.values) {
-				if (player.canPause) player.pause();
-			}
-		}
-
-		function playPause(): void { root.togglePlaying(); }
-		function previous(): void { root.previous(); }
-		function next(): void { root.next(); }
-	}
+        function playPause(): void { root.togglePlaying(); }
+        function previous(): void { root.previous(); }
+        function next(): void { root.next(); }
+    }
 }

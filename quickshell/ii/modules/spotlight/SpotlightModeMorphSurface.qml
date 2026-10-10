@@ -32,10 +32,10 @@ Item {
     readonly property real expandedMainRight: mainLeft + expandedMainWidth
     readonly property vector4d mainShape: Qt.vector4d(mainCenterX, shapeCenterY, mainWidth, shapeHeight)
     readonly property var buttonShapes: [buttonShape(0), buttonShape(1), buttonShape(2), buttonShape(3)]
-    readonly property var travelDelays: [0.06, 0.036, 0.032]
-    readonly property var travelDecays: [7.2, 5.4, 5.4]
-    readonly property var travelFrequencies: [8.9, 6.2, 5.35]
-    readonly property var growthRates: [3.8, 3.1, 2.7]
+    readonly property var travelDelays: [0.06, 0.036, 0.032, 0.03]
+    readonly property var travelDecays: [7.2, 5.4, 5.4, 5.4]
+    readonly property var travelFrequencies: [8.9, 6.2, 5.35, 5.0]
+    readonly property var growthRates: [3.8, 3.1, 2.7, 2.5]
 
     function smoothstep(value) {
         const progress = Math.max(0, Math.min(1, value));

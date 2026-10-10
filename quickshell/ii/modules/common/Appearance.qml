@@ -1016,14 +1016,38 @@ Singleton {
         readonly property color colLauncherDimWindow: Qt.rgba(0, 0, 0, 0.01)
         // Layer 1
         property color colLayer1Base: m3colors.m3surfaceContainerLow
-        property color colLayer1: ColorUtils.solveOverlayColor(colLayer0Base, colLayer1Base, 1 - root.contentTransparency);
+        
+        // Cached colLayer1 - only recomputed when dependencies change
+        property var _colLayer1Cache: null
+        property var _colLayer1Deps: ""
+        function _computeColLayer1() {
+            const deps = colLayer0Base + "|" + colLayer1Base + "|" + (1 - root.contentTransparency);
+            if (deps === _colLayer1Deps && _colLayer1Cache !== null) return _colLayer1Cache;
+            _colLayer1Deps = deps;
+            _colLayer1Cache = ColorUtils.solveOverlayColor(colLayer0Base, colLayer1Base, 1 - root.contentTransparency);
+            return _colLayer1Cache;
+        }
+        property color colLayer1: _computeColLayer1()
+        
         // colLayer1 carries only the opacity an overlay needs to look right on
         // top of a solid layer 0 — about a tenth — which is why widget groups
         // vanish once the strip beneath them stops being solid.
         readonly property real barWidgetStockAlpha: 0.85
         // The slot for the mode on screen; the other waits for its mode.
         readonly property string barWidgetPick: modePick(Config.options?.bar.widgetColorDark, Config.options?.bar.widgetColorLight)
-        property color colBarWidget: surfaceColor(barWidgetPick, colLayer0, Config.options?.bar.widgetOpacity, barWidgetStockAlpha)
+
+        // Cached bar widget color - only recomputed when dependencies change
+        property var _colBarWidgetCache: null
+        property var _colBarWidgetDeps: ""
+        function _computeColBarWidget() {
+            const deps = barWidgetPick + "|" + colLayer0 + "|" + (Config.options?.bar.widgetOpacity ?? -1) + "|" + barWidgetStockAlpha;
+            if (deps === _colBarWidgetDeps && _colBarWidgetCache !== null) return _colBarWidgetCache;
+            _colBarWidgetDeps = deps;
+            _colBarWidgetCache = surfaceColor(barWidgetPick, colLayer0, Config.options?.bar.widgetOpacity, barWidgetStockAlpha);
+            return _colBarWidgetCache;
+        }
+        property color colBarWidget: _computeColBarWidget()
+
         property color colOnLayer1: m3colors.m3onSurfaceVariant;
         property color colOnLayer1Inactive: ColorUtils.mix(colOnLayer1, colLayer1, 0.45);
         property color colLayer1Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.92), root.contentTransparency)

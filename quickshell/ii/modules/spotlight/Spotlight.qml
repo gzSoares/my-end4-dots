@@ -323,6 +323,12 @@ PanelWindow {
                "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus " +
                "xdg-open " + root.shellQuote(target) + " </dev/null >/dev/null 2>&1";
     }
+    // Abre o settings.qml da config atual (<config>/settings.qml) e fecha o Spotlight
+    function openSettingsApp() {
+        SpotlightController.run("qs -p " + root.shellQuote(Quickshell.shellPath("settings.qml")) + " --no-duplicate");
+        SpotlightController.spotlightOpen = false;
+    }
+
     function xdgOpen(target) { SpotlightController.run(root.xdgOpenCmd(target) + " &"); }
 
     function fileUrl(path) {
@@ -2798,7 +2804,7 @@ PanelWindow {
                 railProgress: root.railProgress
                 mainLeft: 0
                 collapsedMainWidth: root.panelWidth
-                expandedMainWidth: root.panelWidth - 4 * (root.circleSize + root.circlesGap)
+                expandedMainWidth: root.panelWidth - 5 * (root.circleSize + root.circlesGap)
                 shapeCenterY: root.searchH / 2
                 shapeHeight: root.searchH
                 buttonDiameter: root.circleSize
@@ -2960,6 +2966,11 @@ PanelWindow {
                             onEntered: root.placeholderText = modelData.tip
                             onExited: root.placeholderText = "Search or Ask"
                             onClicked: {
+                                // Settings abre o app settings.qml direto (em vez do modo "config" interno)
+                                if (modelData.m === "config") {
+                                    root.openSettingsApp()
+                                    return
+                                }
                                 root.circlesLocked = true
                                 root.circlesVisible = false
                                 root.setMode(root.mode === modelData.m ? "search" : modelData.m)
@@ -2990,7 +3001,7 @@ PanelWindow {
                 }
                 onPositionChanged: (mouse) => {
                     if (!isDragging) return
-                    var maxDist = root.circleSize * 4 + root.circlesGap * 4
+                    var maxDist = root.circleSize * 5 + root.circlesGap * 5
                     root.railProgress = Math.max(0, Math.min(1, startProgress + (mouse.x - startMouseX) / maxDist))
                 }
                 onReleased: (mouse) => {
@@ -3058,6 +3069,60 @@ PanelWindow {
                 onClicked: {
                     root.circlesVisible = !root.circlesVisible
                     root.circlesLocked = true
+                }
+            }
+        }
+
+        // ---- Botão limpar histórico do clipboard (só no modo Clipboard)
+        Rectangle {
+            id: clipTrashBtn
+            property bool armed: false
+            // logo abaixo da seta (alinhado à direita, na linha do cabeçalho "CLIPBOARD")
+            x: morphSurface.mainWidth - width - 10
+            y: searchHeader.height + 1 + (root.headerH - height) / 2
+            width: 22; height: 22; radius: 6
+            z: 120
+            visible: root.mode === "clipboard" && root.clipItems.length > 0
+            color: armed ? Qt.rgba(1, 0.27, 0.27, 0.35)
+                 : clipTrashMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+            border.width: 1
+            border.color: armed ? Qt.rgba(1, 0.4, 0.4, 0.8) : Qt.rgba(1, 1, 1, 0.12)
+            Behavior on color { ColorAnimation { duration: 120 } }
+            onVisibleChanged: armed = false
+            onArmedChanged: trashIcon.requestPaint()
+
+            Timer { id: armTimer; interval: 2500; onTriggered: clipTrashBtn.armed = false }
+
+            Canvas {
+                id: trashIcon
+                anchors.centerIn: parent
+                width: 14; height: 14; scale: 0.9
+                onPaint: {
+                    var ctx = getContext("2d"); ctx.reset()
+                    ctx.strokeStyle = clipTrashBtn.armed ? "#ff8080" : Qt.rgba(1, 1, 1, 0.9)
+                    ctx.lineWidth = 1.4; ctx.lineCap = "round"; ctx.lineJoin = "round"
+                    ctx.beginPath(); ctx.moveTo(2, 3.5); ctx.lineTo(12, 3.5); ctx.stroke()
+                    ctx.beginPath(); ctx.moveTo(5.5, 3.5); ctx.lineTo(5.5, 2); ctx.lineTo(8.5, 2); ctx.lineTo(8.5, 3.5); ctx.stroke()
+                    ctx.beginPath(); ctx.moveTo(3.5, 3.5); ctx.lineTo(4.2, 12); ctx.lineTo(9.8, 12); ctx.lineTo(10.5, 3.5); ctx.stroke()
+                }
+            }
+            MouseArea {
+                id: clipTrashMA
+                anchors.fill: parent
+                hoverEnabled: true
+                cursorShape: Qt.PointingHandCursor
+                onEntered: root.placeholderText = clipTrashBtn.armed ? "Click again to confirm" : "Clear clipboard history"
+                onExited: root.placeholderText = "Search or Ask"
+                onClicked: {
+                    if (clipTrashBtn.armed) {
+                        armTimer.stop(); clipTrashBtn.armed = false
+                        root.clearClipboard()
+                        root.placeholderText = "Search or Ask"
+                    } else {
+                        clipTrashBtn.armed = true; armTimer.restart()
+                        root.placeholderText = "Click again to confirm"
+                    }
+                    searchField.forceActiveFocus()
                 }
             }
         }

@@ -64,21 +64,25 @@ ContentPage {
         id: smallLightDarkPreferenceButton
         required property bool dark
         property color colText: toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
-        padding: 5
+        padding: 8
         Layout.fillWidth: true
+        Layout.minimumHeight: 64
+        Layout.preferredHeight: 64
         toggled: Appearance.m3colors.darkmode === dark
         colBackground: Appearance.colors.colLayer2
         onClicked: {
             applyTheme(`--mode ${dark ? "dark" : "light"} --noswitch`);
         }
         contentItem: Item {
+            implicitWidth: parent.implicitWidth
+            implicitHeight: parent.implicitHeight
             anchors.centerIn: parent
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 0
+                spacing: 4
                 MaterialSymbol {
                     Layout.alignment: Qt.AlignHCenter
-                    iconSize: 30
+                    iconSize: 28
                     text: dark ? "dark_mode" : "light_mode"
                     color: smallLightDarkPreferenceButton.colText
                 }
@@ -87,6 +91,7 @@ ContentPage {
                     text: dark ? Translation.tr("Dark") : Translation.tr("Light")
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: smallLightDarkPreferenceButton.colText
+                    elide: Text.ElideRight
                 }
             }
         }
@@ -289,10 +294,12 @@ ContentPage {
                     uniformCellSizes: true
 
                     SmallLightDarkPreferenceButton {
+                        Layout.fillWidth: true
                         Layout.fillHeight: true
                         dark: false
                     }
                     SmallLightDarkPreferenceButton {
+                        Layout.fillWidth: true
                         Layout.fillHeight: true
                         dark: true
                     }

@@ -22,6 +22,58 @@ Item { // Bar content region
     // background or fill the available width).
     readonly property var chromelessModules: ["sidebarButton", "activeWindow", "timers", "releaseUpdates"]
 
+    // Cached module visibility/active state - updated only when dependencies change
+    property var _moduleVisibleCache: ({})
+    property var _moduleActiveCache: ({})
+    property var _lastVisibilityDeps: ""
+
+    function _computeVisibilityDeps() {
+        return Config.options.policies.ai + "|" +
+               Config.options.sidebar.translator.enable + "|" +
+               Config.options.policies.weeb + "|" +
+               root.useShortenedForm + "|" +
+               Config.options.bar.verbose + "|" +
+               Battery.available + "|" +
+               (MprisController.trackedPlayer?.isPlaying === true) + "|" +
+               ReleaseUpdates.updateAvailable + "|" +
+               ReleaseUpdates.wantTray;
+    }
+
+    function _refreshModuleCache() {
+        const deps = _computeVisibilityDeps();
+        if (deps === _lastVisibilityDeps) return;
+        _lastVisibilityDeps = deps;
+
+        const names = ["sidebarButton", "activeWindow", "activeWindowPill", "resources", "media", "workspaces", "clock", "utilButtons", "battery", "indicators", "volume", "tray", "timers", "weather", "releaseUpdates"];
+        const activeCache = {};
+        const visibleCache = {};
+
+        for (const name of names) {
+            activeCache[name] = moduleComponent(name) !== null;
+            visibleCache[name] = _computeModuleVisible(name);
+        }
+        _moduleActiveCache = activeCache;
+        _moduleVisibleCache = visibleCache;
+    }
+
+    function _computeModuleVisible(name) {
+        switch (name) {
+        case "sidebarButton": return Config.options.policies.ai !== 0
+            || Config.options.sidebar.translator.enable
+            || Config.options.policies.weeb !== 0;
+        case "activeWindow": return root.useShortenedForm === 0;
+        case "activeWindowPill": return root.useShortenedForm === 0;
+        case "media": return root.useShortenedForm < 2 && MprisController.trackedPlayer?.isPlaying === true;
+        case "utilButtons": return Config.options.bar.verbose && root.useShortenedForm === 0;
+        case "battery": return root.useShortenedForm < 2 && Battery.available;
+        case "volume": return root.useShortenedForm === 0;
+        case "weather": return root.useShortenedForm === 0;
+        case "tray": return root.useShortenedForm === 0;
+        case "releaseUpdates": return ReleaseUpdates.updateAvailable && ReleaseUpdates.wantTray;
+        default: return true;
+        }
+    }
+
     function moduleComponent(name) {
         switch (name) {
         case "sidebarButton": return comp_sidebarButton;
@@ -44,30 +96,13 @@ Item { // Bar content region
     }
 
     function moduleActive(name) {
-        return root.moduleComponent(name) !== null;
+        _refreshModuleCache();
+        return _moduleActiveCache[name] ?? false;
     }
 
     function moduleVisible(name) {
-        switch (name) {
-        // The button hides itself when none of the things it opens are turned
-        // on. The slot can't see that from the outside, so it would keep the
-        // space reserved for a button nobody can see.
-        case "sidebarButton": return Config.options.policies.ai !== 0
-            || Config.options.sidebar.translator.enable
-            || Config.options.policies.weeb !== 0;
-        case "activeWindow": return root.useShortenedForm === 0;
-        case "activeWindowPill": return root.useShortenedForm === 0;
-        case "media": return root.useShortenedForm < 2 && MprisController.trackedPlayer?.isPlaying === true;
-        case "utilButtons": return Config.options.bar.verbose && root.useShortenedForm === 0;
-        case "battery": return root.useShortenedForm < 2 && Battery.available;
-        case "volume": return root.useShortenedForm === 0;
-        case "weather": return root.useShortenedForm === 0;
-        case "tray": return root.useShortenedForm === 0;
-        // Nothing to say while you're up to date, and the slot would otherwise
-        // hold space for an icon that isn't drawn.
-        case "releaseUpdates": return ReleaseUpdates.updateAvailable && ReleaseUpdates.wantTray;
-        default: return true;
-        }
+        _refreshModuleCache();
+        return _moduleVisibleCache[name] ?? true;
     }
 
     // Widgets that stretch to the bar's height. The rest keep their own and sit
@@ -809,7 +844,8 @@ Item { // Bar content region
         // over the middle block. The cap is what turns growth into elision:
         // the row inside is anchored to the surface, so a clamped surface
         // compresses the row and the title gives the room back.
-        width: !root.floatSplit ? 0 : Math.max(0, Math.min(leftRow.implicitWidth + root.floatPad * 2,
+        // Add radius*2 so rounded corners don't clip widget content
+        width: !root.floatSplit ? 0 : Math.max(0, Math.min(leftRow.implicitWidth + root.floatPad * 2 + root.floatPad,
             root.centerLeft - root.floatPad - root.splitGap - root.floatSideInset))
     }
     FloatSurface {
@@ -823,7 +859,8 @@ Item { // Bar content region
         flushRight: root.floatSideInset <= 0
         x: root.floatSplit ? root.width - root.floatSideInset - width : 0
         // Capped for the same reason as its twin, from the other side.
-        width: !root.floatSplit ? 0 : Math.max(0, Math.min(rightRow.implicitWidth + root.floatPad * 2,
+        // Add radius so rounded corners don't clip widget content
+        width: !root.floatSplit ? 0 : Math.max(0, Math.min(rightRow.implicitWidth + root.floatPad * 2 + root.floatPad,
             root.width - root.floatSideInset - root.centerRight - root.floatPad - root.splitGap))
     }
 
@@ -889,32 +926,32 @@ Item { // Bar content region
     }
 
     FocusedScrollMouseArea { // Left side | scroll to change brightness
-        id: barLeftSideMouseArea
+            id: barLeftSideMouseArea
 
-        anchors {
-            top: parent.top
-            bottom: parent.bottom
-            left: root.floatSplit ? leftFloat.left : barSurface.left
-            leftMargin: root.floatSplit ? 0 : root.floatSideInset
-            right: root.floatSplit ? leftFloat.right : centerLeftFlank.left
-        }
-        implicitWidth: leftRow.implicitWidth
-        implicitHeight: Appearance.sizes.baseBarHeight
+            anchors {
+                top: parent.top
+                bottom: parent.bottom
+                left: root.floatSplit ? leftFloat.left : barSurface.left
+                leftMargin: root.floatSplit ? 0 : root.floatSideInset
+                right: root.floatSplit ? leftFloat.right : centerLeftFlank.left
+            }
+            implicitWidth: leftRow.implicitWidth
+            implicitHeight: Appearance.sizes.baseBarHeight
 
-        onScrollDown: Brightness.decreaseBrightness()
-        onScrollUp: Brightness.increaseBrightness()
-        onMovedAway: GlobalStates.osdBrightnessOpen = false
-        onPressed: event => {
-            if (event.button === Qt.LeftButton)
-                GlobalStates.sidebarLeftOpen = !GlobalStates.sidebarLeftOpen;
-        }
+            onScrollDown: Brightness.decreaseBrightness()
+            onScrollUp: Brightness.increaseBrightness()
+            onMovedAway: GlobalStates.osdBrightnessOpen = false
+            onPressed: event => {
+                if (event.button === Qt.LeftButton)
+                    GlobalStates.sidebarLeftOpen = !GlobalStates.sidebarLeftOpen;
+            }
 
-        RowLayout {
-            id: leftRow
-            anchors.fill: parent
-            anchors.leftMargin: Appearance.rounding.screenRounding
-            anchors.rightMargin: Appearance.rounding.screenRounding
-            spacing: 4
+            RowLayout {
+                        id: leftRow
+                        anchors.fill: parent
+                        anchors.leftMargin: root.floatPad
+                        anchors.rightMargin: root.floatPad
+                        spacing: 4
 
             Repeater {
                 model: Config.options.bar.layout.left
@@ -1053,8 +1090,8 @@ Item { // Bar content region
             id: rightRow
             anchors.fill: parent
             // Split, the surface budgets the same pad at both of its ends.
-            anchors.leftMargin: root.floatSplit ? root.floatPad : 5
-            anchors.rightMargin: Appearance.rounding.screenRounding
+            anchors.leftMargin: root.floatSplit ? root.floatPad : root.floatPad
+            anchors.rightMargin: root.floatPad
             spacing: 5
 
             Item { // Packs the pills against the screen edge (see sectionNeedsPacker)

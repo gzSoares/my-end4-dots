@@ -21,19 +21,15 @@ Singleton {
     // the layout now says the position the spacer used to fake.
     readonly property var defaultBarLayout: ({
         "left": [
-            { "widgets": [ {"id": "resources", "enabled": false}, {"id": "media", "enabled": true} ] },
+            { "widgets": [ {"id": "resources", "enabled": true}, {"id": "media", "enabled": true} ] },
             { "widgets": [ {"id": "tray", "enabled": true} ] },
-            { "widgets": [ {"id": "activeWindow", "enabled": false}, {"id": "activeWindowPill", "enabled": false} ] },
             { "widgets": [ {"id": "sidebarButton", "enabled": true} ] }
         ],
         "center": [
-            { "widgets": [ {"id": "utilButtons", "enabled": true} ] },
             { "widgets": [ {"id": "clock", "enabled": true} ] },
-            { "widgets": [ {"id": "battery", "enabled": true}, {"id": "weather", "enabled": true}, {"id": "releaseUpdates", "enabled": true} ] }
+            { "widgets": [ {"id": "battery", "enabled": true} ] }
         ],
         "right": [
-            { "widgets": [ {"id": "timers", "enabled": true} ] },
-            { "widgets": [ {"id": "volume", "enabled": true}, {"id": "indicators", "enabled": true} ] },
             { "widgets": [ {"id": "workspaces", "enabled": true} ] }
         ]
     })
@@ -390,79 +386,79 @@ Singleton {
             }
 
             property JsonObject appearance: JsonObject {
-                property bool extraBackgroundTint: true
-                // Lives here rather than in the Hyprland config so a saved
-                // theme carries it. Palette mode holds role names, which are
-                // re-read from whatever palette is current so the border
-                // follows the wallpaper the way the rest of the desktop does;
-                // custom mode holds the two colours literally and ignores it.
-                property JsonObject borderGradient: JsonObject {
-                    property bool enable: false
-                    property string from: "primary"
-                    property string to: "tertiary"
-                    property bool custom: false
-                    property string customFrom: "#8ab4f8"
-                    property string customTo: "#c58af9"
-                    property int angle: 90
-                    property int opacity: 50
-                }
-                property JsonObject borderGradientInactive: JsonObject {
-                    property bool enable: false
-                    property string from: "primary"
-                    property string to: "tertiary"
-                    property bool custom: false
-                    property string customFrom: "#8ab4f8"
-                    property string customTo: "#c58af9"
-                    property int angle: 90
-                    property int opacity: 15
-                }
-                property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
-                property JsonObject fonts: JsonObject {
-                    property string main: "Google Sans Flex"
-                    property string numbers: "Google Sans Flex"
-                    property string title: "Google Sans Flex"
-                    property string iconNerd: "JetBrains Mono NF"
-                    property string monospace: "JetBrains Mono NF"
-                    property string reading: "Readex Pro"
-                    property string expressive: "Space Grotesk"
-                }
-                property JsonObject transparency: JsonObject {
-                    property bool enable: true
-                    property bool automatic: true
-                    property real backgroundTransparency: 0.11
-                    property real contentTransparency: 0.57
-                }
-                property JsonObject wallpaperTheming: JsonObject {
-                    property bool enableAppsAndShell: true
-                    property bool enableQtApps: true
-                    property bool enableTerminal: true
-                    property JsonObject terminalGenerationProps: JsonObject {
-                        property real harmony: 0.6
-                        property real harmonizeThreshold: 100
-                        property real termFgBoost: 0.35
-                        property bool forceDarkMode: true
-                    }
-                }
-                property JsonObject palette: JsonObject {
-                    property string type: "auto" // Allowed: auto, scheme-content, scheme-expressive, scheme-fidelity, scheme-fruit-salad, scheme-monochrome, scheme-neutral, scheme-rainbow, scheme-tonal-spot
-                    property string accentColor: ""
-                }
-                // Day/Night Themes scheduler: ThemeManager auto-applies daySlug
-                // or nightSlug depending on `mode` and the current time. When
-                // mode is "nightlight" it follows Hyprsunset.shouldBeOn (so
-                // theme changes line up with the Night Light filter); when
-                // "manual" it uses dayFrom / nightFrom as the day-window
-                // boundaries (HH:mm 24-hour, parsed by ThemeManager). "off"
-                // disables auto-apply entirely. Default daySlug/nightSlug
-                // are empty until the user picks them in Settings → Themes.
-                property JsonObject themeSchedule: JsonObject {
-                    property string mode: "off"   // "off" | "nightlight" | "manual"
-                    property string daySlug: ""
-                    property string nightSlug: ""
-                    property string dayFrom: "06:00"
-                    property string nightFrom: "20:00"
-                }
-            }
+                            property bool extraBackgroundTint: true
+                            // Lives here rather than in the Hyprland config so a saved
+                            // theme carries it. Palette mode holds role names, which are
+                            // re-read from whatever palette is current so the border
+                            // follows the wallpaper the way the rest of the desktop does;
+                            // custom mode holds the two colours literally and ignores it.
+                            property JsonObject borderGradient: JsonObject {
+                                property bool enable: true
+                                property string from: "primary"
+                                property string to: "tertiary"
+                                property bool custom: false
+                                property string customFrom: "#8ab4f8"
+                                property string customTo: "#c58af9"
+                                property int angle: 90
+                                property int opacity: 50
+                            }
+                            property JsonObject borderGradientInactive: JsonObject {
+                                property bool enable: true
+                                property string from: "primary"
+                                property string to: "tertiary"
+                                property bool custom: false
+                                property string customFrom: "#8ab4f8"
+                                property string customTo: "#c58af9"
+                                property int angle: 90
+                                property int opacity: 15
+                            }
+                            property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
+                            property JsonObject fonts: JsonObject {
+                                property string main: "Google Sans Flex"
+                                property string numbers: "Google Sans Flex"
+                                property string title: "Google Sans Flex"
+                                property string iconNerd: "JetBrains Mono NF"
+                                property string monospace: "JetBrains Mono NF"
+                                property string reading: "Readex Pro"
+                                property string expressive: "Space Grotesk"
+                            }
+                            property JsonObject transparency: JsonObject {
+                                property bool enable: true
+                                property bool automatic: true
+                                property real backgroundTransparency: 0.15
+                                property real contentTransparency: 0.57
+                            }
+                            property JsonObject wallpaperTheming: JsonObject {
+                                property bool enableAppsAndShell: true
+                                property bool enableQtApps: true
+                                property bool enableTerminal: true
+                                property JsonObject terminalGenerationProps: JsonObject {
+                                    property real harmony: 0.6
+                                    property real harmonizeThreshold: 100
+                                    property real termFgBoost: 0.35
+                                    property bool forceDarkMode: true
+                                }
+                            }
+                            property JsonObject palette: JsonObject {
+                                property string type: "tonal-spot"
+                                property string accentColor: ""
+                            }
+                            // Day/Night Themes scheduler: ThemeManager auto-applies daySlug
+                            // or nightSlug depending on `mode` and the current time. When
+                            // mode is "nightlight" it follows Hyprsunset.shouldBeOn (so
+                            // theme changes line up with the Night Light filter); when
+                            // "manual" it uses dayFrom / nightFrom as the day-window
+                            // boundaries (HH:mm 24-hour, parsed by ThemeManager). "off"
+                            // disables auto-apply entirely. Default daySlug/nightSlug
+                            // are empty until the user picks them in Settings → Themes.
+                            property JsonObject themeSchedule: JsonObject {
+                                property string mode: "nightlight"
+                                property string daySlug: ""
+                                property string nightSlug: ""
+                                property string dayFrom: "06:00"
+                                property string nightFrom: "20:00"
+                            }
+                        }
 
             property JsonObject audio: JsonObject {
                 // Values in %
@@ -629,11 +625,11 @@ Singleton {
                 // `recolor` regenerates the whole palette on every change;
                 // left off, a rotation only swaps the picture.
                 property JsonObject slideshow: JsonObject {
-                    property bool enable: false
+                    property bool enable: true
                     property string folder: ""
                     property int intervalMinutes: 30
                     property bool shuffle: true
-                    property bool recolor: false
+                    property bool recolor: true
                 }
                 property JsonObject parallax: JsonObject {
                     property bool vertical: false
@@ -656,7 +652,7 @@ Singleton {
                     }
                 }
                 property bool bottom: false // Instead of top
-                property int cornerStyle: 1 // 0: Hug | 1: Float | 2: Plain rectangle | 3: Notch
+                property int cornerStyle: 3 // 0: Hug | 1: Float | 2: Plain rectangle | 3: Notch
                 property bool floatStyleShadow: true // Show shadow behind bar when cornerStyle is 1 (Float) or 3 (Notch)
                 // Hot-corner-related settings. Currently only the
                 // top-left trigger uses this.
@@ -690,8 +686,8 @@ Singleton {
                 // decides, which is where both start — the strip lands near
                 // solid and the widget groups near a tenth, so the sliders open
                 // at different points while still meaning the same thing.
-                property real backgroundOpacity: -1
-                property real widgetOpacity: -1
+                property real backgroundOpacity: 0.15
+                property real widgetOpacity: 0.85
                 // A filled slot is the whole decision: empty means the palette
                 // decides, anything else is the user's own. One slot per mode,
                 // because everything a color sits against flips with the mode:
@@ -706,8 +702,8 @@ Singleton {
                 // group on either bar; the float radius rounds the corners of
                 // whichever style draws a surface of its own, which is the
                 // floating strip and the one that hugs its widgets.
-                property real widgetRadius: -1
-                property real floatRadius: -1
+                property real widgetRadius: 12
+                property real floatRadius: 12
                 // How much of the screen a floating strip spans, as a
                 // percentage. Below zero it reaches the whole width, which is
                 // what it has always done. Narrowing it carries the two end
@@ -715,19 +711,19 @@ Singleton {
                 // than leaving them stranded out at the screen's own corners,
                 // and is honored by the floating strip and by the one that hugs
                 // its widgets alike.
-                property real floatWidth: -1
-                // Float, but as three strips rather than one: the left, middle
-                // and right clusters each get a surface of their own with the
-                // desktop showing between them. The width setting then says how
-                // far the outer two sit from the middle one instead of how far
-                // the single strip's edges come in.
-                property bool floatSplit: false
-                // The notch keeps its own width. It shares the split switch and
-                // the roundness with the floating strip, but not this: the two
-                // reach different distances and a value chosen for one read as
-                // an unasked-for change to the other.
-                property real notchWidth: -1
-                property bool verbose: true
+                property real floatWidth: 98
+                                // Float, but as three strips rather than one: the left, middle
+                                // and right clusters each get a surface of their own with the
+                                // desktop showing between them. The width setting then says how
+                                // far the outer two sit from the middle one instead of how far
+                                // the single strip's edges come in.
+                                property bool floatSplit: true
+                                // The notch keeps its own width. It shares the split switch and
+                                // the roundness with the floating strip, but not this: the two
+                                // reach different distances and a value chosen for one read as
+                                // an unasked-for change to the other.
+                                property real notchWidth: 98
+                property bool verbose: false
                 property bool vertical: false
                 property real thickness: -1
                 // Per-section widget layout. Each section is an ordered list
@@ -807,13 +803,13 @@ Singleton {
                 }
                 property list<string> screenList: [] // List of names, like "eDP-1", find out with 'hyprctl monitors' command
                 property JsonObject utilButtons: JsonObject {
-                    property bool showScreenSnip: true
+                    property bool showScreenSnip: false
                     property bool showColorPicker: false
-                    property bool showMicToggle: true
+                    property bool showMicToggle: false
                     property bool showKeyboardToggle: false
                     property bool showDarkModeToggle: false
                     property bool showPerformanceProfileToggle: false
-                    property bool showScreenRecord: true
+                    property bool showScreenRecord: false
                 }
                 property JsonObject workspaces: JsonObject {
                     property bool monochromeIcons: true
@@ -826,7 +822,7 @@ Singleton {
                     property bool useNerdFont: false
                 }
                 property JsonObject weather: JsonObject {
-                    property bool enable: true
+                    property bool enable: false
                     property bool enableGPS: true // gps based location
                     property string city: "" // When 'enableGPS' is false
                     // "auto" is the location's own answer and means no unit has
@@ -949,13 +945,13 @@ Singleton {
                 // decision, kept once per mode because everything a color sits
                 // against flips with the mode.
                 property bool showBackground: true
-                property real backgroundOpacity: -1
+                property real backgroundOpacity: 0.15
                 property string backgroundColorDark: ""
                 property string backgroundColorLight: ""
                 // Shape the same way: the icon size and the corner radius sit
                 // below zero until touched, and the interface decides there.
                 property real iconSize: -1
-                property real radius: -1
+                property real radius: 12
                 // How the dock meets the screen edge. Float keeps its gap and
                 // rounds all four corners alike; hug sits flush on the edge,
                 // where the two corners touching it can curve outward into it
@@ -966,7 +962,7 @@ Singleton {
                 // below zero they follow the radius above. The pair on the
                 // edge takes its shape from the style instead: hug curves it
                 // outward, rect squares it off.
-                property real topRadius: -1
+                property real topRadius: 12
                 // The buttons at the dock's ends, each away on its own so a
                 // dock can keep the one it uses and drop the other. A button
                 // takes its neighboring separator with it: a divider with
@@ -977,7 +973,7 @@ Singleton {
                 // choice: "none" | "dashes" | "dots" | "badge". Dashes widen
                 // while few and tighten to dots past three; dots stay dots at
                 // any count; the badge says the number outright.
-                property string indicatorStyle: "dashes"
+                property string indicatorStyle: "dots"
                 // What the badge is painted in, kept per mode like every other
                 // color slot here. Empty leaves it to the accent, which is
                 // what it wears until someone decides otherwise.
@@ -989,19 +985,19 @@ Singleton {
                 // bar is moved onto this edge; asking for the bar's edge from
                 // the dock's own setting moves the bar across instead.
                 property string position: "bottom"
-                property bool monochromeIcons: false
+                property bool monochromeIcons: true
                 // "magnify" | "glow" | "off"
                 property string hoverEffect: "magnify"
                 // Percent grown on hover, one key per effect so each keeps its
                 // own setting; -1 takes the effect's own stock.
-                property real hoverMagnify: -1
+                property real hoverMagnify: 20
                 property real glowMagnify: -1
                 // The halo's paint and reach; "" and -1 take the palette's own.
                 property string glowColorDark: ""
                 property string glowColorLight: ""
                 property real glowIntensity: -1
                 property real hoverRegionHeight: 2
-                property bool pinnedOnStartup: false
+                property bool pinnedOnStartup: true
                 property bool hoverToReveal: true // When false, only reveals on empty workspace
                 property list<string> pinnedApps: [ // IDs of pinned entries.
                     // Pin ids must resolve a desktop entry directly (byId), so a

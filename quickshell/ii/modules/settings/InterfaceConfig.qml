@@ -823,9 +823,8 @@ ContentPage {
                         Config.options.policies.ai = newValue;
                     }
                     options: [
-                        { displayName: Translation.tr("No"),         icon: "close",              value: 0 },
-                        { displayName: Translation.tr("Yes"),        icon: "check",              value: 1 },
-                        { displayName: Translation.tr("Local only"), icon: "sync_saved_locally", value: 2 }
+                        { displayName: Translation.tr("No"),  icon: "close", value: 0 },
+                        { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
                     ]
                 }
             }
@@ -837,6 +836,21 @@ ContentPage {
                     currentValue: Config.options.sidebar.translator.enable ? 1 : 0
                     onSelected: newValue => {
                         Config.options.sidebar.translator.enable = (newValue === 1);
+                    }
+                    options: [
+                        { displayName: Translation.tr("No"),  icon: "close", value: 0 },
+                        { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
+                    ]
+                }
+            }
+            ColumnLayout {
+                ContentSubsectionLabel {
+                    text: Translation.tr("Anime")
+                }
+                ConfigSelectionArray {
+                    currentValue: Config.options.policies.weeb
+                    onSelected: newValue => {
+                        Config.options.policies.weeb = newValue;
                     }
                     options: [
                         { displayName: Translation.tr("No"),  icon: "close", value: 0 },
