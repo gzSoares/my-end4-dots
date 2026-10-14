@@ -182,6 +182,7 @@ PanelWindow {
     readonly property color white18: Qt.rgba(1, 1, 1, 0.18)
     readonly property color white10: Qt.rgba(1, 1, 1, 0.10)
     readonly property real weatherH: 192
+    readonly property int maxVisibleRows: 10
     readonly property int animFast: 100
     readonly property int animMed:  140
     readonly property int animSlow: 200
@@ -606,6 +607,103 @@ PanelWindow {
             root.notify("Added to ToDo \u00b7 aviso agendado");
         } else {
             root.notify("Added to ToDo");
+        }
+    }
+
+    // ---- launch an app, or focus its window when it is already open (Shift = always launch a new instance)
+    function _wmNorm(v) { return String(v || "").toLowerCase().replace(/[^a-z0-9]/g, ""); }
+
+    // Names the app may use as its window app-id / class
+    function _appKeys(e) {
+        const keys = [];
+        const add = (v) => { const n = root._wmNorm(v); if (n.length >= 3 && keys.indexOf(n) < 0) keys.push(n); };
+        add(e.wmClass);
+        if (e.id) { add(e.id); add(String(e.id).replace(/\.desktop$/, "").split(".").pop()); }
+        add(e.name);
+        const parts = String(e.exec || "").split(/\s+/).filter(Boolean);
+        let i = 0;
+        while (i < parts.length && (parts[i] === "env" || parts[i].indexOf("=") > 0)) i++;
+        if (parts[i] === "flatpak" && parts[i + 1] === "run") {
+            for (let j = i + 2; j < parts.length; j++) {
+                if (parts[j].charAt(0) === "-") continue;
+                add(parts[j]); add(parts[j].split(".").pop());
+                break;
+            }
+        } else if (parts[i]) {
+            add(parts[i].split("/").pop());
+        }
+        return keys;
+    }
+
+    // Best open window (from `hyprctl clients -j`) for this app: class / initialClass first, title as a last resort
+    function findOpenWindow(e, list) {
+        const keys = root._appKeys(e);
+        if (!keys.length) return null;
+        let best = null, bestScore = 0;
+        for (let i = 0; i < list.length; i++) {
+            const w = list[i];
+            let score = 0;
+            for (const cand of [w.cls, w.icls]) {
+                const id = root._wmNorm(cand);
+                if (!id) continue;
+                const last = root._wmNorm(String(cand).split(".").pop());
+                for (const k of keys) {
+                    if (id === k || last === k) score = Math.max(score, 3);
+                    else if (k.length >= 5 && (id.indexOf(k) >= 0 || (id.length >= 5 && k.indexOf(id) >= 0))) score = Math.max(score, 2);
+                }
+            }
+            if (score === 0) {
+                const t = root._wmNorm(w.title);
+                for (const k of keys) if (k.length >= 5 && t.indexOf(k) >= 0) { score = 1; break; }
+            }
+            if (score > bestScore) { best = w; bestScore = score; }
+        }
+        return best;
+    }
+
+    // Already open -> jump to its workspace and focus it; otherwise launch (Shift always launches a new one).
+    // The window list is read at click time, so it is never stale.
+    property var _pendingApp: null
+    function launchOrFocus(e, forceNew) {
+        if (forceNew || _focusProbe.running) { SpotlightApps.launch(e.exec); return; }
+        root._pendingApp = e;
+        _focusProbe.running = true;
+    }
+
+    // Focuses a window by address and VERIFIES it became the active one.
+    // Waits for Spotlight to close first (its layer surface would otherwise steal the focus back),
+    // tries the classic dispatcher and then the Lua-era one, and notifies if both fail.
+    function focusWindowReliably(w, label) {
+        const addr = String(w.address);
+        if (!/^0x[0-9a-fA-F]+$/.test(addr)) return;
+        const title = root.shellQuote("Couldn't focus " + (label || w.cls));
+        const body = root.shellQuote("window class: " + w.cls + " (" + addr + ")");
+        const cmd =
+            "sleep 0.2; a=" + addr + "; " +
+            "chk() { hyprctl activewindow -j 2>/dev/null | grep -q \"\\\"address\\\": \\\"$a\\\"\"; }; " +
+            "hyprctl dispatch focuswindow \"address:$a\" >/dev/null 2>&1; sleep 0.05; chk && exit 0; " +
+            "hyprctl dispatch \"hl.dsp.focus({ window = \\\"address:$a\\\" })\" >/dev/null 2>&1; sleep 0.05; chk && exit 0; " +
+            "notify-send -a Spotlight " + title + " " + body;
+        SpotlightController.run(cmd);
+    }
+
+    Process {
+        id: _focusProbe
+        running: false
+        command: ["bash", "-c", "hyprctl clients -j 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const e = root._pendingApp;
+                root._pendingApp = null;
+                if (!e) return;
+                let list = [];
+                try {
+                    list = JSON.parse(text).map(w => ({ title: w.title || "", address: w.address, cls: w.class || "", icls: w.initialClass || "" }));
+                } catch (err) { list = []; }
+                const w = root.findOpenWindow(e, list);
+                if (w && w.address) root.focusWindowReliably(w, e.name);
+                else SpotlightApps.launch(e.exec);
+            }
         }
     }
 
@@ -1732,7 +1830,15 @@ PanelWindow {
         const idleSearch = root.query.length === 0 && root.mode === "search";
         let h = 12;
         if (root.sysStatsText.length > 0 && idleSearch) h += 24;
-        for (const r of root.results) h += r.isHeader ? root.headerH : (r.kind === "weather" ? root.weatherH : root.rowH);
+        // The window shows at most `maxVisibleRows` rows; the rest is reached by scrolling the list
+        let rowsShown = 0;
+        for (const r of root.results) {
+            if (r.isHeader) { h += root.headerH; continue; }
+            if (r.kind === "weather") { h += root.weatherH; continue; }
+            if (rowsShown >= root.maxVisibleRows) break;
+            h += root.rowH;
+            rowsShown++;
+        }
         if (root.items.length === 0 && root.query.length > 0) h += 56;
         return Math.min(maxH, Math.max(48, h + 12));
     }
@@ -1751,7 +1857,8 @@ PanelWindow {
     }
 
     function _appRows(list) {
-        return list.map(a => ({ kind: "app", name: a.name, icon: a.icon, exec: a.exec, category: a.category || "Application" }));
+        return list.map(a => ({ kind: "app", name: a.name, icon: a.icon, exec: a.exec, category: a.category || "Application",
+                                id: a.id, wmClass: a.wmClass || a.startupClass || a.startupWMClass }));
     }
 
     function _fileRows(arr) {
@@ -2210,8 +2317,7 @@ PanelWindow {
                 }
 
         A([
-            { kind: "action", name: "Search the Web for \u201c" + q + "\u201d", action: "web:" + q, iconKey: "web", category: "Search" },
-            { kind: "action", name: "Search in Files", action: "filesearch:" + q, iconKey: "finder", category: "Search" }
+            { kind: "action", name: "Search the Web for \u201c" + q + "\u201d", action: "web:" + q, iconKey: "web", category: "Search" }
         ], "SEARCH");
     }
 
@@ -2451,7 +2557,7 @@ PanelWindow {
         switch (e.kind) {
             case "app":
                 root.recordUsage("app:" + e.exec);
-                SpotlightApps.launch(e.exec);
+                root.launchOrFocus(e, alt);
                 return false;
             case "file":
                 return root._activateFile(e, alt);
@@ -3398,6 +3504,18 @@ PanelWindow {
                                         visible: modelData.kind === "media" && !mediaArt.visible
                                         text: "\u266A"; color: root.sFg; font.pixelSize: 18
                                     }
+                                    FileIcon {
+                                        anchors.fill: parent
+                                        visible: modelData.kind === "file"
+                                        folder: modelData.isDirectory === true
+                                    }
+                                    SearchIcon {
+                                        anchors.centerIn: parent
+                                        width: 18; height: 18
+                                        visible: (modelData.action || "").indexOf("web:") === 0 || modelData.category === "Site shortcut"
+                                        color: root.sFg
+                                        opacity: 0.8
+                                    }
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 0; Layout.alignment: Qt.AlignVCenter
@@ -4292,7 +4410,7 @@ PanelWindow {
             onStreamFinished: {
                 try {
                     const data = JSON.parse(text);
-                    root.windowItems = data.map(w => ({ title: w.title || w.class || "(untitled)", address: w.address, cls: w.class || "" }));
+                    root.windowItems = data.map(w => ({ title: w.title || w.class || "(untitled)", address: w.address, cls: w.class || "", icls: w.initialClass || "" }));
                 } catch (e) { root.windowItems = []; }
                 if (root.mode === "windows") root.scheduleRebuild();
             }
