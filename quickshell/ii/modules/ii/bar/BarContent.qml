@@ -63,7 +63,7 @@ Item { // Bar content region
             || Config.options.policies.weeb !== 0;
         case "activeWindow": return root.useShortenedForm === 0;
         case "activeWindowPill": return root.useShortenedForm === 0;
-        case "media": return root.useShortenedForm < 2 && MprisController.trackedPlayer?.isPlaying === true;
+        case "media": return root.useShortenedForm < 2 && MprisController.players.some(p => p.dbusName?.includes("spotify") && p.isPlaying);
         case "utilButtons": return Config.options.bar.verbose && root.useShortenedForm === 0;
         case "battery": return root.useShortenedForm < 2 && Battery.available;
         case "volume": return root.useShortenedForm === 0;

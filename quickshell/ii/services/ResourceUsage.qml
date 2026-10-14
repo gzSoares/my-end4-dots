@@ -79,7 +79,7 @@ Singleton {
     }
 
     Timer {
-        interval: Config?.options.resources.updateInterval ?? 3000
+        interval: 5000
         running: true
         repeat: true
         onTriggered: {

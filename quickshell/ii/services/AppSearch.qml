@@ -20,6 +20,14 @@ Singleton {
         "wps": "wps-office2019-kprometheus",
         "wpsoffice": "wps-office2019-kprometheus",
         "footclient": "foot",
+        "spotify": "spotify",
+        "Spotify": "spotify",
+        "com.spotify.Client": "spotify",
+        "spotify-client": "spotify",
+        "thincast": "thincast-client",
+        "Thincast": "thincast-client",
+        "com.thincast.client": "thincast-client",
+        "com.thincast.client.rdwebaccessclient": "com.thincast.client.rdwebaccess",
     })
     property var regexSubstitutions: [
         {
@@ -37,7 +45,15 @@ Singleton {
         {
             "regex": /gcr.prompter/,
             "replace": "system-lock-screen"
-        }
+        },
+        {
+            "regex": /spotify/i,
+            "replace": "spotify"
+        },
+        {
+            "regex": /thincast/i,
+            "replace": "thincast-client"
+        },
     ]
 
     // Deduped list to fix double icons

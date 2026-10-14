@@ -56,22 +56,20 @@ ShellRoot {
         Cliphist.refresh()
         BluetoothStatus.reconnectTrustedAudioDevicesAtStartup()
         Wallpapers.load()
-        Updates.load()
-        ReleaseUpdates.load()
-        // Release announcements come from the main shell only — see the
-        // _announceEnabled comment in ReleaseUpdates. Settings reads the same
-        // singleton for its version display without ever setting this.
-        ReleaseUpdates._announceEnabled = true
+        // Updates.load() - lazy load when needed
+        // ReleaseUpdates.load() - lazy load when needed
+        // ReleaseUpdates._announceEnabled = true
         ThemeManager.load()
         // Day/Night scheduler runs only here in the main shell — see the
         // _autoApplyEnabled comment in ThemeManager for why. Settings.qml
         // never sets this so its ThemeManager singleton stays passive.
         ThemeManager._autoApplyEnabled = true
-        WallpaperSlideshow.load()
+        // WallpaperSlideshow.load() - disabled by default now
+        // WallpaperSlideshow._rotationEnabled = true
         BorderGradient.load()
         LauncherBlur.load()
         // Same story for the wallpaper rotation — see _rotationEnabled.
-        WallpaperSlideshow._rotationEnabled = true
+        // WallpaperSlideshow._rotationEnabled = true
         // The touchpad watcher runs from the main shell only, see _watchEnabled.
         TouchpadAutoDisable._watchEnabled = true
         // Only the shell's bar is ever put away, see _publishBarOpen.

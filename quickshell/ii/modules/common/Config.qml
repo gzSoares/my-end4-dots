@@ -571,62 +571,62 @@ Singleton {
                         property real y: 0.2
                     }
                     property JsonObject visualizer: JsonObject {
-                        property bool enable: false
-                        property string placementStrategy: "free"
-                        property real x: 0.5
-                        property real y: 1
-                    }
-                    property JsonObject customImage: JsonObject {
-                        property bool enable: false
-                        property string placementStrategy: "free"
-                        property real x: 0.25
-                        property real y: 0.2
-                        property string path: ""
-                        property string shape: "Cookie4Sided"
-                        property real size: 200
-                    }
-                    property JsonObject resources: JsonObject {
-                        property bool enable: false
-                        property string placementStrategy: "free"
-                        property real x: 0.25
-                        property real y: 0.2
-                        property bool vertical: false
-                    }
-                    property JsonObject timers: JsonObject {
-                        property bool enable: false
-                        property string placementStrategy: "free"
-                        property real x: 0.25
-                        property real y: 0.2
-                        property bool vertical: false
-                    }
-                    property JsonObject media: JsonObject {
-                        property bool enable: false
-                        property bool showLyrics: false
-                        property string placementStrategy: "free" // "free", "leastBusy", "mostBusy"
-                        property real x: 0.5
-                        property real y: 0.5
-                        property string sizeMode: "1x3"
-                    }
-                }
-                // Freely placed widgets stay where they are until this is off.
-                property bool widgetsLocked: false
-                property string wallpaperPath: ""
-                property string thumbnailPath: ""
-                // How one wallpaper transitions to the next: a name from the
-                // TransitionEffects catalog, or "random".
-                property string wallpaperTransition: "fade"
-                property bool hideWhenFullscreen: true
-                // Rotates wallpaperPath through `folder` on a timer. These keys
-                // ride along in a saved theme's config.json snapshot, so the
-                // slideshow belongs to whichever theme is currently on — a
-                // single-wallpaper theme taking over turns it off, and the
-                // Day/Night pair hand their own rotations back and forth.
-                // An empty folder means the stock Wallpapers directory.
-                // `recolor` regenerates the whole palette on every change;
-                // left off, a rotation only swaps the picture.
-                property JsonObject slideshow: JsonObject {
-                    property bool enable: true
-                    property string folder: ""
+                                            property bool enable: false
+                                            property string placementStrategy: "free"
+                                            property real x: 0.5
+                                            property real y: 1
+                                        }
+                                        property JsonObject customImage: JsonObject {
+                                            property bool enable: false
+                                            property string placementStrategy: "free"
+                                            property real x: 0.25
+                                            property real y: 0.2
+                                            property string path: ""
+                                            property string shape: "Cookie4Sided"
+                                            property real size: 200
+                                        }
+                                        property JsonObject resources: JsonObject {
+                                            property bool enable: false
+                                            property string placementStrategy: "free"
+                                            property real x: 0.25
+                                            property real y: 0.2
+                                            property bool vertical: false
+                                        }
+                                        property JsonObject timers: JsonObject {
+                                            property bool enable: false
+                                            property string placementStrategy: "free"
+                                            property real x: 0.25
+                                            property real y: 0.2
+                                            property bool vertical: false
+                                        }
+                                        property JsonObject media: JsonObject {
+                                            property bool enable: false
+                                            property bool showLyrics: false
+                                            property string placementStrategy: "free"
+                                            property real x: 0.5
+                                            property real y: 0.5
+                                            property string sizeMode: "1x3"
+                                        }
+                                    }
+                                    // Freely placed widgets stay where they are until this is off.
+                                    property bool widgetsLocked: false
+                                    property string wallpaperPath: ""
+                                    property string thumbnailPath: ""
+                                    // How one wallpaper transitions to the next: a name from the
+                                    // TransitionEffects catalog, or "random".
+                                    property string wallpaperTransition: "fade"
+                                    property bool hideWhenFullscreen: true
+                                    // Rotates wallpaperPath through `folder` on a timer. These keys
+                                    // ride along in a saved theme's config.json snapshot, so the
+                                    // slideshow belongs to whichever theme is currently on — a
+                                    // single-wallpaper theme taking over turns it off, and the
+                                    // Day/Night pair hand their own rotations back and forth.
+                                    // An empty folder means the stock Wallpapers directory.
+                                    // `recolor` regenerates the whole palette on every change;
+                                    // left off, a rotation only swaps the picture.
+                                    property JsonObject slideshow: JsonObject {
+                                        property bool enable: false
+                                        property string folder: ""
                     property int intervalMinutes: 30
                     property bool shuffle: true
                     property bool recolor: true
@@ -643,7 +643,7 @@ Singleton {
 
             property JsonObject bar: JsonObject {
                 property JsonObject autoHide: JsonObject {
-                    property bool enable: false
+                    property bool enable: true
                     property int hoverRegionWidth: 2
                     property bool pushWindows: false
                     property JsonObject showWhenPressingSuper: JsonObject {

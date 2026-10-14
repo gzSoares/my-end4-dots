@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
 import Quickshell.Hyprland
+import Quickshell.Services.Mpris
 import QtMultimedia
 import qs.services
 import "./services"
@@ -14,7 +15,7 @@ PanelWindow {
     id: root
 
     // =====================================================================
-    //  JANELA
+    //  WINDOW
     // =====================================================================
     screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0]
     anchors { top: true; bottom: true; left: true; right: true }
@@ -28,7 +29,7 @@ PanelWindow {
         : WlrKeyboardFocus.None
 
     // =====================================================================
-    //  CONFIGURAÇÃO
+    //  CONFIGURATION
     // =====================================================================
     property string terminal: "kitty"
     property bool aiAutoQuestion: true
@@ -44,12 +45,12 @@ PanelWindow {
         yt:    ["YouTube",        "https://www.youtube.com/results?search_query="],
         gh:    ["GitHub",         "https://github.com/search?q="],
         maps:  ["Google Maps",    "https://www.google.com/maps/search/"],
-        wiki:  ["Wikipédia",      "https://pt.wikipedia.org/w/index.php?search="],
-        pt:    ["Wikcionário",    "https://pt.wiktionary.org/w/index.php?search="],
+        wiki:  ["Wikipedia",      "https://pt.wikipedia.org/w/index.php?search="],
+        pt:    ["Wiktionary",     "https://pt.wiktionary.org/w/index.php?search="],
         stack: ["Stack Overflow", "https://stackoverflow.com/search?q="],
         aur:   ["AUR",            "https://aur.archlinux.org/packages?K="],
         aw:    ["ArchWiki",       "https://wiki.archlinux.org/index.php?search="],
-        gi:    ["Google Imagens", "https://www.google.com/search?tbm=isch&q="],
+        gi:    ["Google Images", "https://www.google.com/search?tbm=isch&q="],
         imdb:  ["IMDb",           "https://www.imdb.com/find/?q="],
         ddg:   ["DuckDuckGo",     "https://duckduckgo.com/?q="]
     })
@@ -72,7 +73,7 @@ PanelWindow {
         { kind: "cmd", name: "/windows",    category: "Switch between open windows",    action: "mode:windows" },
         { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
         { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
-        { kind: "cmd", name: "/search",     category: "Search inside files (ripgrep)",  action: "buscar:" },
+        { kind: "cmd", name: "/search",     category: "Search inside files (ripgrep)",  action: "search:" },
         { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
         { kind: "cmd", name: "/new",        category: "New AI conversation",            action: "ai-new:" },
         { kind: "cmd", name: "/note",       category: "Create Obsidian note",           action: "aiintent:note:" },
@@ -97,7 +98,7 @@ PanelWindow {
         { kind: "cmd", name: "/calc",       category: "Calculator",                     action: "calc:" }
     ]
 
-    // Intenções estruturadas detectadas em prompts de IA (ordem importa).
+    // Structured intents detected in AI prompts (order matters).
     readonly property var _intentRules: [
         ["todo",       s => /(create|add|new|note|task|todo|to-?do|crie|criar|adicionar?|adiciona|nova|novo|anote|anotar)\s+/i.test(s)
                             || /(remind me to|me\s+lembr[ea]r?\s+de)/i.test(s)],
@@ -155,7 +156,7 @@ PanelWindow {
     readonly property var _audioExts: ["mp3", "flac", "wav", "ogg", "opus", "m4a", "aac"]
 
     // =====================================================================
-    //  TEMA / GEOMETRIA
+    //  THEME / GEOMETRY
     // =====================================================================
     readonly property color glassBg:        Qt.rgba(30 / 255, 30 / 255, 30 / 255, 0.72)
     readonly property color glassBorder:    Qt.rgba(1, 1, 1, 0.12)
@@ -169,6 +170,30 @@ PanelWindow {
     readonly property color placeholderFg:  Qt.rgba(1, 1, 1, 0.40)
     readonly property color accent:         "#0A84FF"
 
+    // White-alpha, animation and font tokens — tweak here
+    readonly property color white12: Qt.rgba(1, 1, 1, 0.12)
+    readonly property color white14: Qt.rgba(1, 1, 1, 0.14)
+    readonly property color white28: Qt.rgba(1, 1, 1, 0.28)
+    readonly property color white06: Qt.rgba(1, 1, 1, 0.06)
+    readonly property color white90: Qt.rgba(1, 1, 1, 0.9)
+    readonly property color white85: Qt.rgba(1, 1, 1, 0.85)
+    readonly property color white35: Qt.rgba(1, 1, 1, 0.35)
+    readonly property color white25: Qt.rgba(1, 1, 1, 0.25)
+    readonly property color white18: Qt.rgba(1, 1, 1, 0.18)
+    readonly property color white10: Qt.rgba(1, 1, 1, 0.10)
+    readonly property real weatherH: 192
+    readonly property int animFast: 100
+    readonly property int animMed:  140
+    readonly property int animSlow: 200
+    // First installed font from the list (font.families doesn't exist in every Qt version)
+    function pickFont(list) {
+        const have = Qt.fontFamilies();
+        for (let i = 0; i < list.length; i++) if (have.indexOf(list[i]) >= 0) return list[i];
+        return list[list.length - 1];
+    }
+    readonly property string fontDisplay: root.pickFont(["SF Pro Display", "Inter", "Noto Sans", "Cantarell", "sans-serif"])
+    readonly property string fontText:    root.pickFont(["SF Pro Text", "Inter", "Noto Sans", "Cantarell", "sans-serif"])
+
     readonly property real panelWidth: 680
     readonly property real panelRadius: 22
     readonly property real searchH: 56
@@ -179,15 +204,14 @@ PanelWindow {
     readonly property real iconSize: 28
     readonly property real footerH: 0
     readonly property real stripH: 0
-    readonly property real nowPlayingH: 46
 
     // =====================================================================
-    //  ESTADO
+    //  STATE
     // =====================================================================
-    // -- Interface / navegação
+    // -- Interface / navigation
     property bool _shown: false
     property bool _opened: false
-    property bool _capturing: false          // esconde o Spotlight enquanto captura a tela
+    property bool _capturing: false          // hides Spotlight while capturing the screen
     property string query: ""
     property string mode: "search"
     property string _pendingMode: ""
@@ -201,7 +225,7 @@ PanelWindow {
     property bool slashMode: root.query.startsWith("/")
     property string placeholderText: "Search or Ask"
 
-    // -- Animação
+    // -- Animation
     property real panelOpacity: 0.0
     property real panelScale: 0.96
     property real panelYOffset: 12
@@ -210,7 +234,7 @@ PanelWindow {
     property real railProgress: 0.0
     property bool railOpen: root.railProgress > 0.001
 
-    // -- Dados por modo
+    // -- Per-mode data
     property var fileItems: []
     property var recentItems: []
     property string browseDir: ""
@@ -232,11 +256,38 @@ PanelWindow {
     property int configDepth: 0
     property var configStack: []
 
-    // -- Ferramentas inline
-    property string nowPlayingText: ""
-    property string nowPlayingStatus: ""
+    // -- Inline tools
+    // Native MPRIS (no polling), Spotify only: every other player is ignored.
+    // Prefers a Spotify player that is playing, otherwise the first one with a track.
+    function isSpotify(pl) {
+        const id = ((pl.dbusName || "") + " " + (pl.identity || "") + " " + (pl.desktopEntry || "")).toLowerCase();
+        return id.indexOf("spotify") >= 0;
+    }
+    readonly property var mprisPlayer: {
+        const list = Mpris.players.values;
+        let fallback = null;
+        for (let i = 0; i < list.length; i++) {
+            const pl = list[i];
+            if (!root.isSpotify(pl)) continue;
+            if (pl.isPlaying) return pl;
+            if (!fallback && (pl.trackTitle || "") !== "") fallback = pl;
+        }
+        return fallback;
+    }
+    readonly property string nowPlayingText: {
+        const pl = root.mprisPlayer;
+        if (!pl) return "";
+        const title = pl.trackTitle || "";
+        const artist = pl.trackArtist || "";
+        return (artist && title) ? artist + " - " + title : (title || artist);
+    }
+    readonly property string nowPlayingStatus: root.mprisPlayer ? (root.mprisPlayer.isPlaying ? "Playing" : "Paused") : ""
+    readonly property string nowPlayingArt: root.mprisPlayer ? (root.mprisPlayer.trackArtUrl || "") : ""
+    onNowPlayingTextChanged: root.rebuildIfShown()
+    onNowPlayingStatusChanged: root.rebuildIfShown()
     property string sysStatsText: ""
-    property string weatherText: ""
+    property string weatherText: ""      // error / fallback text
+    property var weatherData: null       // structured data for the weather card
     property string _wxLastCity: ""
     property string timeText: ""
     property string _timeKey: ""
@@ -252,7 +303,7 @@ PanelWindow {
     property string _devQ: ""
     property string _devLabel: ""
 
-    // -- Contadores de requisição (descartam respostas obsoletas)
+    // -- Request counters (discard stale responses)
     property int _fdReq: 0
     property int _rgReq: 0
     property int _psReq: 0
@@ -282,7 +333,7 @@ PanelWindow {
         return root.previewSize();
     }
 
-    // -- IA
+    // -- AI
     property string aiText: ""
     property string _lastAiQuery: ""
     property bool aiLoading: false
@@ -290,18 +341,18 @@ PanelWindow {
     property int _aiRetries: 0
     property var aiHistory: []
     property bool aiConversationMode: false
-    readonly property bool aiErrored: root.aiText.startsWith("Sem resposta")
+    readonly property bool aiErrored: root.aiText.startsWith("No response")
                                      || root.aiText.startsWith("Hermes Agent:")
-                                     || root.aiText.startsWith("Erro ao consultar")
+                                     || root.aiText.startsWith("Error querying")
 
-    // -- Captura de tela / OCR
+    // -- Screen capture / OCR
     property bool _screenshotSelecting: false
     property string _ocrMode: "analyze"   // "analyze" | "translate"
     property string _ocrLang: "pt"
     property string _screenQuestion: ""
     property string _resumeFocus: ""
 
-    // -- Altura do corpo (avaliada uma única vez por mudança)
+    // -- Body height (evaluated once per change)
     property bool hasBody: (root.mode !== "search"
             || root.query.length > 0
             || root.items.length > 0
@@ -310,11 +361,17 @@ PanelWindow {
     readonly property real resultsHeight: root.computeResultsHeight()
 
     // =====================================================================
-    //  UTILITÁRIOS BÁSICOS
+    //  BASIC UTILITIES
     // =====================================================================
     function pad2(n) { return n < 10 ? "0" + n : String(n); }
     function hasOwn(o, k) { return Object.prototype.hasOwnProperty.call(o, k); }
 
+    // Spotlight temp directory (per user); cleanup only removes old files
+    readonly property string tmpDir: (Quickshell.env("XDG_RUNTIME_DIR") || "/tmp") + "/spotlight"
+    function tmpPrep(prefix) {
+        const d = root.shellQuote(root.tmpDir);
+        return "mkdir -p " + d + " && find " + d + " -name " + root.shellQuote(prefix + "_*") + " -mmin +5 -delete 2>/dev/null; ";
+    }
     function shellQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'"; }
     function urlq(s) { return encodeURIComponent(String(s)).replace(/'/g, "%27"); }
 
@@ -323,7 +380,7 @@ PanelWindow {
                "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus " +
                "xdg-open " + root.shellQuote(target) + " </dev/null >/dev/null 2>&1";
     }
-    // Abre o settings.qml da config atual (<config>/settings.qml) e fecha o Spotlight
+    // Opens the current config's settings.qml (<config>/settings.qml) and closes Spotlight
     function openSettingsApp() {
         SpotlightController.run("qs -p " + root.shellQuote(Quickshell.shellPath("settings.qml")) + " --no-duplicate");
         SpotlightController.spotlightOpen = false;
@@ -356,6 +413,16 @@ PanelWindow {
 
     function rebuildIfShown() { if (root._shown) root.scheduleRebuild(); }
 
+    function mediaControl(cmd) {
+        const pl = root.mprisPlayer;
+        if (!pl) return;
+        if (cmd === "previous") pl.previous();
+        else if (cmd === "next") pl.next();
+        else if (pl.canTogglePlaying) pl.togglePlaying();
+        else if (pl.isPlaying) pl.pause();
+        else pl.play();
+    }
+
     function splitPath(p) {
         const i = p.lastIndexOf("/");
         return { name: i >= 0 ? p.slice(i + 1) : p, dir: i > 0 ? p.slice(0, i) : "~" };
@@ -381,7 +448,7 @@ PanelWindow {
         return x;
     }
 
-    // -- Cache em memória (mutação in-place, sem copiar o objeto a cada escrita)
+    // -- In-memory cache (in-place mutation, no object copy on every write)
     function cacheGet(key, ttlMs) {
         const c = root._cache[key];
         if (!c) return null;
@@ -399,7 +466,7 @@ PanelWindow {
         }
     }
 
-    // -- Contagem de uso (também in-place)
+    // -- Usage count (also in-place)
     function itemKey(it) {
         if (!it) return "";
         return it.kind + ":" + (it.path || it.exec || it.address || it.action || it.id || it.text || it.name || "");
@@ -420,7 +487,7 @@ PanelWindow {
     function usageOf(key) { return root.usageCounts[key] || 0; }
 
     // =====================================================================
-    //  TIMER / REMINDERS / TODO / EVENTOS
+    //  TIMER / REMINDERS / TODO / EVENTS
     // =====================================================================
     function startTimer(secs, label) {
         const n = parseInt(secs);
@@ -431,7 +498,7 @@ PanelWindow {
     }
 
     function scheduleReminder(whenStr, text) {
-        const script = 'qs -c ii ipc call todoReminder fire "$1" || notify-send -a Shell Lembrete "$1"';
+        const script = 'qs -c ii ipc call todoReminder fire "$1" || notify-send -a Shell Reminder "$1"';
         SpotlightController.run(
             "systemd-run --user --quiet --collect --on-calendar=" + root.shellQuote(whenStr) +
             " --timer-property=AccuracySec=1s" +
@@ -444,7 +511,7 @@ PanelWindow {
         const pad = root.pad2;
         let hh = -1, mm = 0;
         let hasDate = false, dY = 0, dM = 0, dD = 0;
-        const timeRe = /\s+(?:[àa]s\s+(\d{1,2})(?::(\d{2})|h(\d{2})?)?|(\d{1,2})(?::(\d{2})|h(\d{2})?))$/i;
+        const timeRe = /\s+(?:(?:[àa]s|at)\s+(\d{1,2})(?::(\d{2})|h(\d{2})?)?|(\d{1,2})(?::(\d{2})|h(\d{2})?))$/i;
         const dateRe = /\s+(?:(\d{4})-(\d{1,2})-(\d{1,2})|(\d{1,2})\/(\d{1,2})(?:\/(\d{4}))?)$/;
         for (let pass = 0; pass < 2; pass++) {
             if (hh < 0) {
@@ -501,11 +568,11 @@ PanelWindow {
     function parseEventInput(raw) {
         let text = String(raw).trim();
         let duration = 60;
-        const dm = text.match(/\s+por\s+(\d+)\s*(h|hora|horas|min|m)$/i);
+        const dm = text.match(/\s+(?:por|for)\s+(\d+)\s*(h|hora|horas|hour|hours|min|m)$/i);
         if (dm) {
             const n = parseInt(dm[1]);
             const u = dm[2].toLowerCase();
-            duration = (u === "h" || u === "hora" || u === "horas") ? n * 60 : n;
+            duration = (u === "h" || u === "hora" || u === "horas" || u === "hour" || u === "hours") ? n * 60 : n;
             if (duration <= 0) duration = 60;
             text = text.slice(0, text.length - dm[0].length).trim();
         }
@@ -547,7 +614,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  PARSERS / CONVERSORES (cor, calc, unidades, controles do sistema)
+    //  PARSERS / CONVERTERS (color, calc, units, system controls)
     // =====================================================================
     function bangItem(q) {
         const m = q.match(/^([a-z]+)\s+(.+)$/i);
@@ -557,7 +624,7 @@ PanelWindow {
         const b = root.bangs[key];
         const term = m[2].trim();
         if (!term) return null;
-        return { kind: "action", name: b[0] + ": \u201c" + term + "\u201d", action: "open:" + b[1] + encodeURIComponent(term), iconKey: "web", category: "Atalho de site" };
+        return { kind: "action", name: b[0] + ": \u201c" + term + "\u201d", action: "open:" + b[1] + encodeURIComponent(term), iconKey: "web", category: "Site shortcut" };
     }
 
     function colorItem(q) {
@@ -581,18 +648,18 @@ PanelWindow {
         const hex = "#" + h.toLowerCase();
         return { kind: "calc", swatch: hex, raw: hex, iconKey: "calc",
                  name: hex.toUpperCase() + " \u2192 rgb(" + r + ", " + g + ", " + b + ") \u00b7 hsl(" + hue + ", " + Math.round(sat * 100) + "%, " + Math.round(l * 100) + "%)",
-                 category: "Cor \u2014 clique para copiar o hex" };
+                 category: "Color \u2014 click to copy hex" };
     }
 
     function sysControlItems(ql) {
             const out = [];
-            const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "Controle do sistema", iconKey: "shortcut" });
+            const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "System control", iconKey: "shortcut" });
             const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
             let m;
         
             // Trigger OSD when typing "volume" alone
             if (ql === "volume" || ql === "vol" || ql === "som") {
-                add("Volume (mostrar OSD)", "qs -c ii ipc call osdVolume trigger");
+                add("Volume (show OSD)", "qs -c ii ipc call osdVolume trigger");
             }
         
             if ((m = ql.match(/^(?:volume|vol|som)\s*([+-])?\s*(\d{1,3})$/))) {
@@ -610,16 +677,16 @@ PanelWindow {
                 add("Alternar mudo", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; qs -c ii ipc call osdVolume trigger");
             } else if ((m = ql.match(/^(?:brilho|brightness|bright)\\s*([+-])?\\s*(\\d{1,3})$/))) {
             const n = clamp(parseInt(m[2]), m[1] ? 0 : 1, 100);
-            if (m[1]) add("Brilho " + m[1] + n + "%", "brightnessctl set " + n + "%" + m[1]);
-            else add("Brilho: " + n + "%", "brightnessctl set " + n + "%");
+            if (m[1]) add("Brightness " + m[1] + n + "%", "brightnessctl set " + n + "%" + m[1]);
+            else add("Brightness: " + n + "%", "brightnessctl set " + n + "%");
         } else if ((m = ql.match(/^wifi\s+(on|off|ligar|desligar)$/))) {
             const on = (m[1] === "on" || m[1] === "ligar");
-            add("Wi-Fi " + (on ? "ligado" : "desligado"), "nmcli radio wifi " + (on ? "on" : "off"));
+            add("Wi-Fi " + (on ? "on" : "off"), "nmcli radio wifi " + (on ? "on" : "off"));
         } else if ((m = ql.match(/^(?:bluetooth|bt)\s+(on|off|ligar|desligar)$/))) {
             const on = (m[1] === "on" || m[1] === "ligar");
-            add("Bluetooth " + (on ? "ligado" : "desligado"), "bluetoothctl power " + (on ? "on" : "off"));
-        } else if (/^(n[ãa]o perturbe|dnd|silencioso)$/.test(ql)) {
-            add("Alternar Não Perturbe",
+            add("Bluetooth " + (on ? "on" : "off"), "bluetoothctl power " + (on ? "on" : "off"));
+        } else if (/^(n[ãa]o perturbe|do not disturb|dnd|silencioso|silent)$/.test(ql)) {
+            add("Toggle Do Not Disturb",
                 "if command -v makoctl >/dev/null; then " +
                 "  m=$(makoctl mode | grep -q '^dnd$' && echo default || echo dnd); makoctl mode -s \"$m\"; " +
                 "elif command -v swaync-client >/dev/null; then swaync-client -d; " +
@@ -714,59 +781,117 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  FERRAMENTAS INLINE (clima, hora, dicionário, câmbio, bateria, IP, etc.)
+    //  INLINE TOOLS (weather, time, dictionary, currency, battery, IP, etc.)
     // =====================================================================
     function wxDescribe(code) {
         const m = {
-            0: ["\u2600\ufe0f", "Céu limpo"], 1: ["\ud83c\udf24\ufe0f", "Predominantemente limpo"],
-            2: ["\u26c5", "Parcialmente nublado"], 3: ["\u2601\ufe0f", "Nublado"],
-            45: ["\ud83c\udf2b\ufe0f", "Neblina"], 48: ["\ud83c\udf2b\ufe0f", "Neblina"],
-            51: ["\ud83c\udf26\ufe0f", "Garoa fraca"], 53: ["\ud83c\udf26\ufe0f", "Garoa"], 55: ["\ud83c\udf26\ufe0f", "Garoa forte"],
-            61: ["\ud83c\udf27\ufe0f", "Chuva fraca"], 63: ["\ud83c\udf27\ufe0f", "Chuva"], 65: ["\ud83c\udf27\ufe0f", "Chuva forte"],
-            66: ["\ud83c\udf27\ufe0f", "Chuva congelante"], 67: ["\ud83c\udf27\ufe0f", "Chuva congelante forte"],
-            71: ["\ud83c\udf28\ufe0f", "Neve fraca"], 73: ["\ud83c\udf28\ufe0f", "Neve"], 75: ["\ud83c\udf28\ufe0f", "Neve forte"],
-            80: ["\ud83c\udf26\ufe0f", "Pancadas de chuva"], 81: ["\ud83c\udf27\ufe0f", "Pancadas fortes"], 82: ["\u26c8\ufe0f", "Pancadas violentas"],
-            95: ["\u26c8\ufe0f", "Tempestade"], 96: ["\u26c8\ufe0f", "Tempestade com granizo"], 99: ["\u26c8\ufe0f", "Tempestade com granizo forte"]
+            0: ["\u2600\ufe0f", "Clear sky"], 1: ["\ud83c\udf24\ufe0f", "Mostly clear"],
+            2: ["\u26c5", "Partly cloudy"], 3: ["\u2601\ufe0f", "Overcast"],
+            45: ["\ud83c\udf2b\ufe0f", "Fog"], 48: ["\ud83c\udf2b\ufe0f", "Fog"],
+            51: ["\ud83c\udf26\ufe0f", "Light drizzle"], 53: ["\ud83c\udf26\ufe0f", "Drizzle"], 55: ["\ud83c\udf26\ufe0f", "Heavy drizzle"],
+            61: ["\ud83c\udf27\ufe0f", "Light rain"], 63: ["\ud83c\udf27\ufe0f", "Rain"], 65: ["\ud83c\udf27\ufe0f", "Heavy rain"],
+            66: ["\ud83c\udf27\ufe0f", "Freezing rain"], 67: ["\ud83c\udf27\ufe0f", "Heavy freezing rain"],
+            71: ["\ud83c\udf28\ufe0f", "Light snow"], 73: ["\ud83c\udf28\ufe0f", "Snow"], 75: ["\ud83c\udf28\ufe0f", "Heavy snow"],
+            80: ["\ud83c\udf26\ufe0f", "Rain showers"], 81: ["\ud83c\udf27\ufe0f", "Heavy showers"], 82: ["\u26c8\ufe0f", "Violent showers"],
+            95: ["\u26c8\ufe0f", "Thunderstorm"], 96: ["\u26c8\ufe0f", "Thunderstorm with hail"], 99: ["\u26c8\ufe0f", "Thunderstorm with heavy hail"]
         };
         return m[code] || ["\ud83c\udf21\ufe0f", "—"];
     }
 
+    function wxKind(code, isDay) {
+        if (code === 0 || code === 1) return isDay ? "clear" : "clear-night";
+        if (code === 2) return isDay ? "partly" : "partly-night";
+        if (code === 3) return "cloud";
+        if (code === 45 || code === 48) return "fog";
+        if (code >= 51 && code <= 57) return "drizzle";
+        if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "rain";
+        if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "snow";
+        if (code >= 95) return "storm";
+        return "cloud";
+    }
+
+    function wxHourLabel(timeStr) {
+        const h = parseInt(timeStr.substr(11, 2), 10);
+        return ((h % 12) || 12) + (h < 12 ? "am" : "pm");
+    }
+
+    // v: string (error text) or object (weather card data)
+    function _setWeather(v) {
+        if (typeof v === "string") { root.weatherData = null; root.weatherText = v; }
+        else { root.weatherText = ""; root.weatherData = v; }
+        root.rebuildIfShown();
+    }
+
     function fetchWeather(city, preferBR) {
-        const cacheKey = "wx:" + city.toLowerCase() + ":" + (preferBR ? "br" : "any");
+        const cacheKey = "wx3:" + city.toLowerCase() + ":" + (preferBR ? "br" : "any");
         const cached = root.cacheGet(cacheKey, 5 * 60 * 1000);
-        if (cached) { root.weatherText = cached; root.rebuildIfShown(); return; }
+        if (cached) { root._setWeather(cached); return; }
 
         const req = ++root._wxReq;
         root.abortXhr(root._wxGeoXhr);
         root.abortXhr(root._wxDataXhr);
-        const done = (txt) => { root.weatherText = txt; root.rebuildIfShown(); };
 
         root._wxGeoXhr = root.httpJson(
-            "https://geocoding-api.open-meteo.com/v1/search?count=10&language=pt&name=" + encodeURIComponent(city),
+            "https://geocoding-api.open-meteo.com/v1/search?count=10&language=en&name=" + encodeURIComponent(city),
             10000,
             function (geo) {
                 if (req !== root._wxReq) return;
                 const list = (geo && geo.results) || [];
                 const place = (preferBR && list.find(r => r.country_code === "BR")) || list[0] || null;
-                if (!place) { done("Cidade não encontrada: " + city); return; }
+                if (!place) { root._setWeather("City not found: " + city); return; }
 
                 root._wxDataXhr = root.httpJson(
                     "https://api.open-meteo.com/v1/forecast?latitude=" + place.latitude + "&longitude=" + place.longitude +
-                    "&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m&timezone=auto",
+                    "&current=temperature_2m,apparent_temperature,weather_code,is_day" +
+                    "&hourly=temperature_2m,weather_code,precipitation_probability,is_day" +
+                    "&daily=temperature_2m_max,temperature_2m_min" +
+                    "&forecast_days=3&timezone=auto&temperature_unit=celsius",
                     10000,
                     function (wd) {
                         if (req !== root._wxReq) return;
                         try {
-                            const c = wd.current;
-                            const d = root.wxDescribe(c.weather_code);
-                            const where = place.name + (place.admin1 ? ", " + place.admin1 : "") +
-                                          (place.country_code !== "BR" && place.country ? ", " + place.country : "");
-                            const txt = where + ": " + d[0] + " " + Math.round(c.temperature_2m) + "°C" +
-                                " (sensação " + Math.round(c.apparent_temperature) + "°C) · " + d[1] +
-                                " · umidade " + Math.round(c.relative_humidity_2m) + "% · vento " + Math.round(c.wind_speed_10m) + " km/h";
-                            root.cacheSet(cacheKey, txt);
-                            done(txt);
-                        } catch (e) { done("Não foi possível obter o clima"); }
+                            const c = wd.current, hr = wd.hourly, dl = wd.daily;
+                            let i0 = hr.time.findIndex(t => t.substr(0, 13) === c.time.substr(0, 13));
+                            if (i0 < 0) i0 = 0;
+
+                            // "Now" + every 2 hours ahead
+                            const hours = [{ label: "Now", temp: Math.round(c.temperature_2m), kind: root.wxKind(c.weather_code, c.is_day === 1) }];
+                            for (let k = 1; k <= 6; k++) {
+                                const i = i0 + 2 * k;
+                                if (i >= hr.time.length) break;
+                                hours.push({ label: root.wxHourLabel(hr.time[i]), temp: Math.round(hr.temperature_2m[i]),
+                                             kind: root.wxKind(hr.weather_code[i], hr.is_day[i] === 1) });
+                            }
+
+                            // precipitation outlook from now until the end of tomorrow
+                            const curHour = parseInt(c.time.substr(11, 2), 10);
+                            const last = Math.min(hr.time.length - 1, i0 + (24 - curHour) + 23);
+                            let maxP = 0, minT = 1e9;
+                            for (let i = i0; i <= last; i++) {
+                                maxP = Math.max(maxP, hr.precipitation_probability[i] || 0);
+                                minT = Math.min(minT, hr.temperature_2m[i]);
+                            }
+                            const noun = minT <= 2 ? "rain/snow" : "rain";
+                            const summary = maxP < 20 ? "Low " + noun + " chance through tomorrow"
+                                          : maxP < 50 ? "Possible " + noun + " (up to " + Math.round(maxP) + "%) through tomorrow"
+                                          : "High " + noun + " chance (" + Math.round(maxP) + "%) through tomorrow";
+
+                            const data = {
+                                city: place.name,
+                                country: place.country || "",
+                                temp: Math.round(c.temperature_2m),
+                                desc: root.wxDescribe(c.weather_code)[1],
+                                kind: root.wxKind(c.weather_code, c.is_day === 1),
+                                high: Math.round(dl.temperature_2m_max[0]),
+                                low: Math.round(dl.temperature_2m_min[0]),
+                                feels: Math.round(c.apparent_temperature),
+                                summary: summary,
+                                hours: hours,
+                                url: "https://www.google.com/search?q=" + encodeURIComponent("weather " + place.name)
+                            };
+                            root.cacheSet(cacheKey, data);
+                            root._setWeather(data);
+                        } catch (e) { root._setWeather("Couldn't get the weather"); }
                     });
             });
     }
@@ -778,13 +903,14 @@ PanelWindow {
             if (/^(em|in|de|para|no|na|do|da|for)$/.test(typed)) return;
             const city = typed || root.weatherCity;
             const key = city + "|" + (typed ? "1" : "0");
-            if (key === root._wxLastCity && root.weatherText) return;
+            if (key === root._wxLastCity && (root.weatherText || root.weatherData)) return;
             root._wxLastCity = key;
             root.fetchWeather(city, !typed);
-        } else if (root.weatherText !== "") {
+        } else if (root.weatherText !== "" || root.weatherData) {
             root._wxReq++;
             root._wxLastCity = "";
             root.weatherText = "";
+            root.weatherData = null;
         }
     }
 
@@ -849,7 +975,7 @@ PanelWindow {
         _pass.exec(["bash", "-c", "LC_ALL=C tr -dc 'A-Za-z0-9!@#$%&*' </dev/urandom | head -c " + len]);
     }
 
-    // -- Hora em outra cidade
+    // -- Time in another city
     function fetchTime(city) {
         const cacheKey = "time:" + city.toLowerCase();
         const cached = root.cacheGet(cacheKey, 30 * 1000);
@@ -949,12 +1075,12 @@ PanelWindow {
         const now = new Date();
         const localOffsetSec = -now.getTimezoneOffset() * 60;
         const there = new Date(now.getTime() + utcOffsetSeconds * 1000);
-        const wd = ["dom", "seg", "ter", "qua", "qui", "sex", "s\u00e1b"][there.getUTCDay()];
+        const wd = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][there.getUTCDay()];
         const timeStr = root.pad2(there.getUTCHours()) + ":" + root.pad2(there.getUTCMinutes());
         const dateStr = wd + " " + root.pad2(there.getUTCDate()) + "/" + root.pad2(there.getUTCMonth() + 1);
         const diffH = (utcOffsetSeconds - localOffsetSec) / 3600;
-        const diffStr = diffH === 0 ? "mesmo fuso que você"
-                      : (diffH > 0 ? "+" : "") + (Number.isInteger(diffH) ? diffH : diffH.toFixed(1)) + "h em relação a você";
+        const diffStr = diffH === 0 ? "same time zone as you"
+                      : (diffH > 0 ? "+" : "") + (Number.isInteger(diffH) ? diffH : diffH.toFixed(1)) + "h from you";
         const where = place.name + (place.admin1 ? ", " + place.admin1 : "") + (place.country ? ", " + place.country : "");
         const tzSuffix = tzName ? " (" + tzName + ")" : "";
         const txt = where + ": " + timeStr + " \u00b7 " + dateStr + " \u00b7 " + diffStr + tzSuffix;
@@ -981,7 +1107,7 @@ PanelWindow {
         root.fetchTime(city);
     }
 
-    // -- Processos (kill)
+    // -- Processes (kill)
     function checkKill() {
         const m = root.query.trim().match(/^(?:kill|matar|encerrar|pkill)\s+(\S.*)$/i);
         if (!m) {
@@ -996,7 +1122,7 @@ PanelWindow {
         _ps.exec(["bash", "-c", "echo " + id + "; ps -u \"$USER\" -o pid=,rss=,comm= --sort=-rss | grep -i -F -- " + root.shellQuote(name) + " | head -12"]);
     }
 
-    // -- Ferramentas de dev (uuid, base64, hashes)
+    // -- Dev tools (uuid, base64, hashes)
     function checkDev() {
         const q = root.query.trim();
         let kind = "", arg = "", m;
@@ -1016,7 +1142,7 @@ PanelWindow {
         let cmd = "", label = "";
         if (kind === "uuid") { cmd = "cat /proc/sys/kernel/random/uuid"; label = "UUID v4"; }
         else if (kind === "b64e") { cmd = "printf '%s' " + root.shellQuote(arg) + " | base64 -w0"; label = "Base64"; }
-        else if (kind === "b64d") { cmd = "printf '%s' " + root.shellQuote(arg) + " | base64 -d 2>/dev/null"; label = "Base64 decodificado"; }
+        else if (kind === "b64d") { cmd = "printf '%s' " + root.shellQuote(arg) + " | base64 -d 2>/dev/null"; label = "Base64 decoded"; }
         else { cmd = "printf '%s' " + root.shellQuote(arg) + " | " + kind + "sum | cut -d' ' -f1"; label = kind.toUpperCase(); }
         root._devQ = q;
         root._devLabel = label;
@@ -1052,7 +1178,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  BUSCA DE ARQUIVOS
+    //  FILE SEARCH
     // =====================================================================
     function parseFdLines(lines) {
         const out = [];
@@ -1096,7 +1222,7 @@ PanelWindow {
     function runContentSearch(term) {
         if (!term) return;
         const id = ++root._rgReq;
-        _rg.exec(["bash", "-c", "echo " + id + "; rg -l -i -F --max-count 1 -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"]);
+        _rg.exec(["bash", "-c", "echo " + id + "; timeout 2 rg -l -i -F --max-count 1 --max-filesize 1M -g '!node_modules' -g '!.git' -e " + root.shellQuote(term) + " ~ 2>/dev/null | head -12"]);
     }
 
     function runRecents() {
@@ -1185,7 +1311,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  IA (HERMES AGENT)
+    //  AI (HERMES AGENT)
     // =====================================================================
     function structuredIntent(p) {
         const s = String(p).toLowerCase();
@@ -1194,18 +1320,18 @@ PanelWindow {
     }
 
     function buildSystemPrompt(intent, nowStr) {
-        const base = "Responda em português do Brasil, de forma curta e direta, a menos que peçam outro idioma.";
+        const base = "Reply in English, briefly and directly, unless the user writes in or asks for another language.";
         const extra = {
-            todo: `\nO usuário quer criar uma tarefa. Data atual: ${nowStr}. RESPONDA APENAS com JSON:\n{"action":"add_todo","text":"...","due":"YYYY-MM-DD HH:MM"}`,
-            note: `\nO usuário quer criar uma nota. RESPONDA APENAS com JSON:\n{"action":"add_note","title":"...","content":"..."}`,
-            email: `\nO usuário quer enviar email. RESPONDA APENAS com JSON:\n{"action":"send_email","to":"...","subject":"...","body":"..."}`,
-            timer: `\nO usuário quer um timer. RESPONDA APENAS com JSON:\n{"action":"start_timer","seconds":N,"label":"..."}`,
-            alias: `\nO usuário quer criar um atalho. RESPONDA APENAS com JSON:\n{"action":"create_alias","name":"...","actions":["..."]}`,
-            block: `\nO usuário quer bloquear sites. RESPONDA APENAS com JSON:\n{"action":"block_sites","sites":["..."],"minutes":N}`,
-            focus: `\nO usuário quer modo foco. RESPONDA APENAS com JSON:\n{"action":"focus_mode","minutes":N}`,
-            screenshot: `\nO usuário quer analisar ou traduzir a tela. RESPONDA APENAS com JSON:\n{"action":"screenshot","selectArea":true,"translate":false,"lang":"pt"}\nUse translate:true se ele pedir tradução e lang com o código do idioma de destino.`,
-            web: `\nO usuário quer resumir um link. RESPONDA APENAS com JSON:\n{"action":"web_summary","url":"<url>"}`,
-            pdf: `\nO usuário quer resumir um PDF. RESPONDA APENAS com JSON:\n{"action":"pdf_summary","path":"<caminho>"}`
+            todo: `\nThe user wants to create a task. Current date: ${nowStr}. REPLY ONLY with JSON:\n{"action":"add_todo","text":"...","due":"YYYY-MM-DD HH:MM"}`,
+            note: `\nThe user wants to create a note. REPLY ONLY with JSON:\n{"action":"add_note","title":"...","content":"..."}`,
+            email: `\nThe user wants to send an email. REPLY ONLY with JSON:\n{"action":"send_email","to":"...","subject":"...","body":"..."}`,
+            timer: `\nThe user wants a timer. REPLY ONLY with JSON:\n{"action":"start_timer","seconds":N,"label":"..."}`,
+            alias: `\nThe user wants to create a shortcut. REPLY ONLY with JSON:\n{"action":"create_alias","name":"...","actions":["..."]}`,
+            block: `\nThe user wants to block sites. REPLY ONLY with JSON:\n{"action":"block_sites","sites":["..."],"minutes":N}`,
+            focus: `\nThe user wants focus mode. REPLY ONLY with JSON:\n{"action":"focus_mode","minutes":N}`,
+            screenshot: `\nThe user wants to analyze or translate the screen. REPLY ONLY with JSON:\n{"action":"screenshot","selectArea":true,"translate":false,"lang":"pt"}\nUse translate:true if they ask for a translation, and lang with the target language code.`,
+            web: `\nThe user wants to summarize a link. REPLY ONLY with JSON:\n{"action":"web_summary","url":"<url>"}`,
+            pdf: `\nThe user wants to summarize a PDF. REPLY ONLY with JSON:\n{"action":"pdf_summary","path":"<path>"}`
         };
         return base + (extra[intent] ? extra[intent] : "");
     }
@@ -1224,7 +1350,7 @@ PanelWindow {
         root.rebuildIfShown();
     }
 
-    // Reinicia o cache de "mesma pergunta" e envia um prompt interno.
+    // Resets the "same question" cache and sends an internal prompt.
     function runInternalAi(prompt, label) {
         root._lastAiQuery = "";
         root.runHermes(prompt, false, label);
@@ -1290,10 +1416,10 @@ PanelWindow {
                         _aiRetryTimer.restart();
                         return;
                     }
-                    answer = "Sem resposta do Hermes Agent (gateway parado ou timeout)";
+                    answer = "No response from Hermes Agent (gateway stopped or timeout)";
                 }
-                else if (xhr.status === 401) answer = "Hermes Agent: chave inválida (API_SERVER_KEY)";
-                else answer = "Erro ao consultar a IA (HTTP " + xhr.status + ")";
+                else if (xhr.status === 401) answer = "Hermes Agent: invalid key (API_SERVER_KEY)";
+                else answer = "Error querying the AI (HTTP " + xhr.status + ")";
             }
             root.finishAi(answer, prompt, req);
         };
@@ -1313,7 +1439,7 @@ PanelWindow {
         root.scheduleRebuild();
     }
 
-    // Trata a resposta final: JSON de ação estruturada ou texto normal.
+    // Handles the final answer: structured action JSON or plain text.
     function finishAi(answer, prompt, req) {
         if (req !== root._aiReq) return;
         if (answer.length > 4000) answer = answer.slice(0, 4000) + "…";
@@ -1330,17 +1456,17 @@ PanelWindow {
                 if (obj.action === "screenshot") {
                     root._ocrMode = obj.translate === true ? "translate" : "analyze";
                     root._ocrLang = obj.lang || "pt";
-                    root.aiText = "📸 Capturando tela…";
+                    root.aiText = "📸 Capturing screen…";
                     SpotlightActions.runScreenshotOcr(obj.selectArea === true);
                     return;
                 }
                 if (obj.action === "web_summary" && obj.url) {
-                    root.aiText = "🌐 Baixando " + obj.url + "…";
+                    root.aiText = "🌐 Downloading " + obj.url + "…";
                     SpotlightActions.scrapeUrl(obj.url);
                     return;
                 }
                 if (obj.action === "pdf_summary" && obj.path) {
-                    root.aiText = "📄 Lendo " + obj.path + "…";
+                    root.aiText = "📄 Reading " + obj.path + "…";
                     SpotlightActions.summarizePdf(obj.path);
                     return;
                 }
@@ -1378,7 +1504,7 @@ PanelWindow {
                     const [hh, mm] = timePart.split(":").map(Number);
                     if ([y, m, d, hh, mm].every(n => !isNaN(n))) {
                         due = new Date(Date.UTC(y, m - 1, d, hh, mm));
-                        dueLabel = root.pad2(d) + "/" + root.pad2(m) + " às " + root.pad2(hh) + ":" + root.pad2(mm);
+                        dueLabel = root.pad2(d) + "/" + root.pad2(m) + " at " + root.pad2(hh) + ":" + root.pad2(mm);
                     }
                 }
                 Todo.addTask(obj.text, due);
@@ -1387,9 +1513,9 @@ PanelWindow {
                         + " " + root.pad2(due.getHours()) + ":" + root.pad2(due.getMinutes()) + ":00";
                     root.scheduleReminder(whenStr, obj.text);
                 }
-                return "✅ Tarefa criada: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
+                return "✅ Task created: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
             }
-            case "add_note": return SpotlightActions.addObsidianNote(obj.title || "Nota", obj.content || "");
+            case "add_note": return SpotlightActions.addObsidianNote(obj.title || "Note", obj.content || "");
             case "send_email": return SpotlightActions.sendEmail(obj.to, obj.subject || "", obj.body || "");
             case "start_timer": {
                 const s = parseInt(obj.seconds) || 0;
@@ -1405,21 +1531,21 @@ PanelWindow {
     }
 
     function buildResumePrompt(page, focus) {
-        return "Resuma este conteúdo de página web de forma concisa"
-            + (focus ? ", com foco em: " + focus : "") + ":\n\n"
-            + "TÍTULO: " + (page.title || "") + "\n"
+        return "Summarize this web page content concisely"
+            + (focus ? ", focusing on: " + focus : "") + ":\n\n"
+            + "TITLE: " + (page.title || "") + "\n"
             + "LINK: " + page.url + "\n\n"
             + (page.text || "").slice(0, 5000);
     }
 
     function buildScreenPrompt(windows, ocr, question) {
         const ask = question
-            || "Explique o que está sendo mostrado na tela: qual é a atividade do usuário, o que há em cada janela e o que for relevante ou fora do normal. Seja objetivo.";
-        return "Contexto da tela do usuário (capturada agora).\n\n"
-            + "JANELAS NA ÁREA DE TRABALHO ATUAL:\n" + (windows || "(indisponível)") + "\n\n"
-            + "TEXTO LIDO NA TELA POR OCR (pode ter erros, ordem aproximada e texto de várias janelas misturado):\n"
-            + (ocr ? ocr.slice(0, 6000) : "(nenhum texto reconhecido)") + "\n\n"
-            + "PEDIDO: " + ask;
+            || "Explain what is shown on the screen: what the user is doing, what is in each window, and anything relevant or unusual. Be concise.";
+        return "User screen context (captured just now).\n\n"
+            + "WINDOWS ON THE CURRENT WORKSPACE:\n" + (windows || "(unavailable)") + "\n\n"
+            + "TEXT READ FROM THE SCREEN BY OCR (may contain errors, approximate order, and text from several windows mixed together):\n"
+            + (ocr ? ocr.slice(0, 6000) : "(no text recognized)") + "\n\n"
+            + "REQUEST: " + ask;
     }
 
     function aiIsAuto(s) {
@@ -1465,12 +1591,12 @@ PanelWindow {
         if (root.aiText) {
             return [{
                 kind: "info", isAi: true,
-                name: root.aiLoading ? "Thinking…" : "Ver resposta no popup ao lado",
+                name: root.aiLoading ? "Thinking…" : "See the answer in the popup beside",
                 category: root.aiLoading ? "Hermes Agent · thinking…" : "Hermes Agent — Enter to copy"
             }];
         }
         if (root.aiPromptFor(root.query.trim()) !== "") {
-            return [{ kind: "info", isAi: true, name: "Perguntar ao Hermes Agent", category: "Pressione Enter para enviar" }];
+            return [{ kind: "info", isAi: true, name: "Ask Hermes Agent", category: "Press Enter to send" }];
         }
         return [];
     }
@@ -1545,18 +1671,18 @@ PanelWindow {
         if (kind === "text" || kind === "markdown") {
             _preview.exec(["bash", "-c", "head -c 4000 " + q(p) + " 2>/dev/null | iconv -c -t UTF-8 2>/dev/null"]);
         } else if (kind === "video") {
-            const out = "/tmp/spotlight_thumb_" + Date.now() + ".jpg";
+            const out = root.tmpDir + "/thumb_" + Date.now() + ".jpg";
             pend(out);
-            _videoThumb.exec(["bash", "-c", "rm -f /tmp/spotlight_thumb_*.jpg; ffmpegthumbnailer -i " + q(p) + " -o " + q(out) + " -s 400 2>/dev/null"]);
+            _videoThumb.exec(["bash", "-c", root.tmpPrep("thumb") + "ffmpegthumbnailer -i " + q(p) + " -o " + q(out) + " -s 400 2>/dev/null"]);
         } else if (kind === "audio") {
-            const out = "/tmp/spotlight_cover_" + Date.now() + ".jpg";
+            const out = root.tmpDir + "/cover_" + Date.now() + ".jpg";
             pend(out);
-            _audioCover.exec(["bash", "-c", "rm -f /tmp/spotlight_cover_*.jpg; ffmpeg -y -i " + q(p) + " -an -frames:v 1 " + q(out) + " 2>/dev/null"]);
+            _audioCover.exec(["bash", "-c", root.tmpPrep("cover") + "ffmpeg -y -i " + q(p) + " -an -frames:v 1 " + q(out) + " 2>/dev/null"]);
         } else if (kind === "pdf") {
-            const base = "/tmp/spotlight_pdf_" + Date.now();
+            const base = root.tmpDir + "/pdf_" + Date.now();
             pend(base + ".jpg");
             _pdfThumb.exec(["bash", "-c",
-                "rm -f /tmp/spotlight_pdf_*.jpg; " +
+                root.tmpPrep("pdf") +
                 "pdftoppm -jpeg -f 1 -l 1 -scale-to 1200 " + q(p) + " " + q(base) + " 2>/dev/null; " +
                 "f=$(ls " + q(base) + "*.jpg 2>/dev/null | head -1); " +
                 "[ -n \"$f\" ] && mv \"$f\" " + q(base + ".jpg")
@@ -1594,7 +1720,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  CONSTRUÇÃO DOS RESULTADOS
+    //  BUILDING RESULTS
     // =====================================================================
     function computeResultsHeight() {
         const maxH = Math.round(root.screen.height * 0.65);
@@ -1605,9 +1731,8 @@ PanelWindow {
         }
         const idleSearch = root.query.length === 0 && root.mode === "search";
         let h = 12;
-        if (root.nowPlayingText.length > 0 && idleSearch) h += root.nowPlayingH;
         if (root.sysStatsText.length > 0 && idleSearch) h += 24;
-        for (const r of root.results) h += r.isHeader ? root.headerH : root.rowH;
+        for (const r of root.results) h += r.isHeader ? root.headerH : (r.kind === "weather" ? root.weatherH : root.rowH);
         if (root.items.length === 0 && root.query.length > 0) h += 56;
         return Math.min(maxH, Math.max(48, h + 12));
     }
@@ -1663,7 +1788,7 @@ PanelWindow {
             if (cr !== null) A(root._calcRow("= " + cr, String(cr), "Calculator"), "CALCULATOR");
             return;
         }
-        if (cmdName === "buscar" && hasArgs) {
+        if ((cmdName === "search" || cmdName === "buscar") && hasArgs) {
             A(root.contentResults.map(f => ({ kind: "file", name: f.name, path: f.path, category: f.dir })), "CONTENT: " + cmdArgs);
             return;
         }
@@ -1686,12 +1811,12 @@ PanelWindow {
         if ((cmdName === "calendar" || cmdName === "cal" || cmdName === "evento" || cmdName === "event") && hasArgs) {
             const ev = root.parseEventInput(rawArgs);
             if (!ev.dueStr) {
-                A([{ kind: "info", name: "Informe data ou hora: /evento reunião 02/10 às 14h", category: "Evento" }], "EVENTO");
+                A([{ kind: "info", name: "Add a date or time: /event meeting 02/10 at 14h", category: "Event" }], "EVENT");
                 return;
             }
             A([{
                 kind: "action",
-                name: "Add event: \u201c" + ev.text + "\u201d \u00b7 " + ev.dueLabel + (ev.remindAt ? " \u00b7 " + ev.duration + " min" : " \u00b7 dia inteiro"),
+                name: "Add event: \u201c" + ev.text + "\u201d \u00b7 " + ev.dueLabel + (ev.remindAt ? " \u00b7 " + ev.duration + " min" : " \u00b7 all day"),
                 action: "addevent:",
                 evText: ev.text,
                 evDate: ev.dueStr,
@@ -1700,11 +1825,11 @@ PanelWindow {
                 evRemind: ev.remindAt,
                 evRemindMs: ev.remindMs,
                 iconKey: "note",
-                category: "Calendário"
-            }], "EVENTO");
+                category: "Calendar"
+            }], "EVENT");
             return;
         }
-        if (cmdName === "nota" && hasArgs) {
+        if ((cmdName === "nota" || cmdName === "note") && hasArgs) {
             A([{ kind: "action", name: "📝 Create note: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTE");
             return;
         }
@@ -1836,7 +1961,7 @@ PanelWindow {
         }
     }
 
-    // -- Modo busca, dividido em blocos (a ordem das seções é preservada)
+    // -- Search mode, split into blocks (section order is preserved)
     function _searchPrimary(items, disp, q, ql) {
         const A = (arr, title) => root._addItems(items, disp, arr, title);
 
@@ -1872,8 +1997,10 @@ PanelWindow {
     function _searchInfo(items, disp, q, ql) {
         const A = (arr, title) => root._addItems(items, disp, arr, title);
 
-        if ((ql.startsWith("clima") || ql.startsWith("weather")) && root.weatherText)
-            A(root._infoRow(root.weatherText, "Weather"), "WEATHER");
+        if (ql.startsWith("clima") || ql.startsWith("weather")) {
+            if (root.weatherData) disp.push({ kind: "weather", wx: root.weatherData });   // display-only card
+            else if (root.weatherText) A(root._infoRow(root.weatherText, "Weather"), "WEATHER");
+        }
         if ((ql.startsWith("define ") || ql.startsWith("significado ") || ql.startsWith("meaning ")) && root.dictText)
             A(root._infoRow(root.dictText, "Definition"), "DEFINITION");
         if (/^(senha|password)\s*(\d+)?$/.test(ql) && root.passText)
@@ -2173,7 +2300,7 @@ PanelWindow {
                     kind: "configSection",
                     name: key,
                     path: fullPath,
-                    category: "Seção",
+                    category: "Section",
                     iconKey: "folder"
                 });
             } else {
@@ -2190,7 +2317,7 @@ PanelWindow {
                     name: key + ": " + displayVal,
                     path: fullPath,
                     value: val,
-                    category: "Configuração",
+                    category: "Setting",
                     iconKey: "settings"
                 });
             }
@@ -2233,7 +2360,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  NAVEGAÇÃO E ATIVAÇÃO DE ITENS
+    //  NAVIGATION AND ITEM ACTIVATION
     // =====================================================================
     function moveSelection(delta) {
         if (root.items.length === 0) return;
@@ -2252,7 +2379,7 @@ PanelWindow {
         event.accepted = true;
     }
 
-    // Atalhos do campo de busca. Retorna true se tratou a tecla.
+    // Search field shortcuts. Returns true if the key was handled.
     function handleSearchKey(event, hasSelection) {
         if (event.key === Qt.Key_Backspace && root.query === ""
                 && root.mode === "files" && root.browseDir !== "" && root.browseDir !== "/") {
@@ -2275,6 +2402,15 @@ PanelWindow {
                 if (!hasSelection && root.selectedItem && root.selectedItem.kind === "file") {
                     root.copyText(root.selectedItem.path);
                     SpotlightController.spotlightOpen = false;
+                    return true;
+                }
+                return false;
+            case Qt.Key_Left:
+            case Qt.Key_Right:
+            case Qt.Key_Space:
+                if (root.selectedItem && root.selectedItem.kind === "media") {
+                    root.mediaControl(event.key === Qt.Key_Left ? "previous"
+                                      : event.key === Qt.Key_Right ? "next" : "play-pause");
                     return true;
                 }
                 return false;
@@ -2310,7 +2446,7 @@ PanelWindow {
         if (!keepOpen) SpotlightController.spotlightOpen = false;
     }
 
-    // Executa o item; retorna true se o Spotlight deve continuar aberto.
+    // Runs the item; returns true if Spotlight should stay open.
     function _activate(e, alt) {
         switch (e.kind) {
             case "app":
@@ -2337,14 +2473,14 @@ PanelWindow {
                 return true;
             case "configValue":
                 root.copyText(JSON.stringify(e.value));
-                root.notify("Copiado: " + e.path + " = " + JSON.stringify(e.value));
+                root.notify("Copied: " + e.path + " = " + JSON.stringify(e.value));
                 return false;
             case "calc":
             case "emoji":
                 root.copyText(e.raw);
                 return false;
             case "media":
-                SpotlightController.run("playerctl play-pause");
+                root.mediaControl("play-pause");
                 return true;
             case "info":
                 if (e.isAi) {
@@ -2403,7 +2539,7 @@ PanelWindow {
             const colon = rest.indexOf(":");
             const kind = colon >= 0 ? rest.slice(0, colon) : rest;
             const arg = colon >= 0 ? rest.slice(colon + 1) : "";
-            const promptMap = { note: "crie uma nota: " + arg, email: "mande um email " + arg };
+            const promptMap = { note: "create a note: " + arg, email: "send an email " + arg };
             root.runHermes(promptMap[kind] || arg);
             return true;
         }
@@ -2469,33 +2605,33 @@ PanelWindow {
     function _activateCmd(e) {
         const a = e.action;
         if (a === "screen:") {
-            // /screen -> explica a tela | /screen <pergunta> -> responde sobre a tela
+            // /screen -> explains the screen | /screen <question> -> answers about the screen
             root._screenQuestion = root.query.replace(/^\/screen\s*/i, "").trim();
-            root.aiText = "🖥️ Capturando a tela…";
-            root._capturing = true;          // some com o Spotlight antes do print
+            root.aiText = "🖥️ Capturing the screen…";
+            root._capturing = true;          // hides Spotlight before the screenshot
             _captureGuard.restart();
             SpotlightActions.runScreenContext();
             return true;
         }
         if (a === "ocrtr:") {
-            // /traduzir -> português | /traduzir en -> inglês, etc.
+            // /translate -> Portuguese | /translate en -> English, etc.
             root._beginScreenshotSelect("translate",
-                root.query.replace(/^\/traduzir\s*/i, "").trim().toLowerCase() || "pt",
-                "📸 Selecione o texto a traduzir…");
+                root.query.replace(/^\/(?:translate|traduzir)\s*/i, "").trim().toLowerCase() || "pt",
+                "📸 Select the text to translate…");
             return true;
         }
         if (a === "screenshot:") {
-            root._beginScreenshotSelect("analyze", undefined, "📸 Selecione a área…");
+            root._beginScreenshotSelect("analyze", undefined, "📸 Select the area…");
             return true;
         }
         if (a === "sum:") {
             const arg = root.query.replace(/^\/sum\s*/i, "").trim();
             if (!arg) return true;
             if (root.looksLikeUrl(arg) || /^https?:\/\//i.test(arg) || /^www\./i.test(arg)) {
-                root.aiText = "🌐 Baixando…";
+                root.aiText = "🌐 Downloading…";
                 SpotlightActions.scrapeUrl(/^https?:\/\//i.test(arg) ? arg : "https://" + arg);
             } else {
-                root.aiText = "📄 Lendo…";
+                root.aiText = "📄 Reading…";
                 SpotlightActions.summarizePdf(arg);
             }
             return true;
@@ -2503,7 +2639,7 @@ PanelWindow {
         if (a === "mem-on:" || a === "mem-off:") {
             const on = a === "mem-on:";
             root.aiPersistentHistory = on;
-            root.aiText = on ? "💾 Memória persistente ATIVADA" : "💾 Memória persistente DESATIVADA";
+            root.aiText = on ? "💾 Persistent memory ON" : "💾 Persistent memory OFF";
             root.scheduleRebuild();
             return true;
         }
@@ -2545,7 +2681,7 @@ PanelWindow {
             searchField.forceActiveFocus();
             return true;
         }
-        if (a === "web:" || a === "calc:" || a === "buscar:" || a === "ai:" || a === "todo:") {
+        if (a === "web:" || a === "calc:" || a === "search:" || a === "ai:" || a === "todo:") {
             searchField.text = e.name + " ";
             searchField.cursorPosition = searchField.text.length;
             searchField.forceActiveFocus();
@@ -2555,7 +2691,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  REAÇÕES / CONEXÕES
+    //  REACTIONS / CONNECTIONS
     // =====================================================================
     onSelectedKeyChanged: _previewDeb.restart()
     onCirclesVisibleChanged: root.animateRail(circlesVisible ? 1.0 : 0.0)
@@ -2565,10 +2701,10 @@ PanelWindow {
         function onScreenshotOcrReady(ocrText) {
             root._screenshotSelecting = false;
             const mode = root._ocrMode;
-            root._ocrMode = "analyze";          // não deixa o modo "grudar"
+            root._ocrMode = "analyze";          // keeps the mode from "sticking"
 
-            if (!ocrText || ocrText === "Nenhuma imagem capturada") {
-                root.aiFail("❌ OCR não retornou texto (tela vazia?)");
+            if (!ocrText || (ocrText === "Nenhuma imagem capturada" || ocrText === "No image captured")) {
+                root.aiFail("❌ OCR returned no text (empty screen?)");
                 return;
             }
             if (mode === "translate") {
@@ -2577,16 +2713,16 @@ PanelWindow {
                     + ocrText.slice(0, 3000));
                 return;
             }
-            root.runInternalAi("Analise este texto extraído de uma screenshot e responda de forma útil:\n\n" + ocrText.slice(0, 3000));
+            root.runInternalAi("Analyze this text extracted from a screenshot and reply helpfully:\n\n" + ocrText.slice(0, 3000));
         }
         function onPageReady(page) {
             const focus = root._resumeFocus;
             root._resumeFocus = "";
             if (!page || !page.ok) {
-                root.aiFail("❌ " + ((page && page.error) || "Não consegui ler o link"));
+                root.aiFail("❌ " + ((page && page.error) || "Couldn't read the link"));
                 return;
             }
-            root.runInternalAi(root.buildResumePrompt(page, focus), "🌐 Resumir: " + (page.title || page.url));
+            root.runInternalAi(root.buildResumePrompt(page, focus), "🌐 Summarize: " + (page.title || page.url));
         }
         function onScreenContextReady(windows, ocr) {
             _captureGuard.stop();
@@ -2595,34 +2731,34 @@ PanelWindow {
             const q = root._screenQuestion;
             root._screenQuestion = "";
             if (!windows && !ocr) {
-                root.aiFail("❌ Não consegui capturar a tela (grim/hyprctl)");
+                root.aiFail("❌ Couldn't capture the screen (grim/hyprctl)");
                 return;
             }
-            root.runInternalAi(root.buildScreenPrompt(windows, ocr, q), "🖥️ " + (q || "O que está na minha tela?"));
+            root.runInternalAi(root.buildScreenPrompt(windows, ocr, q), "🖥️ " + (q || "What is on my screen?"));
         }
         function onScrapeReady(text) {
-            if (!text) { root.aiFail("❌ Não consegui baixar o link"); return; }
-            root.runInternalAi("Resuma este conteúdo de página web de forma concisa:\n\n" + text.slice(0, 5000));
+            if (!text) { root.aiFail("❌ Couldn't download the link"); return; }
+            root.runInternalAi("Summarize this web page content concisely:\n\n" + text.slice(0, 5000));
         }
         function onPdfReady(text) {
-            if (!text) { root.aiFail("❌ Não consegui ler o PDF"); return; }
-            root.runInternalAi("Resuma este PDF de forma concisa:\n\n" + text.slice(0, 6000));
+            if (!text) { root.aiFail("❌ Couldn't read the PDF"); return; }
+            root.runInternalAi("Summarize this PDF concisely:\n\n" + text.slice(0, 6000));
         }
         function onGitDiffReady(diff) {
             if (!diff) {
-                root.aiText = "📭 Nada pra commitar";
+                root.aiText = "📭 Nothing to commit";
                 root.rebuildIfShown();
                 return;
             }
-            root.runInternalAi("Gere mensagem de commit (Conventional Commits) para:\n\n" + diff);
+            root.runInternalAi("Generate a commit message (Conventional Commits) for:\n\n" + diff);
         }
         function onBriefingReady(text) {
             if (!text) {
-                root.aiText = "❌ Briefing indisponível";
+                root.aiText = "❌ Briefing unavailable";
                 root.rebuildIfShown();
                 return;
             }
-            root.runInternalAi("Formate este briefing matinal de forma bonita:\n\n" + text);
+            root.runInternalAi("Format this morning briefing nicely:\n\n" + text);
         }
         function onHistoryReady(history) {
             if (Array.isArray(history) && history.length > 0) root.aiHistory = history;
@@ -2696,7 +2832,7 @@ PanelWindow {
     IpcHandler {
         target: "todoReminder"
         function fire(text: string): void {
-            Quickshell.execDetached(["notify-send", "Lembrete", text, "-a", "Shell"]);
+            Quickshell.execDetached(["notify-send", "Reminder", text, "-a", "Shell"]);
             Quickshell.execDetached(["bash", "-c",
                 "for f in /usr/share/sounds/freedesktop/stereo/alarm-clock-elapsed.oga " +
                 "/usr/share/sounds/*/stereo/alarm-clock-elapsed.oga " +
@@ -2709,7 +2845,7 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  ANIMAÇÕES
+    //  ANIMATIONS
     // =====================================================================
     NumberAnimation {
         id: _railAnim
@@ -2722,18 +2858,18 @@ PanelWindow {
     SequentialAnimation {
         id: openAnim
         ParallelAnimation {
-            NumberAnimation { target: root; property: "panelScale"; to: 1.0; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "panelYOffset"; to: 0; duration: 200; easing.type: Easing.OutCubic }
-            NumberAnimation { target: root; property: "panelOpacity"; to: 1.0; duration: 160; easing.type: Easing.OutQuad }
+            NumberAnimation { target: root; property: "panelScale"; to: 1.0; duration: root.animSlow; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "panelYOffset"; to: 0; duration: root.animSlow; easing.type: Easing.OutCubic }
+            NumberAnimation { target: root; property: "panelOpacity"; to: 1.0; duration: root.animMed; easing.type: Easing.OutQuad }
         }
     }
 
     SequentialAnimation {
         id: closeAnim
         ParallelAnimation {
-            NumberAnimation { target: root; property: "panelScale"; to: 0.98; duration: 140; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "panelYOffset"; to: 8; duration: 140; easing.type: Easing.InCubic }
-            NumberAnimation { target: root; property: "panelOpacity"; to: 0.0; duration: 120; easing.type: Easing.InQuad }
+            NumberAnimation { target: root; property: "panelScale"; to: 0.98; duration: root.animMed; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "panelYOffset"; to: 8; duration: root.animMed; easing.type: Easing.InCubic }
+            NumberAnimation { target: root; property: "panelOpacity"; to: 0.0; duration: root.animMed; easing.type: Easing.InQuad }
         }
         ScriptAction { script: {
             root._shown = false; root.circlesVisible = false;
@@ -2762,9 +2898,9 @@ PanelWindow {
         scale: root.panelScale
         opacity: root.panelOpacity
 
-        Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+        Behavior on height { NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
 
-        // ---- Fundo "vidro"
+        // ---- "Glass" background
         Rectangle {
             id: panelChrome
             anchors.left: parent.left
@@ -2776,7 +2912,7 @@ PanelWindow {
             border.color: root.glassBorder
             border.width: 1
             z: 0
-            Behavior on height { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
@@ -2787,7 +2923,7 @@ PanelWindow {
             }
         }
 
-        // ---- Barra de busca
+        // ---- Search bar
         Item {
             id: searchHeader
             anchors.left: parent.left
@@ -2860,7 +2996,7 @@ PanelWindow {
                         anchors.verticalCenter: parent.verticalCenter
                         height: parent.height
                         color: root.sFg
-                        font { family: "SF Pro Display"; pixelSize: 24; weight: Font.Light }
+                        font { family: root.fontDisplay; pixelSize: 24; weight: Font.Light }
                         verticalAlignment: TextInput.AlignVCenter
                         selectByMouse: true; clip: true; cursorVisible: root._opened
                         focus: true
@@ -2891,14 +3027,14 @@ PanelWindow {
                     Text {
                         anchors.left: searchIconWrap.right; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
                         text: root.placeholderText
-                        font { family: "SF Pro Display"; pixelSize: 24; weight: Font.Light }
+                        font { family: root.fontDisplay; pixelSize: 24; weight: Font.Light }
                         color: root.placeholderFg
                         visible: searchField.text.length === 0
                     }
                 }
             }
 
-            // ---- Botões circulares de modo
+            // ---- Round mode buttons
             Item {
                 id: circlesContainer
                 anchors.fill: parent
@@ -2931,8 +3067,8 @@ PanelWindow {
                         Rectangle {
                             anchors.fill: parent; anchors.margins: 4; radius: width / 2
                             color: "transparent"; border.width: 1
-                            border.color: circleBtn.isActive ? Qt.rgba(1, 1, 1, 0.28) : circleBtn.isHover ? Qt.rgba(1, 1, 1, 0.14) : Qt.rgba(1, 1, 1, 0.0)
-                            Behavior on border.color { ColorAnimation { duration: 140 } }
+                            border.color: circleBtn.isActive ? root.white28 : circleBtn.isHover ? root.white14 : Qt.rgba(1, 1, 1, 0.0)
+                            Behavior on border.color { ColorAnimation { duration: root.animMed } }
                         }
                         Image {
                             anchors.centerIn: parent
@@ -2949,13 +3085,13 @@ PanelWindow {
                             color: root.glassBg; border.color: root.glassBorder; border.width: 1
                             visible: circleBtn.isHover
                             opacity: circleBtn.isHover ? 1.0 : 0.0
-                            Behavior on opacity { NumberAnimation { duration: 120 } }
+                            Behavior on opacity { NumberAnimation { duration: root.animMed } }
                             Text {
                                 id: tipText
                                 anchors.centerIn: parent
                                 text: modelData.tip
                                 color: root.sFgDim
-                                font { family: "SF Pro Display"; pixelSize: 13 }
+                                font { family: root.fontDisplay; pixelSize: 13 }
                             }
                         }
                         MouseArea {
@@ -2966,7 +3102,7 @@ PanelWindow {
                             onEntered: root.placeholderText = modelData.tip
                             onExited: root.placeholderText = "Search or Ask"
                             onClicked: {
-                                // Settings abre o app settings.qml direto (em vez do modo "config" interno)
+                                // Settings opens the settings.qml app directly (instead of the internal "config" mode)
                                 if (modelData.m === "config") {
                                     root.openSettingsApp()
                                     return
@@ -2980,7 +3116,7 @@ PanelWindow {
                 }
             }
 
-            // ---- Arrastar para abrir/fechar a trilha de modos
+            // ---- Drag to open/close the mode track
             MouseArea {
                 id: dragZone
                 anchors.right: searchHeader.right
@@ -3013,20 +3149,20 @@ PanelWindow {
                 }
             }
 
-            // ---- Botão limpar
+            // ---- Clear button
             Rectangle {
                 id: clearBtn
                 x: morphSurface.mainWidth - width - 16
                 y: (searchHeader.height - height) / 2
                 width: 20; height: 20; radius: 10
                 z: 100
-                color: clearMA.containsMouse ? Qt.rgba(1, 1, 1, 0.25) : "transparent"
+                color: clearMA.containsMouse ? root.white25 : "transparent"
                 visible: root.query.length > 0
                 Canvas {
                     anchors.centerIn: parent; width: 14; height: 14
                     onPaint: {
                         var ctx = getContext("2d"); ctx.reset()
-                        ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.85); ctx.lineWidth = 1.4
+                        ctx.strokeStyle = root.white85; ctx.lineWidth = 1.4
                         ctx.beginPath(); ctx.arc(width/2, height/2, width/2 - 1, 0, Math.PI * 2); ctx.stroke()
                         ctx.beginPath(); ctx.moveTo(width*0.35, height*0.35); ctx.lineTo(width*0.65, height*0.65)
                         ctx.moveTo(width*0.65, height*0.35); ctx.lineTo(width*0.35, height*0.65); ctx.stroke()
@@ -3038,7 +3174,7 @@ PanelWindow {
             }
         }
 
-        // ---- Botão que abre/fecha os modos
+        // ---- Button that opens/closes the modes
         Rectangle {
             id: modesToggle
             x: morphSurface.mainWidth - width - 10
@@ -3046,17 +3182,17 @@ PanelWindow {
             width: 28; height: 28; radius: 8
             z: 120
             visible: root.query.length === 0
-            color: modesToggleMA.containsMouse || root.circlesVisible ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+            color: modesToggleMA.containsMouse || root.circlesVisible ? root.white14 : "transparent"
             border.width: 1
-            border.color: root.circlesVisible ? Qt.rgba(1, 1, 1, 0.28) : Qt.rgba(1, 1, 1, 0.12)
+            border.color: root.circlesVisible ? root.white28 : root.white12
             Canvas {
                 anchors.centerIn: parent
                 width: 14; height: 14
                 rotation: root.circlesVisible ? 0 : 180
-                Behavior on rotation { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
+                Behavior on rotation { NumberAnimation { duration: root.animSlow; easing.type: Easing.OutCubic } }
                 onPaint: {
                     var ctx = getContext("2d"); ctx.reset()
-                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9); ctx.lineWidth = 1.8
+                    ctx.strokeStyle = root.white90; ctx.lineWidth = 1.8
                     ctx.lineCap = "round"; ctx.lineJoin = "round"
                     ctx.beginPath(); ctx.moveTo(5, 3); ctx.lineTo(10, 7); ctx.lineTo(5, 11); ctx.stroke()
                 }
@@ -3073,21 +3209,21 @@ PanelWindow {
             }
         }
 
-        // ---- Botão limpar histórico do clipboard (só no modo Clipboard)
+        // ---- Clear clipboard history button (Clipboard mode only)
         Rectangle {
             id: clipTrashBtn
             property bool armed: false
-            // logo abaixo da seta (alinhado à direita, na linha do cabeçalho "CLIPBOARD")
+            // right below the arrow (right-aligned, on the "CLIPBOARD" header line)
             x: morphSurface.mainWidth - width - 10
             y: searchHeader.height + 1 + (root.headerH - height) / 2
             width: 22; height: 22; radius: 6
             z: 120
             visible: root.mode === "clipboard" && root.clipItems.length > 0
             color: armed ? Qt.rgba(1, 0.27, 0.27, 0.35)
-                 : clipTrashMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                 : clipTrashMA.containsMouse ? root.white14 : "transparent"
             border.width: 1
-            border.color: armed ? Qt.rgba(1, 0.4, 0.4, 0.8) : Qt.rgba(1, 1, 1, 0.12)
-            Behavior on color { ColorAnimation { duration: 120 } }
+            border.color: armed ? Qt.rgba(1, 0.4, 0.4, 0.8) : root.white12
+            Behavior on color { ColorAnimation { duration: root.animMed } }
             onVisibleChanged: armed = false
             onArmedChanged: trashIcon.requestPaint()
 
@@ -3099,7 +3235,7 @@ PanelWindow {
                 width: 14; height: 14; scale: 0.9
                 onPaint: {
                     var ctx = getContext("2d"); ctx.reset()
-                    ctx.strokeStyle = clipTrashBtn.armed ? "#ff8080" : Qt.rgba(1, 1, 1, 0.9)
+                    ctx.strokeStyle = clipTrashBtn.armed ? "#ff8080" : root.white90
                     ctx.lineWidth = 1.4; ctx.lineCap = "round"; ctx.lineJoin = "round"
                     ctx.beginPath(); ctx.moveTo(2, 3.5); ctx.lineTo(12, 3.5); ctx.stroke()
                     ctx.beginPath(); ctx.moveTo(5.5, 3.5); ctx.lineTo(5.5, 2); ctx.lineTo(8.5, 2); ctx.lineTo(8.5, 3.5); ctx.stroke()
@@ -3127,7 +3263,7 @@ PanelWindow {
             }
         }
 
-        // ---- Cartão de resultados
+        // ---- Results card
         Item {
             id: resultsCard
             anchors.top: searchHeader.bottom
@@ -3138,52 +3274,14 @@ PanelWindow {
             visible: root.hasBody && height > 0
             z: 1
             clip: true
-            Behavior on height { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
             MouseArea { anchors.fill: parent }
 
             ColumnLayout {
                 anchors.fill: parent
                 spacing: 0
 
-                // Now playing
-                RowLayout {
-                    Layout.fillWidth: true; Layout.preferredHeight: root.nowPlayingH
-                    Layout.leftMargin: 14; Layout.rightMargin: 14; Layout.topMargin: 4
-                    visible: root.nowPlayingText.length > 0 && root.query.length === 0 && root.mode === "search"
-                    spacing: 10
-                    Text { text: "\u266A"; color: root.accent; font.pixelSize: 18 }
-                    Text {
-                        Layout.fillWidth: true; text: root.nowPlayingText; color: root.sFg
-                        font { family: "SF Pro Display"; pixelSize: 13 }
-                        elide: Text.ElideRight; maximumLineCount: 1
-                    }
-                    Repeater {
-                        model: [
-                            { cmd: "previous",   glyph: "\u23ee", size: 26 },
-                            { cmd: "play-pause", glyph: "",       size: 28 },
-                            { cmd: "next",       glyph: "\u23ed", size: 26 }
-                        ]
-                        delegate: Rectangle {
-                            width: modelData.size; height: modelData.size; radius: modelData.size / 2
-                            color: mediaBtnMA.containsMouse ? root.hoverBg : "transparent"
-                            Text {
-                                anchors.centerIn: parent
-                                color: root.sFg
-                                font.pixelSize: 13
-                                text: modelData.cmd === "play-pause"
-                                      ? (root.nowPlayingStatus === "Playing" ? "\u23f8" : "\u25b6")
-                                      : modelData.glyph
-                            }
-                            MouseArea {
-                                id: mediaBtnMA
-                                anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor
-                                onClicked: { _mediaCmd.command = ["bash", "-c", "playerctl " + modelData.cmd]; _mediaCmd.running = true; }
-                            }
-                        }
-                    }
-                }
-
-                // Estatísticas do sistema
+                // System stats
                 RowLayout {
                     Layout.fillWidth: true; Layout.preferredHeight: 24
                     Layout.leftMargin: 14; Layout.rightMargin: 14
@@ -3192,7 +3290,7 @@ PanelWindow {
                         Layout.fillWidth: true
                         text: root.sysStatsText
                         color: root.sFgDim
-                        font { family: "SF Pro Text"; pixelSize: 11 }
+                        font { family: root.fontText; pixelSize: 11 }
                         elide: Text.ElideRight
                     }
                 }
@@ -3220,9 +3318,9 @@ PanelWindow {
                             width: 8
                             contentItem: Rectangle {
                                 implicitWidth: 6; radius: 3
-                                color: Qt.rgba(1, 1, 1, 0.35)
+                                color: root.white35
                                 opacity: resultScrollBar.pressed ? 0.85 : 0.5
-                                Behavior on opacity { NumberAnimation { duration: 120 } }
+                                Behavior on opacity { NumberAnimation { duration: root.animMed } }
                             }
                             background: Rectangle { implicitWidth: 6; color: "transparent" }
                         }
@@ -3231,18 +3329,19 @@ PanelWindow {
                             required property var modelData
                             readonly property bool isDanger: modelData.action === "clipboard:clear"
                             readonly property bool isHeader: modelData.isHeader === true
+                            readonly property bool isWeather: modelData.kind === "weather"
                             readonly property bool isClipImage: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
                             width: resultList.width
-                            height: isHeader ? root.headerH : root.rowH
+                            height: isHeader ? root.headerH : (isWeather ? root.weatherH : root.rowH)
                             Text {
                                 visible: isHeader
                                 anchors.left: parent.left; anchors.leftMargin: 10; anchors.bottom: parent.bottom; anchors.bottomMargin: 2
                                 text: modelData.title || ""
-                                font { family: "SF Pro Display"; pixelSize: 11; weight: Font.DemiBold }
+                                font { family: root.fontDisplay; pixelSize: 11; weight: Font.DemiBold }
                                 color: root.headerFg
                             }
                             Rectangle {
-                                visible: !isHeader
+                                visible: !isHeader && !isWeather
                                 anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4
                                 radius: 8
                                 color: {
@@ -3251,11 +3350,13 @@ PanelWindow {
                                     if (rowHover.containsMouse) return root.hoverBg;
                                     return "transparent";
                                 }
-                                Behavior on color { ColorAnimation { duration: 80 } }
+                                Behavior on color { ColorAnimation { duration: root.animFast } }
                             }
                             RowLayout {
-                                visible: !isHeader
-                                anchors.fill: parent; anchors.leftMargin: 12; anchors.rightMargin: 10; spacing: 10
+                                visible: !isHeader && !isWeather
+                                anchors.fill: parent; anchors.leftMargin: 12
+                                anchors.rightMargin: modelData.kind === "media" ? 122 : 10
+                                spacing: 10
                                 Image {
                                     visible: modelData.kind === "app"
                                     Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize; Layout.alignment: Qt.AlignVCenter
@@ -3270,7 +3371,7 @@ PanelWindow {
                                     sourceSize { width: 120; height: 88 }
                                     fillMode: Image.PreserveAspectCrop
                                     asynchronous: true; smooth: true; mipmap: true
-                                    Rectangle { anchors.fill: parent; radius: 5; color: "transparent"; border.color: Qt.rgba(1, 1, 1, 0.18); border.width: 1 }
+                                    Rectangle { anchors.fill: parent; radius: 5; color: "transparent"; border.color: root.white18; border.width: 1 }
                                 }
                                 Item {
                                     visible: modelData.kind !== "app" && !isClipImage
@@ -3282,12 +3383,27 @@ PanelWindow {
                                         color: modelData.swatch || "transparent"
                                         border.color: Qt.rgba(1, 1, 1, 0.4); border.width: 1
                                     }
+                                    Image {
+                                        id: mediaArt
+                                        anchors.fill: parent
+                                        visible: modelData.kind === "media" && status === Image.Ready
+                                        source: modelData.kind === "media" ? root.nowPlayingArt : ""
+                                        fillMode: Image.PreserveAspectCrop
+                                        sourceSize.width: 96; sourceSize.height: 96
+                                        asynchronous: true; smooth: true
+                                        Rectangle { anchors.fill: parent; radius: 5; color: "transparent"; border.color: root.white18; border.width: 1 }
+                                    }
+                                    Text {
+                                        anchors.centerIn: parent
+                                        visible: modelData.kind === "media" && !mediaArt.visible
+                                        text: "\u266A"; color: root.sFg; font.pixelSize: 18
+                                    }
                                 }
                                 ColumnLayout {
                                     Layout.fillWidth: true; spacing: 0; Layout.alignment: Qt.AlignVCenter
                                     Text {
                                         Layout.fillWidth: true; text: modelData.name || ""
-                                        font { family: "SF Pro Display"; pixelSize: 14; weight: Font.Medium }
+                                        font { family: root.fontDisplay; pixelSize: 14; weight: Font.Medium }
                                         color: isDanger ? "#FF6961" : root.sFg
                                         elide: Text.ElideRight; maximumLineCount: 1
                                         wrapMode: modelData.kind === "info" ? Text.Wrap : Text.NoWrap
@@ -3296,7 +3412,7 @@ PanelWindow {
                                         Layout.fillWidth: true
                                         visible: !!modelData.category && modelData.category.length > 0
                                         text: modelData.category || ""
-                                        font { family: "SF Pro Text"; pixelSize: 11 }
+                                        font { family: root.fontText; pixelSize: 11 }
                                         color: root.sFgDim
                                         elide: Text.ElideRight; maximumLineCount: 1
                                     }
@@ -3304,7 +3420,7 @@ PanelWindow {
                             }
                             MouseArea {
                                 id: rowHover
-                                visible: !isHeader
+                                visible: !isHeader && !isWeather
                                 anchors.fill: parent
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
@@ -3318,7 +3434,7 @@ PanelWindow {
                                 onClicked: (mouse) => {
                                     root.selectedIndex = modelData._idx
 
-                                    // Ctrl + clique → copia o caminho do arquivo
+                                    // Ctrl + click → copies the file path
                                     if (mouse.modifiers & Qt.ControlModifier) {
                                         const it = root.items[root.selectedIndex]
                                         if (it && it.kind === "file" && it.path) {
@@ -3327,9 +3443,32 @@ PanelWindow {
                                         }
                                         return
                                     }
-                                    // Shift + clique → abre a pasta | clique normal → abre o arquivo
+                                    // Shift + click → opens the folder | normal click → opens the file
                                     root.openSelected(!!(mouse.modifiers & Qt.ShiftModifier))
                                 }
+                            }
+                            // Media controls (MediaControls.qml component)
+                            MediaControls {
+                                visible: !isHeader && modelData.kind === "media"
+                                z: 2
+                                anchors.right: parent.right; anchors.rightMargin: 10
+                                anchors.verticalCenter: parent.verticalCenter
+                                fg: root.sFg
+                                playing: root.nowPlayingStatus === "Playing"
+                                onAction: (cmd) => root.mediaControl(cmd)
+                            }
+                            WeatherCard {
+                                visible: isWeather
+                                anchors.fill: parent
+                                anchors.leftMargin: 4; anchors.rightMargin: 4
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                info: isWeather ? modelData.wx : null
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                muted: root.headerFg
+                                panel: root.white06
+                                panelBorder: root.white10
+                                onOpenBrowser: root.openUrl(modelData.wx.url)
                             }
                         }
                         onCountChanged: { if (root.selectedIndex >= root.items.length) root.selectedIndex = 0 }
@@ -3361,7 +3500,7 @@ PanelWindow {
                                     if (gridHover.containsMouse) return root.hoverBg;
                                     return "transparent";
                                 }
-                                Behavior on color { ColorAnimation { duration: 80 } }
+                                Behavior on color { ColorAnimation { duration: root.animFast } }
                             }
                             RowLayout {
                                 anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
@@ -3373,7 +3512,7 @@ PanelWindow {
                                 Text {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter
                                     text: modelData.name || ""
-                                    font { family: "SF Pro Display"; pixelSize: 13 }
+                                    font { family: root.fontDisplay; pixelSize: 13 }
                                     color: root.sFg
                                     elide: Text.ElideRight; maximumLineCount: 1
                                 }
@@ -3395,7 +3534,7 @@ PanelWindow {
 
                     Text {
                         anchors.centerIn: parent; text: "No Results Found"
-                        font { family: "SF Pro Display"; pixelSize: 14 }
+                        font { family: root.fontDisplay; pixelSize: 14 }
                         color: root.sFgDim
                         visible: root.query.length > 0 && root.items.length === 0
                     }
@@ -3403,7 +3542,7 @@ PanelWindow {
             }
         }
 
-        // ---- Popup de preview (imagem, texto, markdown, PDF, vídeo, áudio)
+        // ---- Preview popup (image, text, markdown, PDF, video, audio)
         Rectangle {
             id: previewPopup
             visible: root.previewKind !== ""
@@ -3417,8 +3556,8 @@ PanelWindow {
             border.color: root.glassBorder
             border.width: 1
             clip: true
-            Behavior on width { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
-            Behavior on height { NumberAnimation { duration: 220; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: root.animSlow; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: root.animSlow; easing.type: Easing.OutCubic } }
             MouseArea { anchors.fill: parent; z: -1 }
 
             Image {
@@ -3436,10 +3575,10 @@ PanelWindow {
             Text {
                 anchors.centerIn: parent
                 visible: root.previewKind === "image" && previewImg.status === Image.Error
-                text: "Não foi possível carregar esta imagem"
+                text: "Couldn't load this image"
                 horizontalAlignment: Text.AlignHCenter
                 color: root.sFgDim
-                font { family: "SF Pro Text"; pixelSize: 12 }
+                font { family: root.fontText; pixelSize: 12 }
             }
             Flickable {
                 id: previewTextFlick
@@ -3474,7 +3613,7 @@ PanelWindow {
                     text: root.previewText
                     textFormat: Text.MarkdownText
                     color: root.sFg
-                    font { family: "SF Pro Text"; pixelSize: 15 }
+                    font { family: root.fontText; pixelSize: 15 }
                     wrapMode: Text.Wrap
                 }
             }
@@ -3551,10 +3690,10 @@ PanelWindow {
                     anchors.bottom: parent.bottom
                     anchors.horizontalCenter: parent.horizontalCenter
                     width: 100; height: 30; radius: 15
-                    color: audioPlayPopupMA.containsMouse ? Qt.rgba(1, 1, 1, 0.25) : Qt.rgba(1, 1, 1, 0.15)
+                    color: audioPlayPopupMA.containsMouse ? root.white25 : Qt.rgba(1, 1, 1, 0.15)
                     Row {
                         anchors.centerIn: parent; spacing: 6
-                        Text { text: root.previewAudioPlaying ? "\u23f8" : "\u25b6"; color: "#ffffff"; font.pixelSize: 13 }
+                        MediaGlyph { kind: root.previewAudioPlaying ? "pause" : "play"; fg: "#ffffff" }
                         Text { text: root.previewAudioPlaying ? "Pause" : "Play"; color: "#ffffff"; font.pixelSize: 11 }
                     }
                     MouseArea {
@@ -3573,7 +3712,7 @@ PanelWindow {
             }
         }
 
-        // ---- Popup da IA (Hermes Agent)
+        // ---- AI popup (Hermes Agent)
         Rectangle {
             id: aiPopup
             visible: root.aiText.length > 0 && root.previewKind === ""
@@ -3596,8 +3735,8 @@ PanelWindow {
             border.width: 1
             clip: true
 
-            Behavior on height { NumberAnimation { duration: 180; easing.type: Easing.OutCubic } }
-            Behavior on width { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
+            Behavior on height { NumberAnimation { duration: root.animSlow; easing.type: Easing.OutCubic } }
+            Behavior on width { NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
 
             MouseArea { anchors.fill: parent; z: -1 }
 
@@ -3609,7 +3748,7 @@ PanelWindow {
                 anchors.margins: 14
                 spacing: 8
 
-                // Cabeçalho
+                // Header
                 RowLayout {
                     Layout.fillWidth: true
                     spacing: 8
@@ -3628,20 +3767,20 @@ PanelWindow {
                                 const turns = Math.floor(root.aiHistory.length / 2);
                                 return turns > 0 ? "Hermes Agent · " + turns + " msg" : "Hermes Agent"
                             }
-                            if (root.aiErrored) return "Hermes Agent · erro"
+                            if (root.aiErrored) return "Hermes Agent · error"
                             return "Hermes Agent" + ".".repeat((_dotsTimer.tick % 3) + 1)
                         }
                         color: root.aiErrored ? "#FF6961" : root.sFg
-                        font { family: "SF Pro Display"; pixelSize: 13; weight: Font.DemiBold }
+                        font { family: root.fontDisplay; pixelSize: 13; weight: Font.DemiBold }
                         elide: Text.ElideRight
                     }
 
                     Rectangle {
                         width: 24; height: 24; radius: 6
                         visible: !root.aiLoading && root.aiText.length > 0 && !root.aiErrored
-                        color: copyMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                        color: copyMA.containsMouse ? root.white14 : "transparent"
                         border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                        border.color: root.white12
                         Text { anchors.centerIn: parent; text: "\u29c9"; color: root.sFg; font.pixelSize: 13 }
                         MouseArea {
                             id: copyMA
@@ -3654,16 +3793,16 @@ PanelWindow {
 
                     Rectangle {
                         width: 24; height: 24; radius: 6
-                        color: newConvMA.containsMouse ? Qt.rgba(1, 1, 1, 0.14) : "transparent"
+                        color: newConvMA.containsMouse ? root.white14 : "transparent"
                         border.width: 1
-                        border.color: Qt.rgba(1, 1, 1, 0.12)
+                        border.color: root.white12
                         visible: root.aiHistory.length > 0
                         Canvas {
                             anchors.centerIn: parent
                             width: 12; height: 12
                             onPaint: {
                                 var ctx = getContext("2d"); ctx.reset()
-                                ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.85); ctx.lineWidth = 1.4
+                                ctx.strokeStyle = root.white85; ctx.lineWidth = 1.4
                                 ctx.lineCap = "round"
                                 ctx.beginPath()
                                 ctx.moveTo(2, 2); ctx.lineTo(10, 10)
@@ -3687,7 +3826,7 @@ PanelWindow {
                     color: root.divider
                 }
 
-                // Mensagens
+                // Messages
                 ScrollView {
                     id: aiScroll
                     Layout.fillWidth: true
@@ -3705,7 +3844,7 @@ PanelWindow {
                         policy: aiScroll.contentHeight > aiScroll.height ? ScrollBar.AlwaysOn : ScrollBar.AlwaysOff
                         contentItem: Rectangle {
                             implicitWidth: 6; radius: 3
-                            color: Qt.rgba(1, 1, 1, 0.35)
+                            color: root.white35
                         }
                         background: Rectangle { implicitWidth: 6; color: "transparent" }
                     }
@@ -3732,8 +3871,8 @@ PanelWindow {
                                 }
                                 SequentialAnimation {
                                     id: enterAnim
-                                    NumberAnimation { target: bubbleItem; property: "anim"; from: 0; to: 1.08; duration: 200; easing.type: Easing.OutCubic }
-                                    NumberAnimation { target: bubbleItem; property: "anim"; to: 1.0; duration: 140; easing.type: Easing.OutBack }
+                                    NumberAnimation { target: bubbleItem; property: "anim"; from: 0; to: 1.08; duration: root.animSlow; easing.type: Easing.OutCubic }
+                                    NumberAnimation { target: bubbleItem; property: "anim"; to: 1.0; duration: root.animMed; easing.type: Easing.OutBack }
                                 }
                                 SiriOrb {
                                     id: avatar
@@ -3765,11 +3904,11 @@ PanelWindow {
                                     implicitHeight: bubbleText.implicitHeight + 20
                                     gradient: Gradient {
                                         orientation: Gradient.Diagonal
-                                        GradientStop { position: 0.0; color: isUser ? Qt.rgba(0.20, 0.55, 1.0, 0.95) : Qt.rgba(1, 1, 1, 0.12) }
-                                        GradientStop { position: 1.0; color: isUser ? Qt.rgba(0.10, 0.40, 0.95, 0.95) : Qt.rgba(1, 1, 1, 0.06) }
+                                        GradientStop { position: 0.0; color: isUser ? Qt.rgba(0.20, 0.55, 1.0, 0.95) : root.white12 }
+                                        GradientStop { position: 1.0; color: isUser ? Qt.rgba(0.10, 0.40, 0.95, 0.95) : root.white06 }
                                     }
                                     border.width: 1
-                                    border.color: isUser ? Qt.rgba(0.40, 0.70, 1.0, 0.35) : Qt.rgba(1, 1, 1, 0.14)
+                                    border.color: isUser ? Qt.rgba(0.40, 0.70, 1.0, 0.35) : root.white14
                                     Text {
                                         id: bubbleText
                                         anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
@@ -3777,7 +3916,7 @@ PanelWindow {
                                         text: modelData.label || modelData.content
                                         textFormat: isUser ? Text.PlainText : Text.MarkdownText
                                         color: "#ffffff"
-                                        font { family: "SF Pro Text"; pixelSize: 14 }
+                                        font { family: root.fontText; pixelSize: 14 }
                                         wrapMode: Text.Wrap
                                     }
                                 }
@@ -3786,8 +3925,8 @@ PanelWindow {
                                     anchors.right: isUser ? bubble.right : undefined
                                     anchors.left: isUser ? undefined : bubble.left
                                     spacing: 4
-                                    Text { text: bubbleItem.ts; color: Qt.rgba(1, 1, 1, 0.28); font { family: "SF Pro Text"; pixelSize: 9 } }
-                                    Text { visible: isUser; text: "✓✓"; color: Qt.rgba(0.4, 0.75, 1.0, 0.7); font { family: "SF Pro Text"; pixelSize: 9; weight: Font.Bold } }
+                                    Text { text: bubbleItem.ts; color: root.white28; font { family: root.fontText; pixelSize: 9 } }
+                                    Text { visible: isUser; text: "✓✓"; color: Qt.rgba(0.4, 0.75, 1.0, 0.7); font { family: root.fontText; pixelSize: 9; weight: Font.Bold } }
                                 }
                             }
                         }
@@ -3804,8 +3943,8 @@ PanelWindow {
                             Row {
                                 anchors.left: parent.left; anchors.verticalCenter: parent.verticalCenter
                                 spacing: 6
-                                Text { text: "Hermes está digitando"; color: root.sFgDim; font { family: "SF Pro Text"; pixelSize: 12; italic: true } }
-                                Text { text: ".".repeat((_dotsTimer.tick % 3) + 1); color: root.sFgDim; font { family: "SF Pro Text"; pixelSize: 12; italic: true } }
+                                Text { text: "Hermes is typing"; color: root.sFgDim; font { family: root.fontText; pixelSize: 12; italic: true } }
+                                Text { text: ".".repeat((_dotsTimer.tick % 3) + 1); color: root.sFgDim; font { family: root.fontText; pixelSize: 12; italic: true } }
                             }
                         }
 
@@ -3823,21 +3962,21 @@ PanelWindow {
                             id: scrollAnim
                             target: aiScroll.contentItem
                             property: "contentY"
-                            duration: 260
+                            duration: root.animSlow
                             easing.type: Easing.OutCubic
                         }
                     }
                 }
 
-                // Entrada de chat
+                // Chat input
                 Rectangle {
                     Layout.fillWidth: true
                     Layout.preferredHeight: 40
                     radius: 10
-                    color: Qt.rgba(1, 1, 1, 0.06)
+                    color: root.white06
                     border.width: 1
-                    border.color: chatInput.activeFocus ? root.accent : Qt.rgba(1, 1, 1, 0.12)
-                    Behavior on border.color { ColorAnimation { duration: 120 } }
+                    border.color: chatInput.activeFocus ? root.accent : root.white12
+                    Behavior on border.color { ColorAnimation { duration: root.animMed } }
                     RowLayout {
                         anchors.fill: parent
                         anchors.leftMargin: 12; anchors.rightMargin: 6
@@ -3847,12 +3986,12 @@ PanelWindow {
                             Layout.fillWidth: true
                             Layout.alignment: Qt.AlignVCenter
                             color: root.sFg
-                            font { family: "SF Pro Text"; pixelSize: 14 }
+                            font { family: root.fontText; pixelSize: 14 }
                             selectByMouse: true; clip: true
                             enabled: !root.aiLoading
                             Text {
                                 anchors.fill: parent
-                                text: root.aiLoading ? "Aguarde…" : "Continuar a conversa…"
+                                text: root.aiLoading ? "Please wait…" : "Continue the conversation…"
                                 color: root.placeholderFg
                                 font: chatInput.font
                                 verticalAlignment: Text.AlignVCenter
@@ -3880,7 +4019,7 @@ PanelWindow {
                                 width: 14; height: 14
                                 onPaint: {
                                     var ctx = getContext("2d"); ctx.reset()
-                                    ctx.strokeStyle = Qt.rgba(1, 1, 1, 0.9); ctx.lineWidth = 1.6
+                                    ctx.strokeStyle = root.white90; ctx.lineWidth = 1.6
                                     ctx.lineCap = "round"; ctx.lineJoin = "round"
                                     ctx.beginPath()
                                     ctx.moveTo(2, 7); ctx.lineTo(12, 7)
@@ -3903,9 +4042,9 @@ PanelWindow {
                 Text {
                     Layout.fillWidth: true
                     visible: !root.aiLoading && root.aiHistory.length === 0
-                    text: "Enter para enviar · o histórico é limpo ao fechar o Spotlight"
+                    text: "Enter to send · history is cleared when Spotlight closes"
                     color: root.headerFg
-                    font { family: "SF Pro Text"; pixelSize: 10 }
+                    font { family: root.fontText; pixelSize: 10 }
                 }
             }
         }
@@ -3935,7 +4074,7 @@ PanelWindow {
             if (!root._capturing) return;
             root._capturing = false;
             root._screenQuestion = "";
-            root.aiFail("❌ A captura da tela demorou demais");
+            root.aiFail("❌ The screen capture took too long");
         }
     }
 
@@ -3956,13 +4095,6 @@ PanelWindow {
     }
 
     Timer {
-        id: _mprisTimer
-        interval: 2000; running: root._shown; repeat: true
-        triggeredOnStart: true
-        onTriggered: _mprisPoll.running = true
-    }
-
-    Timer {
         id: _statsTimer
         interval: 3000; repeat: true
         running: root._shown && root.showSysStats
@@ -3971,37 +4103,15 @@ PanelWindow {
     }
 
     // =====================================================================
-    //  PROCESSOS
+    //  PROCESSES
     // =====================================================================
-    Process { id: _mediaCmd; running: false }
     Process { id: _saveUsage; running: false }
-
-    Process {
-        id: _mprisPoll; running: false
-        command: ["bash", "-c", "playerctl metadata --format '{{status}}|{{artist}} - {{title}}' 2>/dev/null"]
-        stdout: StdioCollector {
-            onStreamFinished: {
-                const t = text.trim();
-                let newText = "", newStatus = "";
-                if (t) {
-                    const parts = t.split("|");
-                    newStatus = parts[0] || "";
-                    newText = parts[1] || "";
-                }
-                if (newText !== root.nowPlayingText || newStatus !== root.nowPlayingStatus) {
-                    root.nowPlayingText = newText;
-                    root.nowPlayingStatus = newStatus;
-                    root.rebuildIfShown();
-                }
-            }
-        }
-    }
 
     Process {
         id: terminalProcess
         running: false
         property string commandText: ""
-        command: [root.terminal, "--", "bash", "-lc", commandText + "; echo; read -n 1 -s -r -p 'Pressione qualquer tecla para fechar...'"]
+        command: [root.terminal, "--", "bash", "-lc", commandText + "; echo; read -n 1 -s -r -p 'Press any key to close...'"]
     }
 
     Process {
@@ -4252,7 +4362,7 @@ PanelWindow {
                 const id = parseInt(lines.shift());
                 if (id !== root._devReq) return;
                 let out = lines.join("\n").trim();
-                if (!out) out = root._devLabel.indexOf("decodificado") >= 0 ? "Base64 inválido" : "(vazio)";
+                if (!out) out = root._devLabel.indexOf("decoded") >= 0 ? "Invalid Base64" : "(empty)";
                 root.devResult = { q: root._devQ, text: out, label: root._devLabel };
                 root.rebuildIfShown();
             }
@@ -4270,7 +4380,7 @@ PanelWindow {
             if [ "$dt" -gt 0 ]; then cpu=$((100*(dt-di)/dt)); else cpu=0; fi
             ram=$(awk '/MemTotal/{t=$2} /MemAvailable/{a=$2} END{printf "%.1f/%.1f GB",(t-a)/1048576,t/1048576}' /proc/meminfo)
             disk=$(df --output=pcent / | tail -1 | tr -d ' ')
-            echo "CPU $cpu% \u00b7 RAM $ram \u00b7 Disco $disk"
+            echo "CPU $cpu% \u00b7 RAM $ram \u00b7 Disk $disk"
         `]
         stdout: StdioCollector {
             onStreamFinished: {

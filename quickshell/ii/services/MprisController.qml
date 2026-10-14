@@ -71,10 +71,14 @@ Singleton {
     }
     
     function isChromiumMprisBridge(name) {
-        return /\.chromium\.instance\d+_t\d+/.test(name ?? '');
-    }
-    
-    function isBuiltinFirefoxPlayer(name) {
+            return /\.chromium\.instance\d+_t\d+/.test(name ?? '');
+        }
+
+        function isBraveMprisBridge(name) {
+            return /\.brave\.instance\d+(_t\d+)?/.test(name ?? '');
+        }
+
+        function isBuiltinFirefoxPlayer(name) {
         name = name ?? '';
         return name.startsWith('org.mpris.MediaPlayer2.firefox') && !isFirefoxMprisBridge(name);
     }
@@ -82,8 +86,10 @@ Singleton {
     function isBuiltinChromiumPlayer(name) {
         name = name ?? '';
         return (name.startsWith('org.mpris.MediaPlayer2.chromium')
-            || name.startsWith('org.mpris.MediaPlayer2.chrome'))
-            && !isChromiumMprisBridge(name);
+            || name.startsWith('org.mpris.MediaPlayer2.chrome')
+            || name.startsWith('org.mpris.MediaPlayer2.brave'))
+            && !isChromiumMprisBridge(name)
+            && !isBraveMprisBridge(name);
     }
     
     function isBuiltinBrowserPlayer(name) {
@@ -102,7 +108,7 @@ Singleton {
     // Debounced: players arrive and leave in bursts, one resolve per burst is enough
     Timer {
         id: coveredBuiltinsRefresh
-        interval: 150
+        interval: 500
         onTriggered: {
             const names = Mpris.players.values.map(p => p.dbusName ?? "").filter(n => n.length > 0);
             coveredBuiltinsProc.running = false;
@@ -138,8 +144,7 @@ Singleton {
     
     // Debounced player list update - runs every 200ms instead of every binding eval
     Timer {
-        id: playersUpdateTimer
-        interval: 200
+        interval: 500
         running: true
         repeat: true
         onTriggered: {

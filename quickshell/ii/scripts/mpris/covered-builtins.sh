@@ -23,13 +23,13 @@ declare -A bridge_parents=()
 builtins=()
 for name in "$@"; do
     case "$name" in
-        *.firefox.instance*_t*|*.chromium.instance*_t*)
+        *.firefox.instance*_t*|*.chromium.instance*_t*|*.brave.instance*_t*)
             pid=$(pid_of "$name") || continue
             [ -n "$pid" ] || continue
             pp=$(ppid_of "$pid")
             [ -n "$pp" ] && bridge_parents[$pp]=1
             ;;
-        *.firefox.instance*|*.chromium.instance*|*.chrome.instance*)
+        *.firefox.instance*|*.chromium.instance*|*.chrome.instance*|*.brave.instance*)
             builtins+=("$name")
             ;;
     esac
