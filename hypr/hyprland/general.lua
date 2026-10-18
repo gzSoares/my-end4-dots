@@ -30,9 +30,10 @@ local function getCachedNumlockState()
         if f then
             local content = f:read("*a")
             f:close()
-            if content ~= cachedNumlockState then
-                cachedNumlockState = content
-                return content == "1"
+            local trimmed = content:gsub("%s+", "")
+            if trimmed ~= cachedNumlockState then
+                cachedNumlockState = trimmed
+                return trimmed == "1"
             end
             return cachedNumlockState == "1"
         end
@@ -188,7 +189,7 @@ hl.config({
 
         blur = {
             enabled = true,
-            xray = true,
+            xray = false,
             special = false,
             new_optimizations = true,
             size = 10,
@@ -207,12 +208,13 @@ hl.config({
             range = 20,
             offset = {0, 2},
             render_power = 4,
-            color = "rgba(00000024)"
+            color = "rgba(00000021)"
         },
         -- Dim
         dim_inactive = true,
-        dim_strength = 0.05,
-        dim_special = 0.2
+        dim_strength = 0.15,
+        dim_special = 0.2,
+        inactive_opacity = 1
     },
     animations = {
         enabled = true

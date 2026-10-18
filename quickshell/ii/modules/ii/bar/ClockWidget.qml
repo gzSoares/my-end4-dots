@@ -1,6 +1,7 @@
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
+import qs
 import QtQuick
 import QtQuick.Layouts
 
@@ -10,6 +11,8 @@ Item {
     property bool showDate: Config.options.bar.verbose
     implicitWidth: rowLayout.implicitWidth
     implicitHeight: Appearance.sizes.baseBarHeight
+
+    readonly property Item popupAnchorItem: root
 
     RowLayout {
         id: rowLayout
@@ -45,6 +48,25 @@ Item {
 
         ClockWidgetPopup {
             hoverTarget: mouseArea
+        }
+    }
+
+    DropArea {
+        anchors.fill: parent
+        z: 10
+
+        onEntered: (drag) => {
+            if (!drag.hasUrls) return;
+            if (LocalSend.state === LocalSend.stateSending) return;
+            GlobalStates.mediaWidgetItem = root;
+            GlobalStates.mediaTransferActive = true;
+            GlobalStates.mediaControlsOpen = true;
+        }
+        onDropped: (drop) => {
+            if (LocalSend.state === LocalSend.stateSending) return;
+            const urls = (drop.urls ?? []).map(u => String(u));
+            if (urls.length > 0) GlobalStates.mediaTransferUrls = urls;
+            drop.accept(Qt.CopyAction);
         }
     }
 }

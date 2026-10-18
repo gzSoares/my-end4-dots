@@ -25,7 +25,8 @@ local function chosenApp(role, fallback)
 end
 terminal = chosenApp("terminal", "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'kitty -1' 'foot' 'alacritty' 'wezterm' 'konsole' 'kgx' 'uxterm' 'xterm'")
 fileManager = chosenApp("fileManager", "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'nautilus --new-window' 'dolphin' 'nemo' 'thunar' 'kitty -1 fish -c yazi'")
-browser = "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'brave --enable-features=AcceleratedVideoEncoder'"
+-- browser = "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'brave --enable-features=AcceleratedVideoEncoder'"
+browser = "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'vivaldi --enable-features=AcceleratedVideoEncoder'"
 codeEditor = chosenApp("codeEditor", "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'windsurf' 'antigravity' 'code' 'codium' 'cursor' 'zed' 'zedit' 'zeditor' 'kate' 'gnome-text-editor' 'emacs' 'command -v nvim && kitty -1 nvim' 'command -v micro && kitty -1 micro'")
 officeSoftware = "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'wps' 'onlyoffice-desktopeditors' 'libreoffice'"
 textEditor = chosenApp("textEditor", "~/.config/hypr/hyprland/scripts/launch_first_available.sh 'kate' 'gnome-text-editor' 'emacs'")

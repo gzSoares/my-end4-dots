@@ -140,6 +140,49 @@ ContentPage {
                 Config.options.networking.userAgent = text;
             }
         }
+
+        MaterialTextArea {
+            Layout.fillWidth: true
+            placeholderText: Translation.tr("Primary DNS (e.g. 1.1.1.1)")
+            text: Config.options.networking.dnsPrimary
+            wrapMode: TextEdit.Wrap
+            onTextChanged: {
+                Config.options.networking.dnsPrimary = text;
+            }
+        }
+
+        MaterialTextArea {
+            Layout.fillWidth: true
+            placeholderText: Translation.tr("Secondary DNS (e.g. 9.9.9.9)")
+            text: Config.options.networking.dnsSecondary
+            wrapMode: TextEdit.Wrap
+            onTextChanged: {
+                Config.options.networking.dnsSecondary = text;
+            }
+        }
+
+        RippleButtonWithIcon {
+            Layout.fillWidth: true
+            buttonRadius: Appearance.rounding.small
+            materialIcon: "dns"
+            mainText: Translation.tr("Apply DNS to system")
+            onClicked: {
+                const primary = Config.options.networking.dnsPrimary.trim();
+                const secondary = Config.options.networking.dnsSecondary.trim();
+                const dns = [primary, secondary].filter(x => x).join(" ");
+                if (!dns) {
+                    return;
+                }
+                const connections = [
+                    "Wired connection 1",
+                    "Advanced_5G"
+                ];
+                for (const name of connections) {
+                    const cmd = `nmcli con mod "${name}" ipv4.dns "${dns}" && nmcli con mod "${name}" ipv4.ignore-auto-dns yes && nmcli con up "${name}"`;
+                    Quickshell.execDetached(["bash", "-c", cmd]);
+                }
+            }
+        }
     }
     /*
     ContentSection {
