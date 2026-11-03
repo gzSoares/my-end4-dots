@@ -18,6 +18,56 @@ Item { // Notification item area
     property real padding: onlyNotification ? 0 : 8
     property real summaryElideRatio: 0.85
 
+    // Try to find window for this app's notifications
+    property var _appWindow: {
+        const appName = root.notificationObject?.appName || "";
+        if (!appName) return null;
+        
+        // 1. Direct class match (native apps like Telegram Desktop)
+        for (const w of HyprlandData.windowList) {
+            if (w.class?.toLowerCase().includes(appName.toLowerCase()) ||
+                w.initialClass?.toLowerCase().includes(appName.toLowerCase())) {
+                return w;
+            }
+        }
+        
+        // 2. Browser tabs for web apps (WhatsApp Web, etc.)
+        const webAppMap = {
+            "web.whatsapp.com": ["WhatsApp", "web.whatsapp.com"],
+            "web.telegram.org": ["Telegram Web", "web.telegram.org"],
+            "discord.com": ["Discord", "discord.com"],
+            "messages.google.com": ["Messages", "messages.google.com"],
+        };
+        
+        const titleKeywords = webAppMap[appName.toLowerCase()];
+        if (titleKeywords) {
+            const browserClasses = ["firefox", "firefoxdeveloperedition", "zen-browser", "chrome", "chromium", "brave-browser", "vivaldi", "opera", "microsoft-edge"];
+            for (const w of HyprlandData.windowList) {
+                const wClass = w.class?.toLowerCase() || "";
+                const wTitle = w.title?.toLowerCase() || "";
+                if (browserClasses.some(bc => wClass.includes(bc))) {
+                    if (titleKeywords.some(kw => wTitle.includes(kw.toLowerCase()))) {
+                        return w;
+                    }
+                }
+            }
+        }
+        
+        return null;
+    }
+    
+    // Fallback URL to open when no window found but we know the web app
+    property string _webAppUrl: {
+        const appName = root.notificationObject?.appName || "";
+        const webAppUrls = {
+            "web.whatsapp.com": "https://web.whatsapp.com",
+            "web.telegram.org": "https://web.telegram.org",
+            "discord.com": "https://discord.com/app",
+            "messages.google.com": "https://messages.google.com/web/conversations",
+        };
+        return webAppUrls[appName.toLowerCase()] || "";
+    }
+
     property real dragConfirmThreshold: 70 // Drag further to discard notification
     // Which way the row leaves when no swipe picked one: -1 left, otherwise right.
     property int dismissDirection: 1
@@ -187,7 +237,7 @@ Item { // Notification item area
             ColumnLayout { // Expanded content
                 id: expandedContentColumn
                 Layout.fillWidth: true
-                opacity: root.expanded ? 1 : 0
+                opacity: root.expanded && (root.notificationObject.body || root.notificationObject.actions.length > 0) ? 1 : 0
                 visible: opacity > 0
 
                 StyledText { // Notification body (expanded)
@@ -255,10 +305,58 @@ Item { // Notification item area
                             width: Math.max(implicitWidth, actionsFlickable.width)
 
                             NotificationActionButton {
+                                visible: root._appWindow !== null
+                                Layout.fillWidth: true
+                                buttonText: Translation.tr("Ativar")
+                                urgency: notificationObject.urgency
+                                implicitWidth: (notificationObject.actions.length == 0 && root._appWindow === null) ? ((actionsFlickable.width - actionRowLayout.spacing) / 2) : 
+                                    (contentItem.implicitWidth + leftPadding + rightPadding)
+
+                                onClicked: {
+                                    const w = root._appWindow;
+                                    if (w && w.address) {
+                                        Hyprland.dispatch("focuswindow", "address:" + w.address);
+                                    }
+                                    root.destroyWithAnimation()
+                                }
+
+                                contentItem: MaterialSymbol {
+                                    iconSize: Appearance.font.pixelSize.larger
+                                    horizontalAlignment: Text.AlignHCenter
+                                    color: (notificationObject.urgency == NotificationUrgency.Critical) ? 
+                                        Appearance.m3colors.m3onSurfaceVariant : Appearance.m3colors.m3onSurface
+                                    text: "open_in_new"
+                                }
+                            }
+
+                            // Fallback: open web app URL when no window found but we know the app
+                            NotificationActionButton {
+                                visible: root._appWindow === null && root._webAppUrl !== ""
+                                Layout.fillWidth: true
+                                buttonText: Translation.tr("Abrir no navegador")
+                                urgency: notificationObject.urgency
+                                implicitWidth: (notificationObject.actions.length == 0 && root._appWindow === null) ? ((actionsFlickable.width - actionRowLayout.spacing) / 2) : 
+                                    (contentItem.implicitWidth + leftPadding + rightPadding)
+
+                                onClicked: {
+                                    Qt.openUrlExternally(root._webAppUrl)
+                                    root.destroyWithAnimation()
+                                }
+
+                                contentItem: MaterialSymbol {
+                                    iconSize: Appearance.font.pixelSize.larger
+                                    horizontalAlignment: Text.AlignHCenter
+                                    color: (notificationObject.urgency == NotificationUrgency.Critical) ? 
+                                        Appearance.m3colors.m3onSurfaceVariant : Appearance.m3colors.m3onSurface
+                                    text: "open_in_browser"
+                                }
+                            }
+
+                            NotificationActionButton {
                                 Layout.fillWidth: true
                                 buttonText: Translation.tr("Close")
                                 urgency: notificationObject.urgency
-                                implicitWidth: (notificationObject.actions.length == 0) ? ((actionsFlickable.width - actionRowLayout.spacing) / 2) : 
+                                implicitWidth: (notificationObject.actions.length == 0 && root._appWindow === null) ? ((actionsFlickable.width - actionRowLayout.spacing) / 2) : 
                                     (contentItem.implicitWidth + leftPadding + rightPadding)
 
                                 onClicked: {

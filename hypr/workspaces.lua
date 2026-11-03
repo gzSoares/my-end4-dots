@@ -1,6 +1,3 @@
--- Per-workspace layout overrides. Toggled by Settings → Layouts panel.
--- Each line: hl.workspace_rule({ workspace = "N", layout = "NAME" })
-
 hl.workspace_rule({ workspace = "1", layout = "dwindle" })
 hl.workspace_rule({ workspace = "2", layout = "dwindle" })
 hl.workspace_rule({ workspace = "3", layout = "dwindle" })

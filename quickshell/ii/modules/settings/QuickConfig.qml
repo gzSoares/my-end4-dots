@@ -8,25 +8,33 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import qs.modules.settings.services
 
 ContentPage {
+    id: page
     forceWidth: true
+    // As wide as the color styles less the one Auto stands in for, when that
+    // is Tonal Spot. They are spread to meet both edges, which also fits the
+    // wider eight left when Auto picks Neutral, and the choices on the right
+    // sit against the right edge, so every row ends on the same line. A
+    // narrower window shrinks it rather than cutting it off.
+    baseWidth: Math.max(600, Math.min(page.width - 40, 695))
+    // Everything here fits the window at its usual size, so the longer pages'
+    // extra room at the bottom would only let it scroll into empty space.
+    bottomContentPadding: 20
 
     Process {
         id: randomWallProc
         property string status: ""
-        property string scriptPath: `${Directories.scriptPath}/colors/random/random_konachan_wall.sh`
-        command: ["bash", "-c", FileUtils.trimFileProtocol(randomWallProc.scriptPath)]
+        property string scriptPath: `${Directories.scriptPath}/colors/random/set_default_wall.sh`
+        // In a session of its own and writing nowhere, so it outlives this page as
+        // applyTheme's run below does; --wait keeps the buttons busy meanwhile.
+        command: ["setsid", "--fork", "--wait", "bash", "-c", '"$0" > /dev/null 2>&1', FileUtils.trimFileProtocol(randomWallProc.scriptPath)]
         stdout: SplitParser {
             onRead: data => {
                 randomWallProc.status = data.trim();
             }
         }
-    }
-
-    Process {
-        id: themeApplyProc
-        onExited: MaterialThemeLoader.reapplyTheme()
     }
 
     // Picking a folder turns the slideshow on and shows one straight away, so
@@ -52,37 +60,92 @@ ContentPage {
 
     Process { id: slideshowNextProc }
 
-    function applyTheme(args) {
-        if (themeApplyProc.running)
-            return;
+    // Auto settles on one of the other color styles for each wallpaper, and
+    // that one is left off the row: picking it would look exactly like Auto.
+    // switchwall.sh keeps the answer per picture, keyed on its path, mtime and
+    // size; a picture it has not measured yet is measured the same way here.
+    property string autoScheme: "scheme-tonal-spot"
+    readonly property string autoSchemeWallpaper: FileUtils.trimFileProtocol(Config.options.background.wallpaperPath)
+    Component.onCompleted: autoSchemeProc.running = true
 
-        themeApplyProc.command = ["bash", "-c", `${Directories.wallpaperSwitchScriptPath} ${args}`];
-        themeApplyProc.running = true;
+    Process {
+        id: autoSchemeProc
+        // Restarted from the command rather than the wallpaper, so the new run
+        // is sure to measure the new picture.
+        onCommandChanged: {
+            running = false;
+            running = true;
+        }
+        // Without a picture, or an answer, switchwall settles on Tonal Spot.
+        command: ["bash", "-c", `
+            wall="$1"; cache="$2"; detect="$3"
+            [ -f "$wall" ] || { echo scheme-tonal-spot; exit 0; }
+            key="$wall:$(stat -c '%Y:%s' "$wall")"
+            # switchwall keeps a video's answer under a key of its own.
+            case "\${wall,,}" in *.mp4|*.webm|*.mkv|*.avi|*.mov|*.m4v|*.ogv) key="$key|frame" ;; esac
+            scheme="$(awk -F '\\t' -v k="$key" '$1 == k { print $2; exit }' "$cache" 2>/dev/null)"
+            venv="\${ILLOGICAL_IMPULSE_VIRTUAL_ENV/#\\~/$HOME}"
+            [ -n "$scheme" ] || scheme="$("$venv/bin/python" "$detect" "$wall" 2>/dev/null)"
+            printf '%s\\n' "\${scheme:-scheme-tonal-spot}"
+        `, "auto-scheme", page.autoSchemeWallpaper,
+            FileUtils.trimFileProtocol(`${Directories.state}/user/generated/scheme-for-image.cache`),
+            `${FileUtils.trimFileProtocol(Directories.scriptPath)}/colors/scheme_for_image.py`]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const scheme = text.trim();
+                if (scheme.startsWith("scheme-"))
+                    page.autoScheme = scheme;
+            }
+        }
+    }
+
+    // Started detached: this page is rebuilt as soon as the new colors land,
+    // and a run it owned would be killed along with it, before the steps that
+    // follow the colors (terminal colors, the login background, the portal).
+    // The new colors reach this page through MaterialThemeLoader's file watch.
+    //
+    // Runs wait their turn, since two at once race each other to the same
+    // files and the slower one wins. A mode pick is kept until a run takes it,
+    // so a Light click cannot be lost behind a palette pick queued after it.
+    // The lock stays with the wrapper: whatever switchwall leaves running
+    // must not hold it.
+    //
+    // Each click takes a ticket, and a run that gets its turn only goes ahead
+    // if no click came after it: switchwall reads the config as it starts, so
+    // the newest waiting run carries every pick before it, and clicking
+    // through the styles costs one regeneration rather than one each.
+    function applyTheme(mode) {
+        Quickshell.execDetached(["bash", "-c",
+            'd="${XDG_RUNTIME_DIR:-/tmp}/quickshell-ii-theme"; mkdir -p "$d" || exit 1;'
+            + ' if [ -n "$1" ]; then printf "%s\\n" "$1" > "$d/mode"; fi;'
+            + ' exec 8>"$d/ticket.lock"; flock 8 || exit 1;'
+            + ' t=$(( $(cat "$d/ticket" 2>/dev/null || echo 0) + 1 )); printf "%s" "$t" > "$d/ticket"; exec 8>&-;'
+            + ' exec 9>"$d/lock"; flock 9 || exit 1;'
+            + ' [ "$(cat "$d/ticket" 2>/dev/null)" = "$t" ] || exit 0;'
+            + ' m=""; if [ -e "$d/mode" ]; then m=$(cat "$d/mode"); rm -f "$d/mode"; fi;'
+            + ' "$0" --noswitch ${m:+--mode "$m"} 9>&-',
+            Directories.wallpaperSwitchScriptPath, mode ?? ""]);
     }
 
     component SmallLightDarkPreferenceButton: RippleButton {
         id: smallLightDarkPreferenceButton
         required property bool dark
         property color colText: toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
-        padding: 8
+        padding: 5
         Layout.fillWidth: true
-        Layout.minimumHeight: 64
-        Layout.preferredHeight: 64
         toggled: Appearance.m3colors.darkmode === dark
         colBackground: Appearance.colors.colLayer2
         onClicked: {
-            applyTheme(`--mode ${dark ? "dark" : "light"} --noswitch`);
+            applyTheme(dark ? "dark" : "light");
         }
         contentItem: Item {
-            implicitWidth: parent.implicitWidth
-            implicitHeight: parent.implicitHeight
             anchors.centerIn: parent
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 4
+                spacing: 0
                 MaterialSymbol {
                     Layout.alignment: Qt.AlignHCenter
-                    iconSize: 28
+                    iconSize: 30
                     text: dark ? "dark_mode" : "light_mode"
                     color: smallLightDarkPreferenceButton.colText
                 }
@@ -91,7 +154,6 @@ ContentPage {
                     text: dark ? Translation.tr("Dark") : Translation.tr("Light")
                     font.pixelSize: Appearance.font.pixelSize.smaller
                     color: smallLightDarkPreferenceButton.colText
-                    elide: Text.ElideRight
                 }
             }
         }
@@ -133,8 +195,8 @@ ContentPage {
                     layer.enabled: true
                     layer.effect: OpacityMask {
                         maskSource: Rectangle {
-                            width: 360
-                            height: 200
+                            width: wallpaperPreviewImage.width
+                            height: wallpaperPreviewImage.height
                             radius: Appearance.rounding.normal
                         }
                     }
@@ -200,8 +262,8 @@ ContentPage {
                     layer.enabled: true
                     layer.effect: OpacityMask {
                         maskSource: Rectangle {
-                            width: 360
-                            height: 200
+                            width: videoContainer.width
+                            height: videoContainer.height
                             radius: Appearance.rounding.normal
                         }
                     }
@@ -213,6 +275,7 @@ ContentPage {
                     enabled: !randomWallProc.running
                     Layout.fillWidth: true
                     buttonRadius: Appearance.rounding.small
+                    centerContent: true
                     materialIcon: "wallpaper"
                     mainText: randomWallProc.running ? Translation.tr("Applying...") : Translation.tr("Default Wallpaper")
                     onClicked: {
@@ -222,21 +285,6 @@ ContentPage {
 
                     StyledToolTip {
                         text: Translation.tr("Reset to the default theme wallpaper")
-                    }
-                }
-                RippleButtonWithIcon {
-                    enabled: !randomWallProc.running
-                    visible: Config.options.policies.weeb === 1
-                    Layout.fillWidth: true
-                    buttonRadius: Appearance.rounding.small
-                    materialIcon: "ifl"
-                    mainText: randomWallProc.running ? Translation.tr("Be patient...") : Translation.tr("Random: Konachan")
-                    onClicked: {
-                        randomWallProc.scriptPath = `${Directories.scriptPath}/colors/random/random_konachan_wall.sh`;
-                        randomWallProc.running = true;
-                    }
-                    StyledToolTip {
-                        text: Translation.tr("Random SFW Anime wallpaper from Konachan\nImage is saved to ~/Pictures/Wallpapers")
                     }
                 }
                 RippleButtonWithIcon {
@@ -294,12 +342,10 @@ ContentPage {
                     uniformCellSizes: true
 
                     SmallLightDarkPreferenceButton {
-                        Layout.fillWidth: true
                         Layout.fillHeight: true
                         dark: false
                     }
                     SmallLightDarkPreferenceButton {
-                        Layout.fillWidth: true
                         Layout.fillHeight: true
                         dark: true
                     }
@@ -307,8 +353,12 @@ ContentPage {
             }
         }
 
+        // A style chosen outright that matches what Auto gives this wallpaper
+        // shows as Auto, since its button is the one left off.
         ConfigSelectionArray {
-            currentValue: Config.options.appearance.palette.type
+            justify: true
+            currentValue: Config.options.appearance.palette.type === page.autoScheme
+                ? "auto" : Config.options.appearance.palette.type
             onSelected: newValue => {
                 Config.options.appearance.palette.type = newValue;
                 paletteApplyTimer.restart();
@@ -319,7 +369,7 @@ ContentPage {
                 interval: 150
                 repeat: false
                 onTriggered: {
-                    applyTheme("--noswitch");
+                    applyTheme("");
                 }
             }
             options: [
@@ -359,110 +409,38 @@ ContentPage {
                     "value": "scheme-tonal-spot",
                     "displayName": Translation.tr("Tonal Spot")
                 }
-            ]
+            ].filter(option => option.value !== page.autoScheme)
         }
 
-        ConfigSwitch {
-            buttonIcon: "ev_shadow"
-            text: Translation.tr("Transparency")
-            checked: Config.options.appearance.transparency.enable
-            onCheckedChanged: {
-                Config.options.appearance.transparency.enable = checked;
-            }
-        }
-    }
-
-    ContentSection {
-        icon: "screenshot_monitor"
-        title: Translation.tr("Bar & screen")
-
-        // Dropdowns rather than the rows of buttons the Bar page uses. This
-        // page is meant to be read at a glance, and a fourth bar style pushed
-        // the buttons onto a second line here where the column is narrower.
-        // A menu costs one click to see the choices and never grows again.
+        // The choices on the right of each row sit against the right edge at
+        // their own width, so every row ends on the same line.
         ConfigRow {
-            uniform: true
-            ContentSubsection {
-                title: Translation.tr("Bar position")
-                StyledComboBox {
-                    textRole: "displayName"
-                    Layout.fillWidth: true
-                    currentIndex: {
-                        const v = (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0);
-                        const i = model.findIndex(o => o.value === v);
-                        return i !== -1 ? i : 0;
-                    }
-                    onActivated: index => {
-                        const v = model[index].value;
-                        Config.options.bar.bottom = (v & 1) !== 0;
-                        Config.options.bar.vertical = (v & 2) !== 0;
-                    }
-                    model: [
-                        {
-                            displayName: Translation.tr("Top"),
-                            icon: "arrow_upward",
-                            value: 0 // bottom: false, vertical: false
-                        },
-                        {
-                            displayName: Translation.tr("Left"),
-                            icon: "arrow_back",
-                            value: 2 // bottom: false, vertical: true
-                        },
-                        {
-                            displayName: Translation.tr("Bottom"),
-                            icon: "arrow_downward",
-                            value: 1 // bottom: true, vertical: false
-                        },
-                        {
-                            displayName: Translation.tr("Right"),
-                            icon: "arrow_forward",
-                            value: 3 // bottom: true, vertical: true
-                        }
-                    ]
+            ConfigSwitch {
+                Layout.fillWidth: false
+                Layout.preferredWidth: (page.baseWidth - 4) / 2
+                Layout.alignment: Qt.AlignBottom
+                buttonIcon: "ev_shadow"
+                text: Translation.tr("Transparency")
+                checked: Config.options.appearance.transparency.enable
+                onCheckedChanged: {
+                    Config.options.appearance.transparency.enable = checked;
                 }
             }
-            ContentSubsection {
-                title: Translation.tr("Bar style")
 
-                StyledComboBox {
-                    textRole: "displayName"
-                    Layout.fillWidth: true
-                    currentIndex: {
-                        const i = model.findIndex(o => o.value === Config.options.bar.cornerStyle);
-                        return i !== -1 ? i : 1;
-                    }
-                    onActivated: index => { Config.options.bar.cornerStyle = model[index].value; }
-                    model: [
-                        {
-                            displayName: Translation.tr("Hug"),
-                            icon: "line_curve",
-                            value: 0
-                        },
-                        {
-                            displayName: Translation.tr("Float"),
-                            icon: "page_header",
-                            value: 1
-                        },
-                        {
-                            displayName: Translation.tr("Rect"),
-                            icon: "toolbar",
-                            value: 2
-                        },
-                        {
-                            displayName: Translation.tr("Notch"),
-                            icon: "call_to_action",
-                            value: 3
-                        }
-                    ]
-                }
+            Item {
+                Layout.fillWidth: true
             }
-        }
 
-        ConfigRow {
             ContentSubsection {
                 title: Translation.tr("Screen round corner")
 
+                Layout.fillWidth: false
+
+
+                Layout.preferredWidth: screenCornerChoices.naturalWidth
+
                 ConfigSelectionArray {
+                    id: screenCornerChoices
                     currentValue: Config.options.appearance.fakeScreenRounding
                     onSelected: newValue => {
                         Config.options.appearance.fakeScreenRounding = newValue;
@@ -486,7 +464,101 @@ ContentPage {
                     ]
                 }
             }
-            
+        }
+    }
+
+    // Laid out as the Bar and Dock pages lay out the same choices, and saved
+    // through the same shared rules, so a Hug dock keeps facing the bar
+    // whichever page moves it.
+    ContentSection {
+        icon: "screenshot_monitor"
+        title: Translation.tr("Bar & Dock")
+
+        ConfigRow {
+            ContentSubsection {
+                title: Translation.tr("Bar position")
+
+                ConfigSelectionArray {
+                    currentValue: (Config.options.bar.bottom ? 1 : 0) | (Config.options.bar.vertical ? 2 : 0)
+                    onSelected: newValue => Appearance.sizes.placeBar((newValue & 1) !== 0, (newValue & 2) !== 0)
+                    options: [
+                        {
+                            displayName: Translation.tr("Top"),
+                            icon: "arrow_upward",
+                            value: 0 // bottom: false, vertical: false
+                        },
+                        {
+                            displayName: Translation.tr("Left"),
+                            icon: "arrow_back",
+                            value: 2 // bottom: false, vertical: true
+                        },
+                        {
+                            displayName: Translation.tr("Bottom"),
+                            icon: "arrow_downward",
+                            value: 1 // bottom: true, vertical: false
+                        },
+                        {
+                            displayName: Translation.tr("Right"),
+                            icon: "arrow_forward",
+                            value: 3 // bottom: true, vertical: true
+                        }
+                    ]
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Bar style")
+
+                Layout.fillWidth: false
+
+
+                Layout.preferredWidth: barStyleChoices.naturalWidth
+
+                BarStyleChoices { id: barStyleChoices }
+            }
+        }
+
+        ConfigRow {
+            ContentSubsection {
+                title: Translation.tr("Dock position")
+
+                // The edge the dock actually occupies, not the saved one: the
+                // resolver already flips an edge the bar holds. The bar's own
+                // edge is left off, since asking for it only sends the bar to
+                // the far side, which Bar position above does directly, and
+                // that keeps the row on one line. A Hug dock is only offered the
+                // edge facing the bar, the one it can run the length of.
+                ConfigSelectionArray {
+                    currentValue: Config.options.dock.enable ? Appearance.sizes.dockEdge : "off"
+                    onSelected: newValue => {
+                        if (newValue === "off") {
+                            Config.options.dock.enable = false;
+                            return;
+                        }
+                        Appearance.sizes.placeDock(newValue);
+                    }
+                    options: [
+                        { displayName: Translation.tr("Off"), icon: "close", value: "off" },
+                        { displayName: Translation.tr("Top"), icon: "arrow_upward", value: "top" },
+                        { displayName: Translation.tr("Left"), icon: "arrow_back", value: "left" },
+                        { displayName: Translation.tr("Bottom"), icon: "arrow_downward", value: "bottom" },
+                        { displayName: Translation.tr("Right"), icon: "arrow_forward", value: "right" }
+                    ].filter(option => option.value === "off"
+                        || (Appearance.sizes.dockEdgeAllowed(option.value)
+                            && !(Appearance.sizes.barShown && option.value === Appearance.sizes.barEdge)))
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Dock style")
+
+                Layout.fillWidth: false
+
+
+                Layout.preferredWidth: dockStyleChoices.naturalWidth
+
+                DockStyleChoices { id: dockStyleChoices }
+            }
         }
     }
 

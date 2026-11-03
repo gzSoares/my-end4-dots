@@ -1,6 +1,9 @@
+import qs
 import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
+import qs.modules.common.functions
+import Quickshell
 import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
@@ -12,35 +15,181 @@ Item {
     required property var scopeRoot
     property int sidebarPadding: 10
     anchors.fill: parent
-    property bool aiChatEnabled: Config.options.policies.ai !== 0
-    property bool translatorEnabled: Config.options.sidebar.translator.enable
-    property bool animeEnabled: Config.options.policies.weeb !== 0
-    property bool animeCloset: Config.options.policies.weeb === 2
-    property var tabButtonList: [
-        ...(root.aiChatEnabled ? [{"icon": "neurology", "name": Translation.tr("Intelligence")}] : []),
-        ...(root.translatorEnabled ? [{"icon": "translate", "name": Translation.tr("Translator")}] : []),
-        ...((root.animeEnabled && !root.animeCloset) ? [{"icon": "bookmark_heart", "name": Translation.tr("Anime")}] : [])
-    ]
+    property bool animeCloset: SidebarLeftTabs.animeCloset
+    // Handed over by syncPages rather than bound, so the strip is rebuilt in
+    // the same step as the pages and never points at a page that moved.
+    property var tabButtonList: []
     property int tabCount: swipeView.count
+
+    // The page on show, by id: turning another tab on or off moves pages
+    // around, and this one stays on show wherever it lands.
+    property string currentPageId: ""
+    property bool syncing: false
 
     function focusActiveItem() {
         swipeView.currentItem.forceActiveFocus()
     }
 
-    Keys.onPressed: (event) => {
-        if (event.modifiers === Qt.ControlModifier) {
-            if (event.key === Qt.Key_PageDown) {
-                swipeView.incrementCurrentIndex()
-                event.accepted = true;
-            }
-            else if (event.key === Qt.Key_PageUp) {
-                swipeView.decrementCurrentIndex()
-                event.accepted = true;
-            }
+    function pageIndex(page) {
+        for (let i = 0; i < swipeView.count; i++) {
+            if (swipeView.itemAt(i) === page) return i;
         }
+        return -1;
+    }
+
+    // Puts the pages SidebarLeftTabs asks for into the swipe view, in its
+    // order, keeping the ones already there rather than building them again.
+    function syncPages() {
+        const pages = {};
+        for (let i = 0; i < root.pagePool.length; i++)
+            pages[root.pagePool[i].pageId] = root.pagePool[i];
+        const wanted = SidebarLeftTabs.pageIds.map(id => pages[id]).filter(page => page !== undefined);
+        const previousIndex = swipeView.currentIndex;
+        root.syncing = true;
+        for (let i = swipeView.count - 1; i >= 0; i--) {
+            if (wanted.indexOf(swipeView.itemAt(i)) === -1) swipeView.takeItem(i);
+        }
+        // A tab turned off lets go of its page, and whatever that page held (art,
+        // images, a chat), until it is turned on and shown again.
+        for (const page of root.pagePool) {
+            if (wanted.indexOf(page) === -1) page.built = false;
+        }
+        for (let i = 0; i < wanted.length; i++) {
+            const at = root.pageIndex(wanted[i]);
+            if (at === -1) swipeView.insertItem(i, wanted[i]);
+            else if (at !== i) swipeView.moveItem(at, i);
+        }
+        // The swipe view only takes these changes in at its next layout, and
+        // doing so shifts its current index, which would carry it off the
+        // page picked below to wherever the old one's neighbor ended up.
+        swipeView.contentItem.forceLayout();
+        // A page that was a tab and is one no longer, such as Anime put in the
+        // closet while on show, is not kept on show: it has no tab to leave by.
+        const wasTab = root.tabButtonList.some(tab => tab.id === root.currentPageId);
+        const isTab = SidebarLeftTabs.tabs.some(tab => tab.id === root.currentPageId);
+        root.tabButtonList = SidebarLeftTabs.tabs;
+        root.syncing = false;
+        const kept = (wasTab && !isTab) ? -1 : wanted.findIndex(page => page.pageId === root.currentPageId);
+        // A page that is gone gives way to a tab near it, never to the
+        // closeted page, which only a swipe is meant to reach.
+        root.showPage(kept !== -1 ? kept : Math.max(0, Math.min(previousIndex, root.tabButtonList.length - 1)));
+    }
+
+    function showPage(index) {
+        if (index < 0 || index >= swipeView.count) return;
+        const page = swipeView.itemAt(index);
+        const arriving = root.currentPageId !== page.pageId;
+        root.currentPageId = page.pageId;
+        root.syncing = true;
+        if (swipeView.currentIndex !== index) swipeView.setCurrentIndex(index);
+        if (tabBar.currentIndex !== index) tabBar.setCurrentIndex(index);
+        root.syncing = false;
+        // Focus goes to the page itself each time it comes on show, not to
+        // whatever inside it last had it, so the page can pass it on to its
+        // own text field.
+        if (arriving && page.item) page.item.focus = true;
+    }
+
+    Component.onCompleted: root.syncPages()
+    Connections {
+        target: SidebarLeftTabs
+        // Both change in one pass over the config; by the time the call
+        // comes, each has settled.
+        function onPageIdsChanged() { Qt.callLater(root.syncPages) }
+        function onTabsChanged() { Qt.callLater(root.syncPages) }
+    }
+
+    // A page is built the first time it is on screen and kept from then on,
+    // so a tab nobody opens costs nothing and one already open keeps its
+    // state across tab switches.
+    component PageLoader: Loader {
+        id: pageLoader
+        required property string pageId
+        // Read from the page id rather than the swipe view, whose current
+        // item passes through other pages while syncPages moves them.
+        readonly property bool onScreen: GlobalStates.sidebarLeftOpen && root.currentPageId === pageLoader.pageId
+        property bool built: false
+        onOnScreenChanged: if (pageLoader.onScreen) pageLoader.built = true
+        active: pageLoader.built || pageLoader.onScreen
+        // Handed over here and in showPage, never from the loader's own focus:
+        // a page passing focus to its field sets the loader's focus again on
+        // the way up, which would hand it straight back to the page.
+        onLoaded: pageLoader.item.focus = true
+    }
+
+    // One page for each id SidebarLeftTabs can ask for.
+    property list<Item> pagePool: [
+        PageLoader {
+            id: aiPage
+            pageId: "ai"
+            sourceComponent: AiChat {
+                scopeRoot: root.scopeRoot
+                // Any lock screen covers the sidebar without closing it.
+                onScreen: aiPage.onScreen && !GlobalStates.sessionLocked
+            }
+        },
+        PageLoader {
+            pageId: "translator"
+            sourceComponent: Translator {}
+        },
+        PageLoader {
+            id: mediaPage
+            pageId: "media"
+            sourceComponent: SidebarMediaPlayer {
+                // The lock screen covers the sidebar without closing it.
+                shown: mediaPage.onScreen && !GlobalStates.screenLocked
+            }
+        },
+        PageLoader {
+            pageId: "calendarTodo"
+            sourceComponent: CalendarTodoWidget {}
+        },
+        PageLoader {
+            pageId: "anime"
+            sourceComponent: Anime {}
+        },
+        PageLoader {
+            pageId: "placeholder"
+            sourceComponent: placeholder
+        }
+    ]
+
+    // Only the chat listens, so only it has Hyprland asked about other lockers.
+    Binding {
+        target: GlobalStates
+        property: "sessionLockWatched"
+        value: true
+        when: aiPage.onScreen
+    }
+
+    // The sidebar's own shortcuts, handled once here for every page.
+    Keys.onPressed: (event) => {
+        if (event.modifiers !== Qt.ControlModifier)
+            return;
+        switch (event.key) {
+        case Qt.Key_PageDown:
+            swipeView.incrementCurrentIndex();
+            break;
+        case Qt.Key_PageUp:
+            swipeView.decrementCurrentIndex();
+            break;
+        case Qt.Key_D:
+            root.scopeRoot.toggleDetach();
+            break;
+        case Qt.Key_O:
+            root.scopeRoot.toggleExtend();
+            break;
+        case Qt.Key_P:
+            root.scopeRoot.togglePin();
+            break;
+        default:
+            return;
+        }
+        event.accepted = true;
     }
 
     ColumnLayout {
+        id: contentColumn
         anchors {
             fill: parent
             margins: sidebarPadding
@@ -48,6 +197,7 @@ Item {
         spacing: sidebarPadding
 
         Toolbar {
+            id: tabToolbar
             visible: tabButtonList.length > 0
             Layout.alignment: Qt.AlignHCenter
             enableShadow: false
@@ -55,7 +205,8 @@ Item {
                 id: tabBar
                 Layout.alignment: Qt.AlignHCenter
                 tabButtonList: root.tabButtonList
-                currentIndex: swipeView.currentIndex
+                availableWidth: contentColumn.width - tabToolbar.padding * 2
+                onCurrentIndexChanged: if (!root.syncing) root.showPage(tabBar.currentIndex)
             }
         }
 
@@ -71,7 +222,7 @@ Item {
                 id: swipeView
                 anchors.fill: parent
                 spacing: 10
-                currentIndex: tabBar.currentIndex
+                onCurrentIndexChanged: if (!root.syncing) root.showPage(swipeView.currentIndex)
 
                 clip: true
                 layer.enabled: true
@@ -82,35 +233,51 @@ Item {
                         radius: Appearance.rounding.small
                     }
                 }
-
-                contentChildren: [
-                    ...(root.aiChatEnabled ? [aiChat.createObject()] : []),
-                    ...(root.translatorEnabled ? [translator.createObject()] : []),
-                    ...((root.tabButtonList.length === 0 || (!root.aiChatEnabled && !root.translatorEnabled && root.animeCloset)) ? [placeholder.createObject()] : []),
-                    ...(root.animeEnabled ? [anime.createObject()] : []),
-                ]
             }
         }
 
         Component {
-            id: aiChat
-            AiChat {}
-        }
-        Component {
-            id: translator
-            Translator {}
-        }
-        Component {
-            id: anime
-            Anime {}
-        }
-        Component {
             id: placeholder
             Item {
-                StyledText {
+                Column {
                     anchors.centerIn: parent
-                    text: root.animeCloset ? Translation.tr("Nothing") : Translation.tr("Enjoy your empty sidebar...")
-                    color: Appearance.colors.colSubtext
+                    width: parent.width - 40
+                    spacing: 4
+                    StyledText {
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: root.animeCloset ? Translation.tr("Nothing") : Translation.tr("Your sidebar is empty")
+                        color: Appearance.colors.colSubtext
+                    }
+                    StyledText {
+                        visible: !root.animeCloset
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                        wrapMode: Text.WordWrap
+                        text: Translation.tr("Add tabs from Settings → Interface → Left Sidebar")
+                        color: Appearance.colors.colSubtext
+                        opacity: 0.8
+                    }
+                    Item { width: 1; height: 8 }
+                    GroupButton {
+                        visible: !root.animeCloset
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        baseWidth: contentItem.implicitWidth + 30
+                        baseHeight: 34
+                        buttonRadius: Appearance.rounding.full
+                        colBackground: Appearance.colors.colSecondaryContainer
+                        onClicked: {
+                            Session.openSettings("InterfaceConfig.qml", "leftSidebarSection");
+                            GlobalStates.sidebarLeftOpen = false;
+                        }
+                        contentItem: StyledText {
+                            anchors.centerIn: parent
+                            horizontalAlignment: Text.AlignHCenter
+                            text: Translation.tr("Open Interface settings")
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                    }
                 }
             }
         }

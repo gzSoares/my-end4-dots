@@ -119,12 +119,6 @@ ApplicationWindow {
         },
         {
             group: 4,
-            name: Translation.tr("Accounts"),
-            icon: "manage_accounts",
-            component: "modules/settings/AccountsConfig.qml"
-        },
-        {
-            group: 4,
             name: Translation.tr("Services"),
             icon: "settings",
             component: "modules/settings/ServicesConfig.qml"

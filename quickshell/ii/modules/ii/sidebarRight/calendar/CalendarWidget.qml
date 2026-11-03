@@ -10,10 +10,12 @@ import QtQuick.Layouts
 Item {
     // Layout.topMargin: 10
     anchors.topMargin: 10
+    anchors.left: parent.left
+    anchors.right: parent.right
     property int monthShift: 0
     property var viewingDate: CalendarLayout.getDateInXMonthsTime(monthShift)
     property var calendarLayout: CalendarLayout.getCalendarLayout(viewingDate, monthShift === 0)
-    width: calendarColumn.width
+    // width: calendarColumn.width
     implicitHeight: calendarColumn.height + 10 * 2
 
     // Snap the view back to the current month each time the right sidebar
@@ -23,6 +25,9 @@ Item {
         target: GlobalStates
         function onSidebarRightOpenChanged() {
             if (!GlobalStates.sidebarRightOpen) monthShift = 0;
+        }
+        function onSidebarLeftOpenChanged() {
+            if (!GlobalStates.sidebarLeftOpen) monthShift = 0;
         }
     }
 
@@ -50,7 +55,7 @@ Item {
 
     ColumnLayout {
         id: calendarColumn
-        anchors.centerIn: parent
+        anchors.fill: parent
         spacing: 5
 
         // Calendar header
@@ -135,7 +140,7 @@ Item {
         // Week days row
         RowLayout {
             id: weekDaysRow
-            Layout.alignment: Qt.AlignHCenter
+            Layout.fillWidth: true
             Layout.fillHeight: false
             spacing: 5
             Repeater {
@@ -155,7 +160,7 @@ Item {
             // model: calendarLayout
             model: 6
             delegate: RowLayout {
-                Layout.alignment: Qt.AlignHCenter
+                Layout.fillWidth: true
                 Layout.fillHeight: false
                 spacing: 5
                 Repeater {

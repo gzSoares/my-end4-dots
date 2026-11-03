@@ -10,6 +10,7 @@ import QtMultimedia
 import QtQuick.Shapes
 import QtQuick.Effects
 import qs.services
+import qs.modules.common
 
 
 PanelWindow {
@@ -396,6 +397,276 @@ PanelWindow {
                     }
                 }
             }
+        }
+    }
+
+    // Volume card: speaker button (mute), draggable bar and percentage. Display-only row.
+    component SpotlightVolumeCard: Item {
+        id: vcard
+
+        property real level: 0            // 0..1
+        property bool isMuted: false
+        property bool dragging: false
+        property string fontFamily: "sans-serif"
+        property color fg: Qt.rgba(1, 1, 1, 0.92)
+        property color dim: Qt.rgba(1, 1, 1, 0.55)
+        property color accent: "#0A84FF"
+        property color panel: Qt.rgba(1, 1, 1, 0.06)
+        property color panelBorder: Qt.rgba(1, 1, 1, 0.10)
+        property string speakerPath: ""
+        property string hint: ""
+        property bool muteEnabled: true
+        property bool dimmed: false
+        property string valueText: ""
+        property real cornerRadius: 18
+
+        signal levelChosen(real value)
+        signal muteToggled()
+
+        Rectangle {
+            anchors.fill: parent
+            radius: vcard.cornerRadius
+            color: vcard.panel
+            border.color: vcard.panelBorder
+            border.width: 1
+        }
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 18; anchors.rightMargin: 18
+            anchors.topMargin: 8; anchors.bottomMargin: 26
+            spacing: 14
+
+            Item {
+                Layout.preferredWidth: 32; Layout.preferredHeight: 32; Layout.alignment: Qt.AlignVCenter
+                Shape {
+                    anchors.centerIn: parent
+                    width: 24; height: 24
+                    scale: 26 / 24
+                    opacity: vcard.isMuted ? 0.5 : 0.95
+                    preferredRendererType: Shape.CurveRenderer
+                    antialiasing: true
+                    ShapePath {
+                        strokeColor: vcard.fg; strokeWidth: 2; fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap; joinStyle: ShapePath.RoundJoin
+                        PathSvg { path: vcard.speakerPath }
+                    }
+                }
+                Shape {
+                    anchors.centerIn: parent
+                    width: 24; height: 24
+                    scale: 26 / 24
+                    visible: vcard.isMuted
+                    preferredRendererType: Shape.CurveRenderer
+                    antialiasing: true
+                    ShapePath {
+                        strokeColor: vcard.fg; strokeWidth: 2; fillColor: "transparent"
+                        capStyle: ShapePath.RoundCap
+                        PathSvg { path: "M3 3L21 21" }
+                    }
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: vcard.muteEnabled
+                    cursorShape: vcard.muteEnabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: vcard.muteToggled()
+                }
+            }
+
+            Item {
+                id: track
+                Layout.fillWidth: true; Layout.preferredHeight: 28; Layout.alignment: Qt.AlignVCenter
+                readonly property real shown: vcard.isMuted ? 0 : vcard.level
+
+                opacity: vcard.dimmed ? 0.4 : 1.0
+
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    width: parent.width; height: 8; radius: 4
+                    color: Qt.rgba(1, 1, 1, 0.16)
+                    Rectangle {
+                        width: parent.width * track.shown; height: parent.height; radius: 4
+                        color: vcard.accent
+                    }
+                }
+                Rectangle {
+                    anchors.verticalCenter: parent.verticalCenter
+                    x: Math.max(0, Math.min(parent.width - width, parent.width * track.shown - width / 2))
+                    width: 18; height: 18; radius: 9
+                    color: "white"
+                    border.width: 1; border.color: Qt.rgba(0, 0, 0, 0.18)
+                }
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    preventStealing: true
+                    function pick(mx) { vcard.levelChosen(Math.max(0, Math.min(1, mx / width))); }
+                    onPressed: (mouse) => { vcard.dragging = true; pick(mouse.x); }
+                    onPositionChanged: (mouse) => { if (pressed) pick(mouse.x); }
+                    onReleased: vcard.dragging = false
+                    onCanceled: vcard.dragging = false
+                }
+            }
+
+            Text {
+                Layout.preferredWidth: 60; Layout.alignment: Qt.AlignVCenter
+                horizontalAlignment: Text.AlignRight
+                text: vcard.valueText !== "" ? vcard.valueText : (vcard.isMuted ? "Muted" : Math.round(vcard.level * 100) + "%")
+                font { family: vcard.fontFamily; pixelSize: 15; weight: Font.DemiBold }
+                color: vcard.fg
+            }
+        }
+
+        Text {
+            anchors.left: parent.left; anchors.leftMargin: 18
+            anchors.bottom: parent.bottom; anchors.bottomMargin: 9
+            text: vcard.hint
+            font { family: vcard.fontFamily; pixelSize: 11 }
+            color: vcard.dim
+        }
+    }
+
+    // Power profile card: one chip per profile + battery. Display-only row.
+    component SpotlightPowerCard: Item {
+        id: pcard
+
+        property var profiles: []          // [{ id, label }]
+        property string current: ""
+        property string batteryText: ""
+        property string fontFamily: "sans-serif"
+        property color fg: Qt.rgba(1, 1, 1, 0.92)
+        property color dim: Qt.rgba(1, 1, 1, 0.55)
+        property color accent: "#0A84FF"
+        property color panel: Qt.rgba(1, 1, 1, 0.06)
+        property color panelBorder: Qt.rgba(1, 1, 1, 0.10)
+        property real cornerRadius: 18
+
+        signal profileChosen(string id)
+
+        Rectangle {
+            anchors.fill: parent
+            radius: pcard.cornerRadius
+            color: pcard.panel
+            border.color: pcard.panelBorder
+            border.width: 1
+        }
+
+        Row {
+            id: chips
+            anchors.left: parent.left; anchors.right: parent.right; anchors.top: parent.top
+            anchors.leftMargin: 14; anchors.rightMargin: 14; anchors.topMargin: 14
+            height: 40
+            spacing: 10
+
+            Repeater {
+                model: pcard.profiles
+                delegate: Rectangle {
+                    required property var modelData
+                    readonly property bool isCurrent: modelData.id === pcard.current
+                    width: (chips.width - (pcard.profiles.length - 1) * chips.spacing) / Math.max(1, pcard.profiles.length)
+                    height: chips.height
+                    radius: 12
+                    color: isCurrent ? pcard.accent : Qt.rgba(1, 1, 1, 0.08)
+                    border.width: 1
+                    border.color: isCurrent ? Qt.rgba(1, 1, 1, 0.25) : pcard.panelBorder
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData.label
+                        font { family: pcard.fontFamily; pixelSize: 14; weight: Font.DemiBold }
+                        color: isCurrent ? "white" : pcard.fg
+                    }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: pcard.profileChosen(modelData.id)
+                    }
+                }
+            }
+        }
+
+        Text {
+            anchors.centerIn: chips
+            visible: pcard.profiles.length === 0
+            text: "power-profiles-daemon is not available"
+            font { family: pcard.fontFamily; pixelSize: 13 }
+            color: pcard.dim
+        }
+
+        Text {
+            anchors.left: parent.left; anchors.leftMargin: 18
+            anchors.bottom: parent.bottom; anchors.bottomMargin: 10
+            text: (pcard.batteryText !== "" ? "Battery " + pcard.batteryText + "  \u00B7  " : "") + "\u2190 \u2192 switch profile"
+            font { family: pcard.fontFamily; pixelSize: 11 }
+            color: pcard.dim
+        }
+    }
+
+    // QR card: the code on a white tile with a caption. Display-only row.
+    component SpotlightQrCard: Item {
+        id: qcard
+
+        property string source: ""
+        property string label: ""
+        property bool busy: false
+        property string error: ""
+        property string fontFamily: "sans-serif"
+        property color fg: Qt.rgba(1, 1, 1, 0.92)
+        property color dim: Qt.rgba(1, 1, 1, 0.55)
+        property color panel: Qt.rgba(1, 1, 1, 0.06)
+        property color panelBorder: Qt.rgba(1, 1, 1, 0.10)
+        property real cornerRadius: 18
+
+        Rectangle {
+            anchors.fill: parent
+            radius: qcard.cornerRadius
+            color: qcard.panel
+            border.color: qcard.panelBorder
+            border.width: 1
+        }
+
+        Rectangle {
+            id: qrBox
+            anchors.top: parent.top; anchors.topMargin: 14
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: 200; height: 200; radius: 12
+            color: "white"
+
+            Image {
+                anchors.fill: parent; anchors.margins: 6
+                source: (!qcard.busy && qcard.error === "") ? qcard.source : ""
+                fillMode: Image.PreserveAspectFit
+                smooth: false; cache: false; asynchronous: true
+            }
+            Text {
+                anchors.centerIn: parent
+                width: parent.width - 24
+                visible: qcard.busy || qcard.error !== ""
+                wrapMode: Text.Wrap
+                horizontalAlignment: Text.AlignHCenter
+                text: qcard.error !== "" ? qcard.error : "Generating\u2026"
+                font { family: qcard.fontFamily; pixelSize: 13 }
+                color: "#333333"
+            }
+        }
+
+        Text {
+            anchors.top: qrBox.bottom; anchors.topMargin: 10
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: parent.width - 36
+            horizontalAlignment: Text.AlignHCenter
+            elide: Text.ElideMiddle
+            text: qcard.label
+            font { family: qcard.fontFamily; pixelSize: 13; weight: Font.DemiBold }
+            color: qcard.fg
+        }
+
+        Text {
+            anchors.bottom: parent.bottom; anchors.bottomMargin: 9
+            anchors.horizontalCenter: parent.horizontalCenter
+            text: "Scan with your phone camera"
+            font { family: qcard.fontFamily; pixelSize: 11 }
+            color: qcard.dim
         }
     }
 
@@ -801,6 +1072,12 @@ PanelWindow {
                 if (!name) continue;
                 const exec = e.execString || "";
                 let displayName = name;
+                // Flatpak apps get a "(flatpak)" tag after their name
+                const _ep = String(exec).split(/\s+/).filter(Boolean);
+                let _ei = 0;
+                while (_ei < _ep.length && (_ep[_ei] === "env" || _ep[_ei].indexOf("=") > 0)) _ei++;
+                if (String(_ep[_ei] || "").split("/").pop() === "flatpak" && _ep[_ei + 1] === "run")
+                    displayName = name + " (flatpak)";
                 // For Telegram, always show just "Telegram" regardless of duplicates
                 // The Flatpak vs system distinction is handled by launchOrFocus
                 const isTelegram = /telegram/i.test(name);
@@ -882,11 +1159,6 @@ PanelWindow {
             Quickshell.execDetached(["bash", "-c", env + cmd + " </dev/null >/dev/null 2>&1 & disown"]);
         }
 
-        function launchById(id) {
-            const entry = spotlightApps.appsById[id];
-            if (entry) spotlightApps.launch(entry.exec);
-        }
-
         // DesktopEntries is itself a lazily-created singleton that scans in the background, so
         // `applications` is empty right after first access. `DesktopEntries.applications` is a constant
         // model: `onApplicationsChanged` never fires, the model's own `valuesChanged` does.
@@ -918,39 +1190,11 @@ PanelWindow {
         readonly property string _ocrLangs:
             "umask 077; langs=$(tesseract --list-langs 2>/dev/null | tail -n +2 | grep -E '^(por|eng|jpn)$' | paste -sd+); [ -n \"$langs\" ] || langs=eng\n"
 
-        // Repo used by /git (env SPOTLIGHT_GIT_REPO, or the directory Quickshell was started in)
-        property string gitRepo: Quickshell.env("SPOTLIGHT_GIT_REPO") || ""
-
         property var aliases: ({})
         property string historyPath: Quickshell.env("HOME") + "/.cache/spotlight-ai-history.json"
 
         function shellQuote(s) {
             return "'" + String(s).replace(/'/g, "'\\''") + "'";
-        }
-
-        // #1 Obsidian
-        function addObsidianNote(title, content) {
-            const t = String(title || "Note").replace(/[^\w\sáéíóúâêôãõç-]/gi, "").slice(0, 80);
-            const c = String(content || "");
-            const url = "obsidian://new?name=" + encodeURIComponent(t)
-                      + "&content=" + encodeURIComponent(c) + "&silent=true";
-            const cmd = "setsid nohup env XDG_RUNTIME_DIR=/run/user/$(id -u) "
-                      + "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus "
-                      + "xdg-open " + shellQuote(url) + " </dev/null >/dev/null 2>&1 &";
-            spotlightController.run(cmd);
-            return "📝 Note created: " + t;
-        }
-
-        // #2 Email
-        function sendEmail(to, subject, body) {
-            const cmd = "setsid nohup env XDG_RUNTIME_DIR=/run/user/$(id -u) "
-                      + "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus "
-                      + "xdg-email --to " + shellQuote(to)
-                      + " --subject " + shellQuote(subject || "(no subject)")
-                      + " --body " + shellQuote(body || "")
-                      + " </dev/null >/dev/null 2>&1 &";
-            spotlightController.run(cmd);
-            return "📧 Email opened for: " + to;
         }
 
         // #6 Block sites
@@ -972,22 +1216,6 @@ PanelWindow {
             spotlightController.run(cmd);
             return "🚫 Blocked: " + clean.join(", ") + " for " + mins + " min";
         }
-
-        // #10 Git
-        function runGitCommit() { _gitProc.running = true; }
-        Process {
-            id: _gitProc
-            running: false
-            command: ["bash", "-c",
-                "cd " + spotlightActions.shellQuote(spotlightActions.gitRepo || ".") + " 2>/dev/null || exit 0\n"
-                + "git rev-parse --is-inside-work-tree >/dev/null 2>&1 || exit 0\n"
-                + "d=$(git diff --cached 2>/dev/null)\n"
-                + "[ -n \"$d\" ] || d=$(git diff 2>/dev/null)\n"
-                + "[ -n \"$d\" ] || exit 0\n"
-                + "printf '%s' \"$d\" | head -c 8000"]
-            stdout: StdioCollector { onStreamFinished: spotlightActions.gitDiffReady(text.trim()) }
-        }
-        signal gitDiffReady(string diff)
 
         // #11 Aliases
         function createAlias(name, actions) {
@@ -1038,68 +1266,6 @@ PanelWindow {
                     stdout: StdioCollector { onStreamFinished: spotlightActions.screenshotOcrReady(text.trim()) }
                 }
             signal screenshotOcrReady(string ocrText)
-
-        // Full screen: windows (hyprctl) + OCR of the focused monitor
-        function runScreenContext() {
-            if (_screenProc.running) return;
-            _screenProc.running = true;
-        }
-        Process {
-            id: _screenProc
-            running: false
-            command: ["bash", "-c", `${spotlightActions._ocrLangs}
-    sleep 0.4
-    f="/tmp/spotlight-screen-$(date +%s).png"
-    info=$(python3 - <<'PYEOF'
-    import json, subprocess
-
-    def hc(*a):
-        try:
-            return json.loads(subprocess.check_output(["hyprctl", *a, "-j"], text=True))
-        except Exception:
-            return None
-
-    mons = hc("monitors") or []
-    mon = next((m for m in mons if m.get("focused")), mons[0] if mons else None)
-    name = mon["name"] if mon else ""
-    ws = mon["activeWorkspace"]["id"] if mon else None
-    act = hc("activewindow") or {}
-    print("MON::" + name)
-    if act.get("class") or act.get("title"):
-        print("ACTIVE::%s | %s" % (act.get("class", ""), act.get("title", "")))
-    for c in hc("clients") or []:
-        if c.get("mapped") and not c.get("hidden") and c.get("workspace", {}).get("id") == ws:
-            print("WIN::%s | %s" % (c.get("class", ""), c.get("title", "")))
-    PYEOF
-    )
-    mon=$(echo "$info" | sed -n 's/^MON:://p' | head -1)
-    if [ -n "$mon" ]; then grim -o "$mon" "$f" 2>/dev/null; else grim "$f" 2>/dev/null; fi
-    echo "$info" | grep -v '^MON::' | sed -e 's/^ACTIVE::/Focused window: /' -e 's/^WIN::/- /'
-    echo '@@OCR@@'
-    if [ -s "$f" ]; then timeout 30 tesseract "$f" stdout -l "$langs" --psm 11 2>/dev/null; fi
-    rm -f "$f"
-    `]
-            stdout: StdioCollector {
-                onStreamFinished: {
-                    const parts = text.split("@@OCR@@");
-                    spotlightActions.screenContextReady((parts[0] || "").trim(), (parts[1] || "").trim());
-                }
-            }
-        }
-        signal screenContextReady(string windows, string ocr)
-
-        // #16 Web scraping
-        function scrapeUrl(url) { _scrapeProc.url = url; _scrapeProc.running = true; }
-        Process {
-            id: _scrapeProc
-            running: false
-            property string url: ""
-            command: ["bash", "-c",
-                "curl -sL --max-time 15 --max-filesize 5000000 --proto '=http,https' --proto-redir '=http,https' -A 'Mozilla/5.0' " + shellQuote(url)
-                + " 2>/dev/null | python3 -c 'import sys,re; t=sys.stdin.read(); t=re.sub(r\"<script[^>]*>.*?</script>\",\" \",t,flags=re.S); t=re.sub(r\"<style[^>]*>.*?</style>\",\" \",t,flags=re.S); t=re.sub(r\"<[^>]+>\",\" \",t); print(re.sub(r\"\\s+\",\" \",t)[:5000])'"]
-            stdout: StdioCollector { onStreamFinished: spotlightActions.scrapeReady(text.trim()) }
-        }
-        signal scrapeReady(string text)
 
         // Web page -> { ok, title, url, text } (used by /sum and the web_summary intent -> pageReady)
         function fetchPage(url) {
@@ -1246,7 +1412,7 @@ PanelWindow {
     screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? Quickshell.screens[0]
     anchors { top: true; bottom: true; left: true; right: true }
     color: "transparent"
-    visible: root._shown && !root._capturing
+    visible: root._shown
     exclusionMode: ExclusionMode.Ignore
     WlrLayershell.namespace: "macos:spotlight"
     WlrLayershell.layer: WlrLayer.Overlay
@@ -1281,68 +1447,149 @@ PanelWindow {
         ddg:   ["DuckDuckGo",     "https://duckduckgo.com/?q="]
     })
 
+    // Icons for the /commands list (24x24 stroke paths). Command name -> icon key in cmdGlyphAlias.
+    readonly property var cmdGlyphPaths: ({
+        "apps": "M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z",
+        "files": "M3 7a2 2 0 0 1 2 -2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2z",
+        "clipboard": "M9 3h6a1 1 0 0 1 1 1v1H8V4a1 1 0 0 1 1 -1z M8 5H6a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2V7a2 2 0 0 0 -2 -2h-2",
+        "actions": "M13 2L4 14h7l-1 8 9 -12h-7z",
+        "wallpaper": "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2z M10.5 8.5a1.5 1.5 0 1 1 -3 0a1.5 1.5 0 1 1 3 0 M21 15l-5 -5L5 21",
+        "theme": "M12 17a5 5 0 1 0 0 -10a5 5 0 0 0 0 10z M12 2v2 M12 20v2 M4.93 4.93l1.41 1.41 M17.66 17.66l1.41 1.41 M2 12h2 M20 12h2 M6.34 17.66l-1.41 1.41 M19.07 4.93l-1.41 1.41",
+        "bar": "M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2z M3 9h18",
+        "settings": "M9.99 4.98 L10.47 2.32 L13.53 2.32 L14.01 4.98 L15.54 5.62 L17.76 4.07 L19.93 6.24 L18.38 8.46 L19.02 9.99 L21.68 10.47 L21.68 13.53 L19.02 14.01 L18.38 15.54 L19.93 17.76 L17.76 19.93 L15.54 18.38 L14.01 19.02 L13.53 21.68 L10.47 21.68 L9.99 19.02 L8.46 18.38 L6.24 19.93 L4.07 17.76 L5.62 15.54 L4.98 14.01 L2.32 13.53 L2.32 10.47 L4.98 9.99 L5.62 8.46 L4.07 6.24 L6.24 4.07 L8.46 5.62 Z M15 12a3 3 0 1 1 -6 0a3 3 0 1 1 6 0",
+        "volume": "M11 5L6 9H2v6h4l5 4z M19.07 4.93a10 10 0 0 1 0 14.14 M15.54 8.46a5 5 0 0 1 0 7.07",
+        "dnd": "M13.73 21a2 2 0 0 1 -3.46 0 M18.63 13A17.89 17.89 0 0 1 18 8 M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7 -3 9 -3 9h14 M18 8a6 6 0 0 0 -9.33 -5 M1 1l22 22",
+        "music": "M9 18V5l12 -2v13 M9 18a3 3 0 1 1 -6 0a3 3 0 1 1 6 0 M21 16a3 3 0 1 1 -6 0a3 3 0 1 1 6 0",
+        "screen": "M4 4h16a2 2 0 0 1 2 2v9a2 2 0 0 1 -2 2H4a2 2 0 0 1 -2 -2V6a2 2 0 0 1 2 -2z M8 21h8 M12 17v4",
+        "translate": "M5 8l6 6 M4 14l6 -6 2 -3 M2 5h12 M7 2h1 M22 22l-5 -10 -5 10 M14 18h6",
+        "record": "M22 12a10 10 0 1 1 -20 0a10 10 0 1 1 20 0 M15 12a3 3 0 1 1 -6 0a3 3 0 1 1 6 0",
+        "color": "M12 2.69l5.66 5.66a8 8 0 1 1 -11.31 0z",
+        "windows": "M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1 -2 2H4a2 2 0 0 1 -2 -2V6a2 2 0 0 1 2 -2z M2 9h20 M6 6.5h.01 M10 6.5h.01",
+        "wifi": "M5 12.55a11 11 0 0 1 14.08 0 M1.42 9a16 16 0 0 1 21.16 0 M8.53 16.11a6 6 0 0 1 6.95 0 M12 20h.01",
+        "bluetooth": "M6.5 6.5l11 11L12 23V1l5.5 5.5 -11 11",
+        "search": "M3 11a8 8 0 1 0 16 0a8 8 0 1 0 -16 0 M21 21l-4.35 -4.35",
+        "ai": "M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9 -5.1L5 10l5.1 -1.9z M19 16l.7 1.8 1.8.7 -1.8.7L19 21l-.7 -1.8 -1.8 -.7 1.8 -.7z",
+        "new": "M21 15a2 2 0 0 1 -2 2H7l-4 4V5a2 2 0 0 1 2 -2h14a2 2 0 0 1 2 2z M12 7v6 M9 10h6",
+        "note": "M14 2H6a2 2 0 0 0 -2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2 -2V8z M14 2v6h6 M16 13H8 M16 17H8 M10 9H8",
+        "sum": "M17 10H3 M21 6H3 M21 14H3 M17 18H3",
+        "todo": "M9 11l3 3L22 4 M21 12v7a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2h11",
+        "calendar": "M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V6a2 2 0 0 1 2 -2z M16 2v4 M8 2v4 M3 10h18",
+        "notes": "M12 20h9 M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1 -4z",
+        "bell": "M18 8A6 6 0 0 0 6 8c0 7 -3 9 -3 9h18s-3 -2 -3 -9 M13.73 21a2 2 0 0 1 -3.46 0",
+        "timer": "M10 2h4 M12 14l3 -3 M20 14a8 8 0 1 1 -16 0a8 8 0 1 1 16 0",
+        "lock": "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2v-7a2 2 0 0 1 2 -2z M7 11V7a5 5 0 0 1 10 0v4",
+        "moon": "M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z",
+        "restart": "M23 4v6h-6 M20.49 15a9 9 0 1 1 -2.12 -9.36L23 10",
+        "power": "M18.36 6.64a9 9 0 1 1 -12.73 0 M12 2v10",
+        "logout": "M9 21H5a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2h4 M16 17l5 -5 -5 -5 M21 12H9",
+        "web": "M22 12a10 10 0 1 1 -20 0a10 10 0 1 1 20 0 M2 12h20 M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1 -4 10 15.3 15.3 0 0 1 -4 -10 15.3 15.3 0 0 1 4 -10z",
+        "maps": "M21 10c0 7 -9 13 -9 13s-9 -6 -9 -13a9 9 0 0 1 18 0z M15 10a3 3 0 1 1 -6 0a3 3 0 1 1 6 0",
+        "calc": "M6 2h12a2 2 0 0 1 2 2v16a2 2 0 0 1 -2 2H6a2 2 0 0 1 -2 -2V4a2 2 0 0 1 2 -2z M8 6h8 M8 10h.01 M12 10h.01 M16 10h.01 M8 14h.01 M12 14h.01 M16 14h.01 M8 18h.01 M12 18h.01 M16 18h.01",
+        "trend": "M22 7l-8.5 8.5 -5 -5L2 17 M16 7h6v6",
+        "emoji": "M22 12a10 10 0 1 1 -20 0a10 10 0 1 1 20 0 M8 14s1.5 2 4 2 4 -2 4 -2 M9 9h.01 M15 9h.01",
+        "menu": "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
+        "camera": "M23 19a2 2 0 0 1 -2 2H3a2 2 0 0 1 -2 -2V8a2 2 0 0 1 2 -2h4l2 -3h6l2 3h4a2 2 0 0 1 2 2z M17 13a5 5 0 1 1 -10 0a5 5 0 1 1 10 0",
+        "mic": "M12 2a3 3 0 0 0 -3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0 -3 -3z M19 10v2a7 7 0 0 1 -14 0v-2 M12 19v3 M8 22h8",
+        "trash": "M3 6h18 M19 6v14a2 2 0 0 1 -2 2H7a2 2 0 0 1 -2 -2V6 M8 6V4a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2 M10 11v6 M14 11v6",
+        "edit": "M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5 -5.5L17 3z",
+        "external": "M18 13v6a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V8a2 2 0 0 1 2 -2h6 M15 3h6v6 M10 14L21 3",
+        "folder": "M22 19a2 2 0 0 1 -2 2H4a2 2 0 0 1 -2 -2V5a2 2 0 0 1 2 -2h5l2 3h9a2 2 0 0 1 2 2z",
+        "copy": "M20 9H11a2 2 0 0 0 -2 2v9a2 2 0 0 0 2 2h9a2 2 0 0 0 2 -2v-9a2 2 0 0 0 -2 -2z M5 15H4a2 2 0 0 1 -2 -2V4a2 2 0 0 1 2 -2h9a2 2 0 0 1 2 2v1",
+        "link": "M10 13a5 5 0 0 0 7.54 .54l3 -3a5 5 0 0 0 -7.07 -7.07l-1.72 1.71 M14 11a5 5 0 0 0 -7.54 -.54l-3 3a5 5 0 0 0 7.07 7.07l1.71 -1.71",
+        "grid": "M3 3h7v7H3z M14 3h7v7h-7z M14 14h7v7h-7z M3 14h7v7H3z",
+        "keyboard": "M2 6h20a1 1 0 0 1 1 1v10a1 1 0 0 1 -1 1H2a1 1 0 0 1 -1 -1V7a1 1 0 0 1 1 -1z M6 10h.01 M10 10h.01 M14 10h.01 M18 10h.01 M8 14h8",
+        "default": "M4 17l6 -6 -6 -6 M12 19h8"
+    })
+    readonly property var cmdGlyphAlias: ({
+        "event": "calendar", "lembrar": "bell", "sleep": "moon", "shutdown": "power"
+    })
+    // Action rows (not /commands) that borrow an icon through their iconKey.
+    // "web" (magnifier), "ai" (orb) and "calc" (swatch) are left out on purpose: they already draw their own icon.
+    readonly property var rowGlyphKeys: ["lock", "moon", "restart", "power", "logout", "timer", "bell", "note", "settings", "music"]
+    function rowGlyphPath(item) {
+        if (!item) return "";
+        if (item.kind === "cmd") return root.cmdGlyphPath(item.name);
+        if (item.kind === "menu") return root.cmdGlyphPaths[item.iconKey] || root.cmdGlyphPaths["default"];
+        if (item.kind === "wifi") return root.cmdGlyphPaths["wifi"];
+        if (item.kind === "bt") return root.cmdGlyphPaths["bluetooth"];
+        if (item.kind === "kproc") return root.cmdGlyphPaths["windows"];
+        if (item.kind === "usb") return root.cmdGlyphPaths["files"];
+        if (item.kind === "fact" || item.kind === "fapp") return root.cmdGlyphPaths[item.iconKey] || root.cmdGlyphPaths["default"];
+        if (item.kind === "key") return root.cmdGlyphPaths["keyboard"];
+        if (item.kind === "calc" && item.iconKey === "trend") return root.cmdGlyphPaths["trend"];
+        if (item.kind !== "action") return "";
+        if (item.category === "System control") {
+            const n = String(item.name || "").toLowerCase();
+            let k = "settings";
+            if (/volume|mudo|mute/.test(n)) k = "volume";
+            else if (/brightness|brilho/.test(n)) k = "theme";
+            else if (n.indexOf("bluetooth") === 0) k = "bluetooth";
+            else if (/wi-?fi/.test(n)) k = "wifi";
+            else if (/do not disturb/.test(n)) k = "dnd";
+            return root.cmdGlyphPaths[k];
+        }
+        if (item.iconKey === "web") {
+            // rows that already draw the magnifier keep it; the rest (open URL, bangs...) get a globe
+            const act = item.action || "";
+            if (act.indexOf("web:") === 0 || item.category === "Site shortcut" || item.category === "Google Maps") return "";
+            return root.cmdGlyphPaths["web"];
+        }
+        if (root.rowGlyphKeys.indexOf(item.iconKey) >= 0)
+            return root.cmdGlyphPaths[item.iconKey] || "";
+        return "";
+    }
+    function cmdGlyphPath(name) {
+        const n = String(name || "").replace(/^\//, "").toLowerCase();
+        const key = root.cmdGlyphAlias[n] || n;
+        return root.cmdGlyphPaths[key] || root.cmdGlyphPaths["default"];
+    }
+
     readonly property var slashCommands: [
         { kind: "cmd", name: "/apps",       category: "Switch to Applications",         action: "mode:apps" },
         { kind: "cmd", name: "/files",      category: "Switch to Files",                action: "mode:files" },
         { kind: "cmd", name: "/clipboard",  category: "Switch to Clipboard",            action: "mode:clipboard" },
         { kind: "cmd", name: "/actions",    category: "Switch to Actions",              action: "mode:actions" },
-        { kind: "cmd", name: "/config",     category: "Browse all II settings",         action: "mode:config" },
         { kind: "cmd", name: "/wallpaper",  category: "Change wallpaper (ii)",          action: "ipc:wallpaperSelector:toggle" },
         { kind: "cmd", name: "/theme",       category: "Toggle light/dark theme (ii)",   action: "ipc:theme:toggleLightDark" },
         { kind: "cmd", name: "/bar",        category: "Show/hide bar (ii)",             action: "ipc:bar:toggle" },
-        { kind: "cmd", name: "/screen",     category: "Hermes reads everything on screen (OCR + windows)", action: "screen:" },
-        { kind: "cmd", name: "/screenshot", category: "Analyze screen with OCR + AI",   action: "screenshot:" },
         { kind: "cmd", name: "/translate",  category: "Translate screen area (OCR + Hermes)", action: "ocrtr:" },
         { kind: "cmd", name: "/record",     category: "Record screen (ii)",             action: "ipc:region:record" },
-        { kind: "cmd", name: "/ocr",        category: "Screen OCR (ii)",                action: "ipc:region:ocr" },
         { kind: "cmd", name: "/color",      category: "Color picker (copies hex)",      action: "colorpick:" },
         { kind: "cmd", name: "/windows",    category: "Switch between open windows",    action: "mode:windows" },
         { kind: "cmd", name: "/wifi",       category: "Wi-Fi networks",                 action: "mode:wifi" },
         { kind: "cmd", name: "/bluetooth",  category: "Paired Bluetooth devices",       action: "mode:bluetooth" },
+        { kind: "cmd", name: "/menu",       category: "Command menu (power, network, capture...)", action: "mode:menu" },
+        { kind: "cmd", name: "/kill",       category: "Kill a process (CPU and RAM)",             action: "mode:kill" },
+        { kind: "cmd", name: "/usb",        category: "External drives (mount / eject)",          action: "mode:usb" },
+        { kind: "cmd", name: "/keys",       category: "Hyprland keyboard shortcuts",              action: "mode:keys" },
         { kind: "cmd", name: "/search",     category: "Search inside files (ripgrep)",  action: "search:" },
         { kind: "cmd", name: "/ai",         category: "Ask Hermes Agent",               action: "ai:" },
         { kind: "cmd", name: "/new",        category: "New AI conversation",            action: "ai-new:" },
-        { kind: "cmd", name: "/note",       category: "Create Obsidian note",           action: "aiintent:note:" },
-        { kind: "cmd", name: "/email",      category: "Send email",                     action: "aiintent:email:" },
-        { kind: "cmd", name: "/focus",      category: "Focus mode",                     action: "focus:" },
-        { kind: "cmd", name: "/meeting",    category: "Meeting mode",                   action: "meeting:" },
-        { kind: "cmd", name: "/briefing",   category: "Morning briefing",               action: "briefing:" },
-        { kind: "cmd", name: "/git",        category: "Generate git commit message",    action: "git:" },
         { kind: "cmd", name: "/sum",        category: "Summarize a web page or PDF",    action: "sum:" },
-        { kind: "cmd", name: "/mem-on",     category: "Enable persistent AI history",   action: "mem-on:" },
-        { kind: "cmd", name: "/mem-off",    category: "Disable persistent AI history",  action: "mem-off:" },
         { kind: "cmd", name: "/todo",       category: "Add a ToDo task",                action: "todo:" },
         { kind: "cmd", name: "/event",      category: "Add a calendar event",           action: "todo:" },
-        { kind: "cmd", name: "/calendar",   category: "Add a calendar event",           action: "todo:" },
-        { kind: "cmd", name: "/notes",      category: "Add a ToDo task",                action: "todo:" },
+        { kind: "cmd", name: "/lembrar",    category: "Create a reminder with alarm",    action: "lembrar:" },
+        { kind: "cmd", name: "/timer",      category: "Start a timer (shows in bar)",   action: "timer:" },
         { kind: "cmd", name: "/lock",       category: "Lock Screen",                    action: "sys:lock" },
         { kind: "cmd", name: "/sleep",      category: "Sleep",                          action: "sys:sleep" },
         { kind: "cmd", name: "/restart",    category: "Restart",                        action: "sys:restart" },
         { kind: "cmd", name: "/shutdown",   category: "Shut Down",                      action: "sys:shutdown" },
         { kind: "cmd", name: "/logout",     category: "Log Out",                        action: "sys:logout" },
         { kind: "cmd", name: "/web",        category: "Search the Web",                 action: "web:" },
+        { kind: "cmd", name: "/maps",       category: "Search a place on Google Maps",  action: "maps:" },
         { kind: "cmd", name: "/calc",       category: "Calculator",                     action: "calc:" }
     ]
 
     // Structured intents detected in AI prompts (order matters).
     readonly property var _intentRules: [
-        // Anchored at the start and tied to an explicit object ("task", "note", "timer"...),
-        // so ordinary questions that merely contain "new", "add" or "note" are not hijacked.
+        // Anchored at the start and tied to an explicit object ("task", "timer"...),
+        // so ordinary questions that merely contain "new" or "add" are not hijacked.
+        ["lembrar",     s => /^(?:please\s+|por favor\s+)?(?:(?:lembrar|lembre|lembre-se|me lembre|defina|agende)\s+(?:me\s+)?(?:de\s+)?)/i.test(s) || /^(?:remind me to|remind me|set a reminder for)\b/i.test(s)],
         ["todo",       s => /^(?:please\s+|por favor\s+)?(?:(?:create|add|new|make)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:task|to-?do|reminder)\b|(?:crie|criar|adicione|adicionar|adiciona|nova|novo)\s+(?:uma?\s+)?(?:nova\s+|novo\s+)?(?:tarefa|lembrete|to-?do)\b|(?:anote|anotar)\b|remind me to\b|me\s+lembr(?:e|ar)\s+de\b)/i.test(s)],
-        ["note",       s => /^(?:please\s+|por favor\s+)?(?:(?:create|write|save|make)\s+(?:a\s+|an\s+)?(?:new\s+)?note\b|(?:crie|criar|salve|salvar|escreva|nova)\s+(?:uma\s+)?(?:nova\s+)?nota\b)/i.test(s)],
-        ["email",      s => /^(?:please\s+|por favor\s+)?(?:(?:send|write|compose|draft)\s+(?:an?\s+)?(?:e-?mail|message)\b|(?:mande|mandar|envie|enviar|escreva)\s+(?:um\s+)?e-?mail\b)/i.test(s)
-                            || /^e-?mail\s+(?:to|for|pro?|para)\s+\S+@/i.test(s)],
         ["timer",      s => /\d/.test(s)
                             && /^(?:please\s+|por favor\s+)?(?:(?:set|start)\s+(?:a\s+)?(?:[\w-]+\s+){0,2}?(?:timer|pomodoro)\b|timer\b|pomodoro\b|remind me in\s+\d+|me\s+avise\s+em\s+\d+|(?:inicie|iniciar|inicia|coloque|ponha)\s+(?:um\s+)?(?:timer|cronometro|temporizador)\b)/i.test(s)],
         ["alias",      s => /^(?:please\s+|por favor\s+)?(?:create|new|make|crie|criar|novo|nova)\s+(?:an?\s+|um\s+|uma\s+)?(?:new\s+|novo\s+|nova\s+)?(?:shortcut|atalho)\b/i.test(s)],
         ["block",      s => /^(?:please\s+|por favor\s+)?(?:block|bloqueie|bloquear|bloqueia)\s+(?:(?:the\s+|o\s+)?sites?\s+)?[\w.-]+\.[a-z]{2,}/i.test(s)],
-        ["focus",      s => /^(?:please\s+|por favor\s+)?(?:(?:start|enter|turn on|activate|ativar|iniciar|entrar em)\s+)?(?:focus mode|modo\s+foco)\b/i.test(s)
-                            || /^(?:focus for|foco por)\s+\d+/i.test(s)],
-        ["meeting",    s => /(going into|in a|start)\s+(a\s+)?(meeting|reuni[ãa]o|modo\s+reuni[ãa]o|iniciar\s+reuni[ãa]o)/i.test(s)],
-        ["briefing",   s => /^(good morning|briefing|summary of the day|what do i have today|bom\s+dia|briefing|resumo\s+do\s+dia|o\s+que\s+tenho\s+hoje)\s*[?!.]?$/i.test(s)],
-        ["git",        s => /^(git\s+commit|commit|commit message|mensagem\s+de\s+commit)$/i.test(s)],
-        ["screenshot", s => /^(?:please\s+|por favor\s+)?(?:what|analy[sz]e|see|look at|read|translate|explain)\s+(?:(?:is|on|this|in)\s+){0,2}(?:(?:the|my|this)\s+)?(?:screen|screenshot|capture|image|tela|captura|imagem)\b/i.test(s)
-                            || /^(?:what is on (?:the |my )?screen|o\s+que\s+est[áa]\s+na\s+tela)/i.test(s)],
         ["web",        s => /^(?:please\s+|por favor\s+)?(?:summari[sz]e|analy[sz]e|resuma|resumir|analise|analisa)\b.*(?:https?:\/\/\S+|\b(?:link|url|site|page)\b)/i.test(s)
                             || /^what does (?:this|that) (?:link|url|site|page)\b/i.test(s)],
         ["pdf",        s => /^(?:please\s+|por favor\s+)?(?:summari[sz]e|analy[sz]e|resuma|resumir|analise|analisa)\s+(?:(?:the|this|that|o|esse|esta|este)\s+)?(?:pdf|document|documento)\b/i.test(s)]
@@ -1385,10 +1632,11 @@ PanelWindow {
     // =====================================================================
     //  THEME / GEOMETRY
     // =====================================================================
-    readonly property color glassBg:        Qt.rgba(30 / 255, 30 / 255, 30 / 255, 0.72)
-    readonly property color glassBorder:    Qt.rgba(1, 1, 1, 0.12)
-    readonly property color glassHighlight: Qt.rgba(1, 1, 1, 0.06)
-    readonly property color selectionBg:    Qt.rgba(0.0, 0.48, 1.0, 0.45)
+    readonly property color glassBg:        Qt.rgba(0.13, 0.15, 0.17, 0.66)
+    readonly property color glassBorder:    Qt.rgba(1, 1, 1, 0.20)
+    readonly property color glassHighlight: Qt.rgba(1, 1, 1, 0.10)
+    readonly property color selectionBg:    Qt.rgba(0.05, 0.45, 0.85, 0.62)
+    readonly property color selectionBorder: "transparent"
     readonly property color hoverBg:        Qt.rgba(1, 1, 1, 0.08)
     readonly property color divider:        Qt.rgba(1, 1, 1, 0.10)
     readonly property color headerFg:       Qt.rgba(1, 1, 1, 0.45)
@@ -1409,6 +1657,9 @@ PanelWindow {
     readonly property color white18: Qt.rgba(1, 1, 1, 0.18)
     readonly property color white10: Qt.rgba(1, 1, 1, 0.10)
     readonly property real weatherH: 192
+    readonly property real volumeH: 84
+    readonly property real powerH: 104
+    readonly property real qrH: 284
     readonly property int maxVisibleRows: 10
     readonly property int animFast: 100
     readonly property int animMed:  140
@@ -1424,13 +1675,16 @@ PanelWindow {
 
     readonly property real panelWidth: 680
     readonly property real panelRadius: 22
+    readonly property real panelPad: 0         // glass margin around the search pill (0 = pill flush with the panel edges)
+    readonly property real listPad: 8         // side/bottom margin of the list
+    readonly property real listGap: 6         // gap between the search row and the list
     readonly property real searchH: 56
     readonly property real circleSize: 56
     readonly property real circlesGap: 8
     readonly property real rowH: 44
     readonly property real headerH: 22
     readonly property real iconSize: 28
-    readonly property real footerH: 0
+    readonly property real footerH: 46         // footer: settings button + key hints
     readonly property real stripH: 0
 
     // =====================================================================
@@ -1439,7 +1693,6 @@ PanelWindow {
     // -- Interface / navigation
     property bool _shown: false
     property bool _opened: false
-    property bool _capturing: false          // hides Spotlight while capturing the screen
     property string query: ""
     property string mode: "search"
     property string _pendingMode: ""
@@ -1567,18 +1820,92 @@ else:
     property var windowItems: []
     property var wifiItems: []
     property var btItems: []
+
+    // -- Command menu (/menu): nested tree from menu.jsonc (user) or menu.default.json (fallback)
+    property string _menuUserText: ""
+    property string _menuDefaultText: ""
+    property var menuTree: []
+    property var menuFlat: []
+    property var menuStack: []          // folder nodes from the root down to the current level
+    property string menuPendingId: ""   // row waiting for a second Enter (confirm: true)
+
+    // -- Wi-Fi / Bluetooth picker
+    property string netPassFor: ""          // SSID waiting for a password ("" = normal typing)
+    property string netPass: ""             // what is typed meanwhile; it never goes into root.query (no AI, no lookups)
+    property string netPassReturnText: ""
+    property string _netWordShown: ""       // "wifi" | "bluetooth" while that bare keyword is typed
+
+    // -- Volume card (typing "volume")
+    property real volLevel: 0
+    property bool volMuted: false
+    property bool volDragging: false
+    property double _volHold: 0             // ignore polled values until this time (ms), so the bar does not jump back
+    readonly property bool volCardShown: root.results.some(r => r.kind === "volume")
+
+    // -- Brightness card (typing "brightness" / "brilho"): controls the monitor this Spotlight is open on,
+    //    through the shell's Brightness service (brightnessctl for the laptop panel, ddcutil for external monitors)
+    readonly property var brightMonitor: Brightness.getMonitorForScreen(root.screen)
+    readonly property real brightLevel: brightMonitor ? brightMonitor.brightness : 0
+    readonly property bool brightControllable: !!brightMonitor
+        && (brightMonitor.isDdc || /^(eDP|LVDS|DSI)/i.test(root.screen ? root.screen.name : ""))
+    readonly property bool brightCardShown: root.results.some(r => r.kind === "brightness")
+
+    // -- Microphone card ("mic")
+    property real micLevel: 0
+    property bool micMuted: false
+    property bool micDragging: false
+    property double _micHold: 0
+    readonly property bool micCardShown: root.results.some(r => r.kind === "mic")
+
+    // -- Night light card ("noite"): shell's Hyprsunset service, temperature kept in the shell config
+    readonly property bool nightActive: Hyprsunset.temperatureActive
+    readonly property int nightTemp: Hyprsunset.colorTemperature
+    readonly property real nightLevel: Math.max(0, Math.min(1, (6000 - nightTemp) / 3500))   // 0 = 6000K (neutral), 1 = 2500K (warm)
+    property int _nightTarget: 5000
+    readonly property bool nightCardShown: root.results.some(r => r.kind === "night")
+
+    // -- Power profile card ("energia")
+    property var ppProfiles: []
+    property string ppCurrent: ""
+    property double _ppHold: 0
+    readonly property bool powerCardShown: root.results.some(r => r.kind === "power")
+    readonly property string powerBatteryText: Battery.available
+        ? (Math.round(Battery.percentage * 100) + "%" + (Battery.isCharging ? " \u00B7 charging" : (Battery.isPluggedIn ? " \u00B7 plugged in" : "")))
+        : ""
+
+    // -- QR card ("qr text" / "wifi qr")
+    property string _qrWanted: ""       // "" | "wifi" | "t:<text>"
+    property string _qrRanFor: ""
+    property string _qrOut: ""
+    property int _qrSeq: 0
+    property string qrFile: ""
+    property string qrLabel: ""
+    property bool qrBusy: false
+    property string qrError: ""
+    readonly property bool qrCardShown: root.results.some(r => r.kind === "qr")
+
+    // -- /kill and /usb lists
+    property var killList: []
+    property var usbItems: []
+    property string _extraShown: ""     // "kill" | "usb" | "keys" while that bare keyword is typed
+
+    // -- File actions panel (Ctrl+K on a file) and rename
+    property var fileActFor: null            // { path, name, isDirectory } while the panel is open
+    property string fileActStage: "actions"  // "actions" | "apps" (Open with...)
+    property string fileActPending: ""       // "trash" while waiting for the second Enter
+    property var fileOpenWith: []            // [{ id, name, file }]
+    property string renameFor: ""            // path being renamed ("" = normal typing)
+    property string renameText: ""
+    property string renameReturnText: ""
+
+    // -- /keys
+    property var keysItems: []
     property var contentResults: []
     property string _lastContentQuery: ""
     property var procItems: []
     property string _procKey: ""
     property var usageCounts: ({})
     property var _cache: ({})
-
-    // -- Config browser
-    property var configItems: []
-    property string configPath: ""
-    property int configDepth: 0
-    property var configStack: []
 
     // -- Inline tools
     // Native MPRIS (no polling), Spotify only: every other player is ignored.
@@ -1625,6 +1952,9 @@ else:
     property int _passWanted: 0
     property var devResult: ({ q: "", text: "", label: "" })
     property string _devQ: ""
+    property var quoteResult: ({ q: "", loading: false, text: "", sub: "", raw: "" })
+    property string _quoteQ: ""
+    property var _pendingQuote: null
     property string _devLabel: ""
 
     // -- Request counters (discard stale responses)
@@ -1676,7 +2006,6 @@ else:
     property bool _screenshotSelecting: false
     property string _ocrMode: "analyze"   // "analyze" | "translate"
     property string _ocrLang: "pt"
-    property string _screenQuestion: ""
     property string _resumeFocus: ""
 
     // -- Body height (evaluated once per change)
@@ -1686,6 +2015,46 @@ else:
             || root.nowPlayingText.length > 0)
         && !(root.railOpen && root.query.length === 0)
     readonly property real resultsHeight: root.computeResultsHeight()
+    // framed = glass panel with padding around the search pill (only when there is a list; otherwise just the pill)
+    readonly property bool framed: root.hasBody
+    property real bodyPad: root.framed ? root.panelPad : 0
+    Behavior on bodyPad { NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
+    readonly property real panelTotalH: root.searchH + root.bodyPad * 2 + (root.hasBody ? root.listGap + root.resultsHeight + root.footerH + root.listPad : 0)
+
+    // Footer key hints: what Enter does for the selected item, plus the shortcuts that really exist
+    readonly property var footerHints: {
+        const it = root.selectedItem;
+        const out = [];
+        let enter = "Open";
+        if (it) {
+            switch (it.kind) {
+                case "clip": case "calc": case "emoji": case "info": enter = "Copy"; break;
+                case "proc":   enter = "Quit"; break;
+                case "window": enter = "Focus"; break;
+                case "wifi":   enter = it.active ? "Connected" : ((it.secure && !it.saved) ? "Enter password" : "Connect"); break;
+                case "bt":     enter = it.connected ? "Disconnect" : (it.paired ? "Connect" : "Pair & connect"); break;
+                case "kproc":  enter = "Terminate"; break;
+                case "usb":    enter = it.mp ? "Eject" : "Mount"; break;
+                case "fact":   enter = (it.act === "with") ? "Choose" : ((it.act === "rename") ? "Rename" : "Run"); break;
+                case "fapp":   enter = "Open"; break;
+                case "key":    enter = "Copy shortcut"; break;
+                case "menu":   enter = it.isFolder ? "Open" : (it.confirm ? "Run (confirm)" : "Run"); break;
+                case "media":  enter = "Play/Pause"; break;
+            }
+        }
+        out.push({ k: "\u21B5", t: enter });
+        if (it && it.kind === "file") out.push({ k: "Shift \u21B5", t: "Actions" });
+        if (it && it.kind === "file") out.push({ k: "Ctrl \u21B5", t: "Open folder" });
+        if (it && it.kind === "file") out.push({ k: "Ctrl C", t: "Copy path" });
+        if (it && it.kind === "wifi" && it.secure) out.push({ k: "Shift \u21B5", t: "New password" });
+        if (it && it.kind === "bt" && it.paired) out.push({ k: "Shift \u21B5", t: "Forget" });
+        if (it && it.kind === "kproc") out.push({ k: "Shift \u21B5", t: "Force kill" });
+        if (it && it.kind === "usb" && it.mp) out.push({ k: "Shift \u21B5", t: "Open folder" });
+        if (it && it.kind === "clip" && root.mode === "clipboard") out.push({ k: "Ctrl P", t: it.pinned ? "Unpin" : "Pin" });
+        if (root.mode === "menu" && root.menuStack.length > 0) out.push({ k: "Bksp", t: "Back" });
+        out.push({ k: "Tab", t: "Modes" });
+        return out;
+    }
 
     // =====================================================================
     //  BASIC UTILITIES
@@ -1824,8 +2193,46 @@ else:
         root.notify("Timer started (" + label + ")");
     }
 
+    // Local reminder timer — independent from TimerService (no bar UI).
+    // Plays the same alarm sound as the bar timer (TimerService.refreshCountdown).
+    Component {
+        id: localReminderComponent
+        Timer {
+            property double endMs: 0
+            property string msg: ""
+            interval: 200
+            repeat: true
+            running: true
+            onTriggered: {
+                if (Date.now() >= endMs) {
+                    running = false;
+                    Audio.playSystemSound("alarm-clock-elapsed");
+                    Quickshell.execDetached(["notify-send", "Lembrete", msg, "-a", "Shell", "-u", "critical"]);
+                    destroy();
+                }
+            }
+        }
+    }
+
+    function scheduleLocalReminder(seconds, text) {
+        const secs = parseInt(seconds);
+        if (isNaN(secs) || secs <= 0) return;
+        localReminderComponent.createObject(root, { endMs: Date.now() + secs * 1000, msg: String(text) });
+        const target = new Date(Date.now() + secs * 1000);
+        const now = new Date();
+        const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+        const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+        const clock = root.pad2(target.getHours()) + ":" + root.pad2(target.getMinutes());
+        let when;
+        if (sameDay(target, now)) when = "às " + clock;
+        else if (sameDay(target, tomorrow)) when = "amanhã às " + clock;
+        else when = root.pad2(target.getDate()) + "/" + root.pad2(target.getMonth() + 1) + " às " + clock;
+        root.notify("⏰ Lembrete agendado para " + when + ": " + text);
+    }
+
     function scheduleReminder(whenStr, text) {
-        const script = 'qs -c ii ipc call todoReminder fire "$1" || notify-send -a Shell Reminder "$1"';
+        const env = "DISPLAY=:0 WAYLAND_DISPLAY=wayland-1 DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus XDG_RUNTIME_DIR=/run/user/$(id -u)";
+        const script = env + ' notify-send -a "Shell Reminder" "$1"';
         spotlightController.run(
             "systemd-run --user --quiet --collect --on-calendar=" + root.shellQuote(whenStr) +
             " --timer-property=AccuracySec=1s" +
@@ -1946,7 +2353,7 @@ else:
         const parts = String(e.exec || "").split(/\s+/).filter(Boolean);
         let i = 0;
         while (i < parts.length && (parts[i] === "env" || parts[i].indexOf("=") > 0)) i++;
-        const isFlatpak = (parts[i] === "flatpak" && parts[i + 1] === "run");
+        const isFlatpak = (String(parts[i] || "").split("/").pop() === "flatpak" && parts[i + 1] === "run");
         if (isFlatpak) {
             // For Flatpak apps, only use the Flatpak app ID as key
             // Don't use wmClass (shared with system version) or generic executable name
@@ -2004,7 +2411,7 @@ else:
         const parts = String(e.exec || "").split(/\s+/).filter(Boolean);
         let i = 0;
         while (i < parts.length && (parts[i] === "env" || parts[i].indexOf("=") > 0)) i++;
-        const isFlatpak = (parts[i] === "flatpak" && parts[i + 1] === "run");
+        const isFlatpak = (String(parts[i] || "").split("/").pop() === "flatpak" && parts[i + 1] === "run");
         if (isTelegram || isFlatpak || forceNew || _focusProbe.running) {
             // Pass Wayland display for Flatpak apps
             const env = isFlatpak ? "WAYLAND_DISPLAY=wayland-1 " : "";
@@ -2052,10 +2459,6 @@ else:
         }
     }
 
-    function focusWindow(address) {
-        spotlightController.run("hyprctl dispatch focuswindow " + root.shellQuote("address:" + address));
-    }
-
     // =====================================================================
     //  PARSERS / CONVERTERS (color, calc, units, system controls)
     // =====================================================================
@@ -2101,9 +2504,7 @@ else:
             let m;
         
             // Trigger OSD when typing "volume" alone
-            if (ql === "volume" || ql === "vol" || ql === "som") {
-                add("Volume (show OSD)", "qs -c ii ipc call osdVolume trigger");
-            }
+            // (typing "volume" alone now shows the volume card instead of the OSD row)
         
             if ((m = ql.match(/^(?:volume|vol|som)\s*([+-])?\s*(\d{1,3})$/))) {
             const n = clamp(parseInt(m[2]), 0, 150);
@@ -2118,7 +2519,7 @@ else:
             }
         } else if (/^(mudo|mute|silenciar)$/.test(ql)) {
                 add("Alternar mudo", "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle; qs -c ii ipc call osdVolume trigger");
-            } else if ((m = ql.match(/^(?:brilho|brightness|bright)\\s*([+-])?\\s*(\\d{1,3})$/))) {
+            } else if ((m = ql.match(/^(?:brilho|brightness|bright)\s*([+-])?\s*(\d{1,3})$/))) {
             const n = clamp(parseInt(m[2]), m[1] ? 0 : 1, 100);
             if (m[1]) add("Brightness " + m[1] + n + "%", "brightnessctl set " + n + "%" + m[1]);
             else add("Brightness: " + n + "%", "brightnessctl set " + n + "%");
@@ -2478,6 +2879,70 @@ else:
         _currency.exec(["bash", "-c", "curl -s --max-time 10 'https://api.exchangerate-api.com/v4/latest/" + from.toUpperCase() + "' 2>/dev/null"]);
     }
 
+    // ---- "dolar hoje", "euro hoje", "bitcoin hoje"... -> quote in BRL (AwesomeAPI)
+    function quoteTarget(name) {
+        const T = (pair, label) => ({ pair: pair, label: label });
+        const map = {
+            "dolar": T("USD-BRL", "D\u00f3lar"), "d\u00f3lar": T("USD-BRL", "D\u00f3lar"), "dolares": T("USD-BRL", "D\u00f3lar"),
+            "d\u00f3lares": T("USD-BRL", "D\u00f3lar"), "usd": T("USD-BRL", "D\u00f3lar"),
+            "dolar turismo": T("USD-BRLT", "D\u00f3lar Turismo"), "d\u00f3lar turismo": T("USD-BRLT", "D\u00f3lar Turismo"),
+            "dolar canadense": T("CAD-BRL", "D\u00f3lar Canadense"), "d\u00f3lar canadense": T("CAD-BRL", "D\u00f3lar Canadense"),
+            "dolar australiano": T("AUD-BRL", "D\u00f3lar Australiano"), "d\u00f3lar australiano": T("AUD-BRL", "D\u00f3lar Australiano"),
+            "euro": T("EUR-BRL", "Euro"), "euros": T("EUR-BRL", "Euro"), "eur": T("EUR-BRL", "Euro"),
+            "libra": T("GBP-BRL", "Libra"), "libras": T("GBP-BRL", "Libra"), "gbp": T("GBP-BRL", "Libra"),
+            "iene": T("JPY-BRL", "Iene"), "ienes": T("JPY-BRL", "Iene"), "jpy": T("JPY-BRL", "Iene"),
+            "yuan": T("CNY-BRL", "Yuan"), "cny": T("CNY-BRL", "Yuan"),
+            "franco": T("CHF-BRL", "Franco Su\u00ed\u00e7o"), "franco suico": T("CHF-BRL", "Franco Su\u00ed\u00e7o"),
+            "franco su\u00ed\u00e7o": T("CHF-BRL", "Franco Su\u00ed\u00e7o"), "chf": T("CHF-BRL", "Franco Su\u00ed\u00e7o"),
+            "peso argentino": T("ARS-BRL", "Peso Argentino"), "ars": T("ARS-BRL", "Peso Argentino"),
+            "peso chileno": T("CLP-BRL", "Peso Chileno"), "clp": T("CLP-BRL", "Peso Chileno"),
+            "peso mexicano": T("MXN-BRL", "Peso Mexicano"), "mxn": T("MXN-BRL", "Peso Mexicano"),
+            "peso uruguaio": T("UYU-BRL", "Peso Uruguaio"), "uyu": T("UYU-BRL", "Peso Uruguaio"),
+            "bitcoin": T("BTC-BRL", "Bitcoin"), "btc": T("BTC-BRL", "Bitcoin"),
+            "ethereum": T("ETH-BRL", "Ethereum"), "eth": T("ETH-BRL", "Ethereum"), "ether": T("ETH-BRL", "Ethereum"),
+            "litecoin": T("LTC-BRL", "Litecoin"), "ltc": T("LTC-BRL", "Litecoin"),
+            "dogecoin": T("DOGE-BRL", "Dogecoin"), "doge": T("DOGE-BRL", "Dogecoin"),
+            "xrp": T("XRP-BRL", "XRP"), "ripple": T("XRP-BRL", "XRP"),
+            "usdt": T("USDT-BRL", "Tether (USDT)"), "tether": T("USDT-BRL", "Tether (USDT)")
+        };
+        if (root.hasOwn(map, name)) return map[name];
+        const c = root.curCode(name);          // any other known 3-letter code -> CODE-BRL
+        if (c && c !== "brl") return T(c.toUpperCase() + "-BRL", c.toUpperCase());
+        return null;
+    }
+
+    function fmtBR(v, dec) {
+        const neg = v < 0;
+        const parts = Math.abs(v).toFixed(dec).split(".");
+        parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+        return (neg ? "-" : "") + parts.join(",");
+    }
+
+    function checkQuote() {
+        const s = root.query.trim().toLowerCase().replace(/\s+/g, " ");
+        const m = s.match(/^(.+?) (?:hoje|agora|today|now)$/)
+               || s.match(/^(?:cota[c\u00e7][a\u00e3]o|pre[c\u00e7]o|valor) (?:d[oae]s? )?(.+)$/);
+        const t = m ? root.quoteTarget(m[1].trim()) : null;
+        if (!t) {
+            if (root.quoteResult.q) root.quoteResult = { q: "", loading: false, text: "", sub: "", raw: "" };
+            root._quoteQ = "";
+            return;
+        }
+        if (root._quoteQ === s) return;
+        root._quoteQ = s;
+        const cached = root.cacheGet("quote:" + t.pair, 60 * 1000);
+        if (cached) {
+            root.quoteResult = { q: s, loading: false, text: cached.text, sub: cached.sub, raw: cached.raw };
+            root.rebuildIfShown();
+            return;
+        }
+        root.quoteResult = { q: s, loading: true, text: "Buscando cota\u00e7\u00e3o: " + t.label + "\u2026", sub: "", raw: "" };
+        root._pendingQuote = { q: s, pair: t.pair, label: t.label };
+        // Optional API key (no cache, real-time): ~/.config/spotlight/awesomeapi.key
+        _quote.exec(["bash", "-c", "k=$(cat ~/.config/spotlight/awesomeapi.key 2>/dev/null); "
+            + "curl -s --max-time 10 ${k:+-H \"x-api-key: $k\"} 'https://economia.awesomeapi.com.br/json/last/" + t.pair + "' 2>/dev/null"]);
+    }
+
     function checkBattery() {
         const s = root.query.trim().toLowerCase();
         if (s === "bateria" || s === "battery") _battery.running = true;
@@ -2693,6 +3158,7 @@ else:
         root.checkWeather();
         root.checkDefine();
         root.checkCurrency();
+        root.checkQuote();
         root.checkBattery();
         root.checkMyIp();
         root.checkPassword();
@@ -2724,7 +3190,7 @@ else:
     }
 
     function runFd() {
-        if (root.slashMode || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
+        if (root.slashMode || root.mode === "menu" || root.query.trim().length < 2 || root.aiPromptFor(root.query.trim()) !== "") {
             root.fileItems = [];
             root.scheduleRebuild();
             return;
@@ -2865,14 +3331,12 @@ else:
     function buildSystemPrompt(intent, nowStr) {
         const base = "Reply in English, briefly and directly, unless the user writes in or asks for another language.";
         const extra = {
+            lembrar: `\nThe user wants to create a reminder with alarm. Current date/time: ${nowStr}. REPLY ONLY with JSON:\n{"action":"add_reminder","text":"...","due":"YYYY-MM-DD HH:MM"}`,
             todo: `\nThe user wants to create a task. Current date: ${nowStr}. REPLY ONLY with JSON:\n{"action":"add_todo","text":"...","due":"YYYY-MM-DD HH:MM"}`,
-            note: `\nThe user wants to create a note. REPLY ONLY with JSON:\n{"action":"add_note","title":"...","content":"..."}`,
-            email: `\nThe user wants to send an email. REPLY ONLY with JSON:\n{"action":"send_email","to":"...","subject":"...","body":"..."}`,
             timer: `\nThe user wants a timer. REPLY ONLY with JSON:\n{"action":"start_timer","seconds":N,"label":"..."}`,
             alias: `\nThe user wants to create a shortcut. REPLY ONLY with JSON:\n{"action":"create_alias","name":"...","actions":["..."]}`,
             block: `\nThe user wants to block sites. REPLY ONLY with JSON:\n{"action":"block_sites","sites":["..."],"minutes":N}`,
             focus: `\nThe user wants focus mode. REPLY ONLY with JSON:\n{"action":"focus_mode","minutes":N}`,
-            screenshot: `\nThe user wants to analyze or translate the screen. REPLY ONLY with JSON:\n{"action":"screenshot","selectArea":true,"translate":false,"lang":"pt"}\nUse translate:true if they ask for a translation, and lang with the target language code.`,
             web: `\nThe user wants to summarize a link. REPLY ONLY with JSON:\n{"action":"web_summary","url":"<url>"}`,
             pdf: `\nThe user wants to summarize a PDF. REPLY ONLY with JSON:\n{"action":"pdf_summary","path":"<path>"}`
         };
@@ -3000,21 +3464,15 @@ else:
         // Actions run only when the request had a matching intent, so untrusted text
         // (web pages, PDFs, OCR, diffs) cannot make the model trigger actions on its own.
         const allowedAction = ({
-            todo: "add_todo", note: "add_note", email: "send_email", timer: "start_timer",
+            lembrar: "add_reminder",
+            todo: "add_todo", timer: "start_timer",
             alias: "create_alias", block: "block_sites", focus: "focus_mode",
-            screenshot: "screenshot", web: "web_summary", pdf: "pdf_summary"
+            web: "web_summary", pdf: "pdf_summary"
         })[root._aiIntent];
         if (allowedAction && cleaned.startsWith("{") && cleaned.endsWith("}")) {
             try {
                 const obj = JSON.parse(cleaned);
                 if (obj.action !== allowedAction) throw new Error("action not requested");
-                if (obj.action === "screenshot") {
-                    root._ocrMode = obj.translate === true ? "translate" : "analyze";
-                    root._ocrLang = obj.lang || "pt";
-                    root.aiText = "📸 Capturing screen…";
-                    spotlightActions.runScreenshotOcr(obj.selectArea === true);
-                    return;
-                }
                 if (obj.action === "web_summary" && obj.url) {
                     root.aiText = "🌐 Downloading " + obj.url + "…";
                     spotlightActions.fetchPage(obj.url);
@@ -3048,6 +3506,28 @@ else:
     function handleStructuredAction(obj, prompt) {
         if (!obj || !obj.action) return "";
         switch (obj.action) {
+            case "add_reminder": {
+                if (!obj.text) return "";
+                let due = undefined;
+                let dueLabel = "";
+                if (obj.due) {
+                    const parts = String(obj.due).trim().split(/\s+/);
+                    const timePart = parts[1] || "09:00";
+                    const [y, m, d] = parts[0].split("-").map(Number);
+                    const [hh, mm] = timePart.split(":").map(Number);
+                    if ([y, m, d, hh, mm].every(n => !isNaN(n))) {
+                        due = new Date(Date.UTC(y, m - 1, d, hh, mm));
+                        dueLabel = root.pad2(d) + "/" + root.pad2(m) + " at " + root.pad2(hh) + ":" + root.pad2(mm);
+                    }
+                }
+                Todo.addTask(obj.text, due);
+                if (due && due.getTime() > Date.now()) {
+                    const whenStr = due.getFullYear() + "-" + root.pad2(due.getMonth() + 1) + "-" + root.pad2(due.getDate())
+                        + " " + root.pad2(due.getHours()) + ":" + root.pad2(due.getMinutes()) + ":00";
+                    root.scheduleReminder(whenStr, obj.text);
+                }
+                return "⏰ Reminder created: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
+            }
             case "add_todo": {
                 if (!obj.text) return "";
                 let due = undefined;
@@ -3070,8 +3550,6 @@ else:
                 }
                 return "✅ Task created: \"" + obj.text + "\"" + (dueLabel ? " · " + dueLabel : "");
             }
-            case "add_note": return spotlightActions.addObsidianNote(obj.title || "Note", obj.content || "");
-            case "send_email": return spotlightActions.sendEmail(obj.to, obj.subject || "", obj.body || "");
             case "start_timer": {
                 const s = parseInt(obj.seconds) || 0;
                 if (s <= 0) return "";
@@ -3093,16 +3571,6 @@ else:
             + (page.text || "").slice(0, 5000);
     }
 
-    function buildScreenPrompt(windows, ocr, question) {
-        const ask = question
-            || "Explain what is shown on the screen: what the user is doing, what is in each window, and anything relevant or unusual. Be concise.";
-        return "User screen context (captured just now).\n\n"
-            + "WINDOWS ON THE CURRENT WORKSPACE:\n" + (windows || "(unavailable)") + "\n\n"
-            + "TEXT READ FROM THE SCREEN BY OCR (may contain errors, approximate order, and text from several windows mixed together):\n"
-            + (ocr ? ocr.slice(0, 6000) : "(no text recognized)") + "\n\n"
-            + "REQUEST: " + ask;
-    }
-
     function aiIsAuto(s) {
         return root.aiAutoQuestion && !s.startsWith("/") && s.endsWith("?") && s.length > 3
             && !/^\/?(ai|gpt|ia)\s/i.test(s)
@@ -3112,9 +3580,14 @@ else:
     function aiPromptFor(s) {
         const tm = s.match(/^(?:tr|traduzir|translate)\s+([a-z]{2}(?:-[a-z]{2})?)\s+(.+)$/i);
         const m = s.match(/^\/?(ai|gpt|ia)\s+(.+)$/i);
-        if (tm) return "Translate the following text to " + root.langName(tm[1]) +
-                       ". Reply with ONLY the translation, without quotes or explanations.\n\n" + tm[2];
+        if (tm) return "Translate the following text to " + root.langName(tm[1])
+                       + ". Reply with ONLY the translation, without quotes or explanations.\n\n" + tm[2];
         if (m && m[2] && (!s.startsWith("/") || m[1].toLowerCase() === "ai")) return m[2].trim();
+        // Natural language reminder detection (no ? required)
+        const reminderMatch = s.match(/^(?:por favor\s+)?(?:lembre|lembre-se|me lembre|defina|agende)\s+(?:me\s+)?(?:de\s+)?(.+)$/i);
+        if (reminderMatch) {
+            return "Create a reminder with alarm. Current date/time: " + (() => { const n = new Date(); return n.getFullYear() + "-" + root.pad2(n.getMonth()+1) + "-" + root.pad2(n.getDate()) + " " + root.pad2(n.getHours()) + ":" + root.pad2(n.getMinutes()); })() + ". REPLY ONLY with JSON:\n{\"action\":\"add_reminder\",\"text\":\"...\",\"due\":\"YYYY-MM-DD HH:MM\"}\n\nUser request: " + reminderMatch[1].trim();
+        }
         if (root.aiIsAuto(s)) return s;
         return "";
     }
@@ -3294,6 +3767,9 @@ else:
         for (const r of root.results) {
             if (r.isHeader) { h += root.headerH; continue; }
             if (r.kind === "weather") { h += root.weatherH; continue; }
+            if (r.kind === "volume" || r.kind === "brightness" || r.kind === "mic" || r.kind === "night") { h += root.volumeH; continue; }
+            if (r.kind === "power") { h += root.powerH; continue; }
+            if (r.kind === "qr") { h += root.qrH; continue; }
             if (rowsShown >= root.maxVisibleRows) break;
             h += root.rowH;
             rowsShown++;
@@ -3358,6 +3834,11 @@ else:
             A([{ kind: "action", name: "Search the Web for \u201c" + cmdArgs + "\u201d", action: "web:" + cmdArgs, iconKey: "web", category: "Search" }], "WEB SEARCH");
             return;
         }
+        if (cmdName === "maps" && hasArgs) {
+            const place = rawArgs.trim() || cmdArgs;
+            A([{ kind: "action", name: "Search Google Maps for \u201c" + place + "\u201d", action: "open:" + root.bangs.maps[1] + encodeURIComponent(place), iconKey: "web", category: "Google Maps" }], "GOOGLE MAPS");
+            return;
+        }
         if (cmdName === "calc" && hasArgs) {
             const cr = root.evalMath(cmdArgs);
             if (cr !== null) A(root._calcRow("= " + cr, String(cr), "Calculator"), "CALCULATOR");
@@ -3404,13 +3885,34 @@ else:
             }], "EVENT");
             return;
         }
-        if ((cmdName === "nota" || cmdName === "note") && hasArgs) {
-            A([{ kind: "action", name: "📝 Create note: \u201c" + cmdArgs + "\u201d", action: "aiintent:note:" + cmdArgs, iconKey: "note", category: "Obsidian" }], "NOTE");
-            return;
+        if (cmdName === "timer" && hasArgs) {
+            const tm = cmdArgs.match(/^(\d+)\s*(min|m|s|sec|seg|h)?$/);
+            if (tm) {
+                const n = parseInt(tm[1]);
+                const unit = tm[2] || "min";
+                let secs = n * 60;
+                if (unit === "s" || unit === "sec" || unit === "seg") secs = n;
+                else if (unit === "h") secs = n * 3600;
+                A([{ kind: "action", name: "Start " + n + " " + unit + " timer", action: "realtimer:" + secs + ":" + n + " " + unit, iconKey: "timer", category: "Timer" }], "TIMER");
+                return;
+            }
         }
-        if (cmdName === "email" && hasArgs) {
-            A([{ kind: "action", name: "📧 Send email: \u201c" + cmdArgs + "\u201d", action: "aiintent:email:" + cmdArgs, iconKey: "message", category: "Email" }], "EMAIL");
-            return;
+        if (cmdName === "lembrar" && hasArgs) {
+            const parsed = root.parseTodoInput(rawArgs);
+            if (parsed.text && parsed.remindMs > Date.now()) {
+                const seconds = Math.round((parsed.remindMs - Date.now()) / 1000);
+                A([{
+                    kind: "action",
+                    name: "⏰ Lembrar: " + parsed.text + " · " + root.pad2(new Date(parsed.remindMs).getHours()) + ":" + root.pad2(new Date(parsed.remindMs).getMinutes()),
+                    action: "localreminder:" + seconds + ":" + parsed.text,
+                    iconKey: "bell",
+                    category: "Lembrete"
+                }], "LEMBRAR");
+                return;
+            } else if (parsed.text) {
+                A([root.todoActionItem(parsed)], "LEMBRAR");
+                return;
+            }
         }
 
         const filtered = cmdName.length > 0
@@ -3457,92 +3959,776 @@ else:
         root._addItems(items, disp, wlist.map(w => ({ kind: "window", name: w.title, address: w.address, category: w.cls })), "OPEN WINDOWS");
     }
 
-    function _buildWifiMode(items, disp) {
-        root._addItems(items, disp, root.wifiItems.map(w => ({ kind: "wifi", name: w.ssid, category: w.active ? "Connected" : "Available" })), "WI-FI NETWORKS");
+    // =====================================================================
+    //  VOLUME CARD
+    // =====================================================================
+    function volSet(v) {
+        root.volLevel = Math.max(0, Math.min(1, v));
+        root.volMuted = false;
+        root._volHold = Date.now() + 600;
+        if (!_volApply.running) _volApply.start();   // throttled: applies the latest value every 60 ms while dragging
     }
 
-    function _buildBluetoothMode(items, disp) {
-        root._addItems(items, disp, root.btItems.map(d => ({ kind: "bt", name: d.name, address: d.mac, category: d.mac })), "PAIRED BLUETOOTH");
+    // =====================================================================
+    //  MIC / NIGHT LIGHT / POWER PROFILE / QR / KILL / USB
+    // =====================================================================
+    function _pinCard(disp, kind) {
+        disp.unshift({ kind: kind });                                 // display-only card, pinned on top
+        disp.forEach((d, i) => { if (d._idx !== undefined) d._dispIdx = i; });
+    }
+
+    // ---- microphone
+    function micSet(v) {
+        root.micLevel = Math.max(0, Math.min(1, v));
+        root.micMuted = false;
+        root._micHold = Date.now() + 600;
+        if (!_micApply.running) _micApply.start();
+    }
+
+    function micSetMute(m) {
+        root.micMuted = m;
+        root._micHold = Date.now() + 600;
+        spotlightController.run("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ " + (m ? "1" : "0"));
+    }
+
+    // ---- night light
+    function nightSet(level) {
+        const l = Math.max(0, Math.min(1, level));
+        root._nightTarget = Math.round(6000 - l * 3500);
+        if (!Hyprsunset.temperatureActive) Hyprsunset.toggleTemperature(true);   // moving the bar turns it on
+        if (!_nightApply.running) _nightApply.start();
+    }
+
+    function nightToggle() {
+        Hyprsunset.toggleTemperature();
+    }
+
+    // ---- power profile
+    function ppSet(id) {
+        root.ppCurrent = id;
+        root._ppHold = Date.now() + 1500;
+        spotlightController.run("powerprofilesctl set " + id);
+    }
+
+    function ppCycle(dir) {
+        const ids = root.ppProfiles.map(p => p.id);
+        if (ids.length === 0) return;
+        let i = ids.indexOf(root.ppCurrent);
+        if (i < 0) i = 0;
+        root.ppSet(ids[(i + dir + ids.length) % ids.length]);
+    }
+
+    // ---- QR code
+    function _qrHook(text) {
+        const t = text.trim();
+        let want = "", label = "";
+        const m = t.match(/^qr\s+([\s\S]+)$/i);
+        if (m) { want = "t:" + m[1]; label = m[1]; }
+        else if (/^wifi\s+qr$/i.test(t)) { want = "wifi"; label = "Current Wi-Fi network"; }
+        if (want === root._qrWanted) return;
+        root._qrWanted = want;
+        if (want === "") return;
+        root.qrBusy = true;
+        root.qrError = "";
+        root.qrLabel = label;
+        _qrDeb.restart();
+    }
+
+    function _qrRun() {
+        if (_qrGen.running) { _qrDeb.restart(); return; }
+        const want = root._qrWanted;
+        if (want === "") return;
+        root._qrSeq++;
+        root._qrRanFor = want;
+        root._qrOut = "/tmp/spotlight-qr-" + root._qrSeq + ".png";
+        _qrGen.environment = {
+            "SP_OUT": root._qrOut,
+            "SP_MODE": want === "wifi" ? "wifi" : "text",
+            "SP_QR": want.startsWith("t:") ? want.slice(2) : ""
+        };
+        _qrGen.command = ["bash", "-c", root._qrScript];
+        _qrGen.running = true;
+    }
+
+    // ---- /kill and /usb (typed as "/kill firefox", "/usb", "usb", "pendrive", "eject")
+    function _extraWordOf(ql) {
+        let m = ql.match(/^\/kill(?:\s+(.*))?$/);
+        if (m) return { kind: "kill", filter: (m[1] || "").trim() };
+        m = ql.match(/^(?:\/usb|usb|pendrive|ejetar|eject)(?:\s+(.*))?$/);
+        if (m) return { kind: "usb", filter: (m[1] || "").trim() };
+        m = ql.match(/^(?:\/keys|atalhos|shortcuts|keybinds|binds)(?:\s+(.*))?$/);
+        if (m) return { kind: "keys", filter: (m[1] || "").trim() };
+        return null;
+    }
+
+    function _extraWordHook(text) {
+        const w = (root.mode === "search") ? root._extraWordOf(text.trim().toLowerCase()) : null;
+        const kind = w ? w.kind : "";
+        if (kind === root._extraShown) return;
+        root._extraShown = kind;
+        if (kind === "kill") root.procScan();
+        else if (kind === "usb") root.usbScan();
+        else if (kind === "keys") root.keysScan();
+    }
+
+    function procScan() { _procs.running = true; }
+    function usbScan() { _usb.running = true; }
+
+    function _buildKillMode(items, disp, filter) {
+        const f = (filter || "").trim().toLowerCase();
+        let list = root.killList;
+        if (f) list = list.filter(p => p.args.toLowerCase().indexOf(f) >= 0 || String(p.pid) === f);
+        else list = list.slice(0, 40);
+        const rows = list.map(p => ({
+            kind: "kproc",
+            id: "proc:" + p.pid,
+            pid: p.pid,
+            name: p.name,
+            category: "PID " + p.pid + " \u00B7 " + p.cpu.toFixed(1) + "% CPU \u00B7 " + p.mem.toFixed(1) + "% RAM"
+        }));
+        root._addItems(items, disp, rows, f ? "PROCESSES" : "TOP PROCESSES");
+        if (rows.length === 0)
+            root._addItems(items, disp, root._infoRow(_procs.running ? "Loading processes\u2026" : "No matching processes", ""), "PROCESSES");
+    }
+
+    function _buildUsbMode(items, disp, filter) {
+        const f = (filter || "").trim().toLowerCase();
+        const list = f ? root.usbItems.filter(d => (d.name + " " + d.dev).toLowerCase().indexOf(f) >= 0) : root.usbItems;
+        const rows = list.map(d => ({
+            kind: "usb",
+            id: "usb:" + d.dev,
+            dev: d.dev,
+            parent: d.parent,
+            mp: d.mp,
+            name: d.name,
+            category: d.mp ? ("Mounted \u00B7 " + d.mp + " \u00B7 " + d.size) : ("Not mounted \u00B7 " + d.size)
+        }));
+        root._addItems(items, disp, rows, "EXTERNAL DRIVES");
+        if (rows.length === 0)
+            root._addItems(items, disp, root._infoRow(_usb.running ? "Looking for drives\u2026" : "No external drives found", ""), "EXTERNAL DRIVES");
+    }
+
+    // Enter ends the process (SIGTERM), Shift+Enter forces it (SIGKILL). The list stays open and refreshes.
+    function _activateProc(e, alt) {
+        const pid = parseInt(e.pid);
+        if (!(pid > 1)) return true;
+        spotlightController.run("kill " + (alt ? "-9 " : "") + pid + " 2>/dev/null");
+        _procRefresh.restart();
+        return true;
+    }
+
+    // Enter ejects a mounted drive (or mounts an unmounted one), Shift+Enter opens the mounted folder.
+    function _activateUsb(e, alt) {
+        const env = { "SP_DEV": e.dev, "SP_PARENT": e.parent, "SP_NAME": e.name, "SP_MP": e.mp };
+        let script;
+        if (e.mp && alt) {
+            script = "xdg-open \"$SP_MP\" >/dev/null 2>&1";
+        } else if (e.mp) {
+            script = [
+                "notify-send -t 2500 'Drive' \"Ejecting $SP_NAME\u2026\"",
+                "lsblk -nrpo PATH,MOUNTPOINTS \"$SP_PARENT\" | awk 'NF>1 {print $1}' | while read -r p; do udisksctl unmount -b \"$p\" >/dev/null 2>&1; done",
+                "if udisksctl power-off -b \"$SP_PARENT\" >/dev/null 2>&1; then",
+                "  notify-send 'Drive' \"$SP_NAME can be removed safely\"",
+                "else",
+                "  notify-send -u critical 'Drive' \"Could not eject $SP_NAME (is something still using it?)\"",
+                "fi"
+            ].join("\n");
+        } else {
+            script = [
+                "if out=$(udisksctl mount -b \"$SP_DEV\" 2>&1); then",
+                "  notify-send 'Drive' \"$out\"",
+                "else",
+                "  notify-send -u critical 'Drive' \"Could not mount $SP_NAME\"",
+                "fi"
+            ].join("\n");
+        }
+        root._netRun(script, env);
+        return false;
+    }
+
+    // =====================================================================
+    //  FILE ACTIONS PANEL (Ctrl+K) and /keys
+    // =====================================================================
+    function _baseName(p) { const i = p.lastIndexOf("/"); return i >= 0 ? p.slice(i + 1) : p; }
+    function _dirName(p) { const i = p.lastIndexOf("/"); return i > 0 ? p.slice(0, i) : "/"; }
+
+    function fileActOpen(item) {
+        if (!item || item.kind !== "file" || !item.path) return;
+        root.fileActFor = { path: item.path, name: item.name || root._baseName(item.path), isDirectory: !!item.isDirectory };
+        root.fileActStage = "actions";
+        root.fileActPending = "";
+        root.selectedIndex = 0;
+        root._userNavigated = false;
+        root.scheduleRebuild();
+    }
+
+    function fileActClose() {
+        root.fileActFor = null;
+        root.fileActStage = "actions";
+        root.fileActPending = "";
+        root.selectedIndex = 0;
+        root._userNavigated = false;
+        root.scheduleRebuild();
+    }
+
+    // Esc / back inside "Open with..." returns to the action list. False when there is nothing to go back to.
+    function fileActBack() {
+        if (root.fileActStage !== "apps") return false;
+        root.fileActStage = "actions";
+        root.selectedIndex = 0;
+        root._userNavigated = false;
+        root.scheduleRebuild();
+        return true;
+    }
+
+    function _openWithScan(path) {
+        _openWith.environment = { "SP_FILE": path };
+        _openWith.command = ["bash", "-c", root._openWithScript];
+        _openWith.running = true;
+    }
+
+    function _buildFileActions(items, disp) {
+        const f = root.fileActFor;
+        if (!f) return;
+        if (root.fileActStage === "apps") {
+            const apps = root.fileOpenWith.map(a => ({
+                kind: "fapp", id: "fapp:" + a.id, name: a.name, category: a.id, iconKey: "grid", appFile: a.file
+            }));
+            root._addItems(items, disp, apps, "OPEN WITH \u00B7 " + f.name);
+            if (apps.length === 0)
+                root._addItems(items, disp, root._infoRow(_openWith.running ? "Looking for apps\u2026" : "No other apps found for this file", ""), "OPEN WITH \u00B7 " + f.name);
+            return;
+        }
+        const dir = root._dirName(f.path);
+        const rows = [
+            { kind: "fact", id: "fact:open",     act: "open",     name: "Open",            category: f.name,                          iconKey: "external" },
+            { kind: "fact", id: "fact:folder",   act: "folder",   name: "Open folder",     category: dir,                             iconKey: "folder" },
+            { kind: "fact", id: "fact:with",     act: "with",     name: "Open with\u2026", category: "Choose another app",            iconKey: "grid" },
+            { kind: "fact", id: "fact:copypath", act: "copypath", name: "Copy path",       category: f.path,                          iconKey: "link" },
+            { kind: "fact", id: "fact:copyfile", act: "copyfile", name: "Copy file",       category: "Paste it in Dolphin or a chat", iconKey: "copy" },
+            { kind: "fact", id: "fact:rename",   act: "rename",   name: "Rename\u2026",    category: f.name,                          iconKey: "edit" },
+            { kind: "fact", id: "fact:trash",    act: "trash",
+              name: root.fileActPending === "trash" ? "Move to trash?" : "Move to trash",
+              category: root.fileActPending === "trash" ? "Press Enter again to confirm" : "You can restore it from the trash",
+              iconKey: "trash" }
+        ];
+        root._addItems(items, disp, rows, "ACTIONS \u00B7 " + f.name);
+    }
+
+    // Returns true if Spotlight should stay open.
+    function _activateFileAct(e) {
+        const f = root.fileActFor;
+        if (!f) return true;
+        switch (e.act) {
+        case "open":
+            root.xdgOpen(f.path);
+            return false;
+        case "folder":
+            root.xdgOpen(root._dirName(f.path));
+            return false;
+        case "with":
+            root.fileActStage = "apps";
+            root.fileOpenWith = [];
+            root.selectedIndex = 0;
+            root._userNavigated = false;
+            root._openWithScan(f.path);
+            root.scheduleRebuild();
+            return true;
+        case "copypath":
+            root.copyText(f.path);
+            return false;
+        case "copyfile":
+            root._netRun([
+                "if printf '%s\\r\\n' \"$SP_URI\" | wl-copy --type text/uri-list; then",
+                "  notify-send -t 2000 'Spotlight' \"Copied $SP_NAME\"",
+                "else",
+                "  notify-send -u critical 'Spotlight' \"Could not copy $SP_NAME\"",
+                "fi"
+            ].join("\n"), { "SP_URI": "file://" + encodeURI(f.path).replace(/#/g, "%23").replace(/\?/g, "%3F"), "SP_NAME": f.name });
+            return false;
+        case "rename":
+            root.renameStart();
+            return true;
+        case "trash":
+            if (root.fileActPending !== "trash") {
+                root.fileActPending = "trash";
+                root.scheduleRebuild();
+                return true;
+            }
+            root._netRun([
+                "if gio trash -- \"$SP_FILE\" 2>/dev/null; then",
+                "  notify-send 'Spotlight' \"Moved to trash: $SP_NAME\"",
+                "else",
+                "  notify-send -u critical 'Spotlight' \"Could not move $SP_NAME to the trash\"",
+                "fi"
+            ].join("\n"), { "SP_FILE": f.path, "SP_NAME": f.name });
+            return false;
+        }
+        return true;
+    }
+
+    function _activateFileApp(e) {
+        const f = root.fileActFor;
+        if (!f) return true;
+        root._netRun(
+            "gio launch \"$SP_DESKTOP\" \"$SP_FILE\" >/dev/null 2>&1 || notify-send -u critical 'Open with' \"Could not open with $SP_APP\"",
+            { "SP_DESKTOP": e.appFile, "SP_FILE": f.path, "SP_APP": e.name });
+        return false;
+    }
+
+    // ---- rename: the search field becomes the name field (its text never reaches root.query)
+    function renameStart() {
+        const f = root.fileActFor;
+        if (!f) return;
+        root.renameReturnText = searchField.text;
+        root.renameFor = f.path;
+        root.renameText = f.name;
+        root.fileActFor = null;
+        root.fileActStage = "actions";
+        root.fileActPending = "";
+        searchField.text = f.name;
+        searchField.forceActiveFocus();
+        const dot = f.name.lastIndexOf(".");
+        searchField.select(0, dot > 0 ? dot : f.name.length);      // select the name, not the extension
+        root.scheduleRebuild();
+    }
+
+    function renameCancel() {
+        const back = root.renameReturnText;
+        root.renameFor = "";
+        root.renameText = "";
+        searchField.text = back;
+        root.scheduleRebuild();
+    }
+
+    function renameSubmit() {
+        const old = root.renameFor;
+        const nn = root.renameText.trim();
+        if (nn === "" || nn.indexOf("/") >= 0 || nn === root._baseName(old)) { root.renameCancel(); return; }
+        root.renameFor = "";
+        root.renameText = "";
+        root._netRun([
+            "if [ -e \"$SP_NEW\" ]; then",
+            "  notify-send -u critical 'Spotlight' \"A file named $SP_NAME already exists\"",
+            "elif mv -- \"$SP_OLD\" \"$SP_NEW\"; then",
+            "  notify-send 'Spotlight' \"Renamed to $SP_NAME\"",
+            "else",
+            "  notify-send -u critical 'Spotlight' \"Could not rename to $SP_NAME\"",
+            "fi"
+        ].join("\n"), { "SP_OLD": old, "SP_NEW": root._dirName(old) + "/" + nn, "SP_NAME": nn });
+        spotlightController.spotlightOpen = false;
+    }
+
+    function _buildRenamePrompt(items, disp) {
+        root._addItems(items, disp, [{
+            kind: "info",
+            name: "Type the new name and press Enter",
+            category: "Esc to cancel"
+        }], "RENAME \u00B7 " + root._baseName(root.renameFor));
+    }
+
+    // ---- /keys: Hyprland shortcuts from `hyprctl binds -j`
+    function keysScan() { _keys.running = true; }
+
+    function _buildKeysMode(items, disp, filter) {
+        const f = (filter || "").toLowerCase().replace(/\+/g, " ").trim();
+        const tokens = f.split(/\s+/).filter(t => t.length > 0);
+        let list = root.keysItems;
+        if (tokens.length)
+            list = list.filter(k => {
+                const hay = (k.combo + " " + k.action).toLowerCase().replace(/\+/g, " ");
+                return tokens.every(t => hay.indexOf(t) >= 0);
+            });
+        const rows = list.slice(0, 200).map(k => ({
+            kind: "key",
+            id: "key:" + k.idx,
+            name: k.action,
+            category: k.combo + (k.submap ? "  \u00B7  submap: " + k.submap : ""),
+            combo: k.combo
+        }));
+        root._addItems(items, disp, rows, tokens.length ? "SHORTCUTS" : "HYPRLAND SHORTCUTS");
+        if (rows.length === 0)
+            root._addItems(items, disp, root._infoRow(_keys.running ? "Loading shortcuts\u2026" : "No shortcuts found", ""), "SHORTCUTS");
+    }
+
+    // Enter copies the shortcut text (e.g. "Super + Shift + Q"); it never runs the bind.
+    function _activateKey(e) {
+        root.copyText(e.combo);
+        return false;
+    }
+
+    function brightSet(v) {
+        if (!root.brightControllable) return;
+        root.brightMonitor.setBrightness(Math.max(0.01, Math.min(1, v)));   // never 0%: a black screen is hard to undo
+    }
+
+    function volSetMute(m) {
+        root.volMuted = m;
+        root._volHold = Date.now() + 600;
+        spotlightController.run("wpctl set-mute @DEFAULT_AUDIO_SINK@ " + (m ? "1" : "0"));
+    }
+
+    // =====================================================================
+    //  WI-FI / BLUETOOTH PICKER
+    // =====================================================================
+    // Typing "wifi" or "bluetooth" (optionally followed by a filter) lists the networks / devices
+    // around you. "wifi on|off" and "bluetooth on|off" keep their old behaviour.
+    function _netWordOf(ql) {
+        const m = ql.match(/^(wi-?fi|bluetooth)(?:\s+(.*))?$/);
+        if (!m) return null;
+        const rest = (m[2] || "").trim();
+        if (/^(on|off|ligar|desligar)$/.test(rest) || (m[1].charAt(0) === "w" && rest === "qr")) return null;
+        return { kind: m[1].charAt(0) === "w" ? "wifi" : "bluetooth", filter: rest };
+    }
+
+    function _netWordHook(text) {
+        const w = (root.mode === "search") ? root._netWordOf(text.trim().toLowerCase()) : null;
+        const kind = w ? w.kind : "";
+        if (kind === root._netWordShown) return;
+        root._netWordShown = kind;
+        if (kind === "wifi") root.wifiScan();
+        else if (kind === "bluetooth") root.btScan();
+    }
+
+    function wifiScan() {
+        _wifi.running = true;
+        _wifiRescan.running = true;
+    }
+
+    function btScan() {
+        _btDiscover.running = true;
+        _bt.running = true;
+    }
+
+    function wifiAskPassword(ssid) {
+        root.netPassReturnText = searchField.text;
+        root.netPassFor = ssid;
+        root.netPass = "";
+        searchField.text = "";
+        root.scheduleRebuild();
+    }
+
+    function wifiCancelPassword() {
+        const back = root.netPassReturnText;
+        root.netPassFor = "";
+        root.netPass = "";
+        searchField.text = back;
+        root.scheduleRebuild();
+    }
+
+    function wifiSubmitPassword() {
+        const ssid = root.netPassFor;
+        const pass = root.netPass;
+        if (pass.length === 0) return;
+        root.netPassFor = "";
+        root.netPass = "";
+        root._netRun([
+            "notify-send -t 2500 'Wi-Fi' \"Connecting to $SP_SSID\u2026\"",
+            "nmcli connection delete id \"$SP_SSID\" >/dev/null 2>&1",
+            "if nmcli device wifi connect \"$SP_SSID\" password \"$SP_PASS\" >/dev/null 2>&1; then",
+            "  notify-send 'Wi-Fi' \"Connected to $SP_SSID\"",
+            "else",
+            "  nmcli connection delete id \"$SP_SSID\" >/dev/null 2>&1",
+            "  notify-send -u critical 'Wi-Fi' \"Could not connect to $SP_SSID (wrong password?)\"",
+            "fi"
+        ].join("\n"), { "SP_SSID": ssid, "SP_PASS": pass });
+        spotlightController.spotlightOpen = false;
+    }
+
+    // Runs a script in the background; values reach it through environment variables (never through quoting).
+    function _netRun(script, env) {
+        if (_netAct.running) {
+            spotlightController.run("notify-send 'Spotlight' 'A network action is still running, try again in a moment'");
+            return;
+        }
+        _netAct.environment = env;
+        _netAct.command = ["bash", "-c", script];
+        _netAct.running = true;
+    }
+
+    function _activateWifi(e, alt) {
+        if (e.active && !alt) return false;
+        if (e.secure && (!e.saved || alt)) {
+            root.wifiAskPassword(e.name);
+            return true;
+        }
+        root._netRun([
+            "notify-send -t 2500 'Wi-Fi' \"Connecting to $SP_SSID\u2026\"",
+            "if nmcli connection up id \"$SP_SSID\" >/dev/null 2>&1 || nmcli device wifi connect \"$SP_SSID\" >/dev/null 2>&1; then",
+            "  notify-send 'Wi-Fi' \"Connected to $SP_SSID\"",
+            "else",
+            "  notify-send -u critical 'Wi-Fi' \"Could not connect to $SP_SSID. Try Shift+Enter to type a new password.\"",
+            "fi"
+        ].join("\n"), { "SP_SSID": e.name });
+        return false;
+    }
+
+    function _activateBt(e, alt) {
+        const env = { "SP_MAC": e.address, "SP_NAME": e.name };
+        let script;
+        if (alt && e.paired) {
+            script = [
+                "bluetoothctl remove \"$SP_MAC\" >/dev/null 2>&1",
+                "notify-send 'Bluetooth' \"Forgot $SP_NAME\""
+            ].join("\n");
+        } else if (e.connected) {
+            script = [
+                "bluetoothctl disconnect \"$SP_MAC\" >/dev/null 2>&1",
+                "notify-send 'Bluetooth' \"Disconnected from $SP_NAME\""
+            ].join("\n");
+        } else if (e.paired) {
+            script = [
+                "notify-send -t 2500 'Bluetooth' \"Connecting to $SP_NAME\u2026\"",
+                "out=$(bluetoothctl connect \"$SP_MAC\" 2>&1)",
+                "case \"$out\" in",
+                "  *successful*) notify-send 'Bluetooth' \"Connected to $SP_NAME\";;",
+                "  *) notify-send -u critical 'Bluetooth' \"Could not connect to $SP_NAME\";;",
+                "esac"
+            ].join("\n");
+        } else {
+            script = [
+                "notify-send -t 4000 'Bluetooth' \"Pairing with $SP_NAME\u2026\"",
+                "bluetoothctl scan off >/dev/null 2>&1",
+                "bluetoothctl --timeout 30 --agent NoInputNoOutput pair \"$SP_MAC\" >/dev/null 2>&1 || bluetoothctl pair \"$SP_MAC\" >/dev/null 2>&1",
+                "bluetoothctl trust \"$SP_MAC\" >/dev/null 2>&1",
+                "out=$(bluetoothctl connect \"$SP_MAC\" 2>&1)",
+                "case \"$out\" in",
+                "  *successful*) notify-send 'Bluetooth' \"Paired and connected to $SP_NAME\";;",
+                "  *) notify-send -u critical 'Bluetooth' \"Could not pair with $SP_NAME (it may need a PIN, or not be in pairing mode)\";;",
+                "esac"
+            ].join("\n");
+        }
+        root._netRun(script, env);
+        return false;
+    }
+
+    function _buildPasswordPrompt(items, disp) {
+        root._addItems(items, disp, [{
+            kind: "info",
+            name: "Type the password for \u201C" + root.netPassFor + "\u201D and press Enter",
+            category: "Esc to cancel"
+        }], "WI-FI");
+    }
+
+    function _buildWifiMode(items, disp, filter) {
+        const f = (filter || "").trim().toLowerCase();
+        const list = f ? root.wifiItems.filter(w => w.ssid.toLowerCase().indexOf(f) >= 0) : root.wifiItems;
+        const rows = list.map(w => ({
+            kind: "wifi",
+            id: "wifi:" + w.ssid,
+            name: w.ssid,
+            iconKey: "wifi",
+            active: w.active,
+            secure: w.secure,
+            saved: w.saved,
+            category: w.active ? "Connected"
+                      : ((w.saved ? "Saved" : (w.secure ? "Secured" : "Open")) + " \u00B7 " + w.signal + "%")
+        }));
+        root._addItems(items, disp, rows, "WI-FI NETWORKS");
+        if (rows.length === 0)
+            root._addItems(items, disp, root._infoRow((_wifi.running || _wifiRescan.running) ? "Scanning for networks\u2026" : "No networks found", ""), "WI-FI NETWORKS");
+        root._addItems(items, disp, [{ kind: "action", name: "Wi-Fi settings", action: "settings_open:WifiConfig.qml|wifi", iconKey: "settings", category: "Settings" }], "");
+    }
+
+    function _buildBluetoothMode(items, disp, filter) {
+        const f = (filter || "").trim().toLowerCase();
+        const list = f ? root.btItems.filter(d => d.name.toLowerCase().indexOf(f) >= 0) : root.btItems;
+        const rows = list.map(d => ({
+            kind: "bt",
+            id: "bt:" + d.mac,
+            name: d.name,
+            address: d.mac,
+            iconKey: "bluetooth",
+            paired: d.paired,
+            connected: d.connected,
+            category: d.connected ? "Connected" : (d.paired ? "Paired" : "Available \u00B7 not paired")
+        }));
+        root._addItems(items, disp, rows, "BLUETOOTH DEVICES");
+        if (rows.length === 0)
+            root._addItems(items, disp, root._infoRow(_btDiscover.running ? "Searching for devices\u2026" : "No devices found", ""), "BLUETOOTH DEVICES");
+        root._addItems(items, disp, [{ kind: "action", name: "Bluetooth settings", action: "settings_open:BluetoothConfig.qml|bluetooth", iconKey: "settings", category: "Settings" }], "");
+    }
+
+    // =====================================================================
+    //  COMMAND MENU (/menu)
+    // =====================================================================
+    function _menuStripComments(text) {
+        // only whole-line // comments, so URLs inside strings survive
+        return text.replace(/^\s*\/\/.*$/gm, "");
+    }
+
+    function _menuNormalize(nodes, parentPath, parentIds) {
+        const out = [];
+        let i = 0;
+        for (const n of (nodes || [])) {
+            if (!n || typeof n.label !== "string") continue;
+            const path = parentPath ? parentPath + " \u203A " + n.label : n.label;
+            const ids = parentIds.concat(i);
+            out.push({
+                label: n.label,
+                icon: n.icon || "",
+                keywords: n.keywords || "",
+                command: (n.command !== undefined) ? n.command : null,
+                confirm: n.confirm === true,
+                path: path,
+                parentPath: parentPath,
+                ids: ids,
+                children: Array.isArray(n.children) ? root._menuNormalize(n.children, path, ids) : null
+            });
+            i++;
+        }
+        return out;
+    }
+
+    function _menuFlatten(nodes, acc) {
+        for (const n of nodes) {
+            acc.push(n);
+            if (n.children) root._menuFlatten(n.children, acc);
+        }
+        return acc;
+    }
+
+    function menuRebuild() {
+        let parsed = null;
+        for (const text of [root._menuUserText, root._menuDefaultText]) {
+            if (!text) continue;
+            try {
+                const obj = JSON.parse(text);
+                const arr = Array.isArray(obj) ? obj : obj.items;
+                if (Array.isArray(arr)) { parsed = arr; break; }
+            } catch (err) {
+                console.warn("[Spotlight] invalid command menu JSON:", err);
+            }
+        }
+        root.menuTree = root._menuNormalize(parsed || [], "", []);
+        root.menuFlat = root._menuFlatten(root.menuTree, []);
+        root.menuStack = [];
+        root.menuPendingId = "";
+        if (root.mode === "menu") root.scheduleRebuild();
+    }
+
+    function menuReset() {
+        root.menuStack = [];
+        root.menuPendingId = "";
+    }
+
+    // One level up. Returns false when already at the top.
+    function menuBack() {
+        if (root.menuStack.length === 0) return false;
+        root.menuStack = root.menuStack.slice(0, -1);
+        root.menuPendingId = "";
+        root.selectedIndex = 0;
+        root._userNavigated = false;
+        root.scheduleRebuild();
+        return true;
+    }
+
+    function _menuResolve(ids) {
+        const stack = [];
+        let level = root.menuTree;
+        for (const i of ids) {
+            const n = level[i];
+            if (!n) break;
+            stack.push(n);
+            level = n.children || [];
+        }
+        return stack;
+    }
+
+    function _menuSearch(ql) {
+        const tokens = ql.split(/\s+/).filter(t => t.length > 0);
+        if (tokens.length === 0) return [];
+        const joined = tokens.join(" ");
+        const scored = [];
+        for (const n of root.menuFlat) {
+            const label = n.label.toLowerCase();
+            const hay = (n.path + " " + n.keywords).toLowerCase();
+            let ok = true;
+            for (const t of tokens) { if (hay.indexOf(t) < 0) { ok = false; break; } }
+            if (!ok) continue;
+            let score = 0;
+            if (label === joined) score += 100;
+            if (label.startsWith(tokens[0])) score += 50;
+            else if (label.indexOf(tokens[0]) >= 0) score += 20;
+            if (!n.children) score += 5;
+            score -= n.path.length * 0.1;
+            scored.push({ node: n, score: score });
+        }
+        scored.sort((a, b) => b.score - a.score);
+        return scored.map(s => s.node);
+    }
+
+    function _buildMenuMode(items, disp, q, ql) {
+        const searching = ql.length > 0;
+        if (root.menuTree.length === 0) {
+            root._addItems(items, disp, root._infoRow("The command menu is empty", "Check ~/.config/illogical-impulse/menu.jsonc"), "COMMAND MENU");
+            return;
+        }
+        const level = root.menuStack.length ? root.menuStack[root.menuStack.length - 1].children : root.menuTree;
+        const nodes = searching ? root._menuSearch(ql) : level;
+        const title = (!searching && root.menuStack.length)
+            ? root.menuStack.map(n => n.label).join("  \u203A  ").toUpperCase()
+            : "COMMAND MENU";
+        const rows = nodes.map(n => {
+            const key = n.ids.join(".");
+            const pending = root.menuPendingId === key;
+            let cat;
+            if (pending) cat = "Press Enter again to run";
+            else if (n.children) cat = searching ? n.path : "Folder";
+            else if (searching) cat = n.parentPath !== "" ? n.parentPath : "Command";
+            else cat = n.confirm ? "Asks for confirmation" : "Command";
+            return {
+                kind: "menu",
+                id: "menu:" + key,
+                menuIds: n.ids,
+                name: pending ? "Confirm: " + n.label : n.label,
+                category: cat,
+                iconKey: n.icon || (n.children ? "files" : "default"),
+                isFolder: n.children !== null,
+                command: n.command,
+                confirm: n.confirm
+            };
+        });
+        root._addItems(items, disp, rows, title);
+    }
+
+    function _menuRun(cmd) {
+        if (Array.isArray(cmd)) spotlightController.run(cmd.map(a => root.shellQuote(a)).join(" "));
+        else spotlightController.run(String(cmd));
+    }
+
+    // Returns true if Spotlight should stay open.
+    function _activateMenu(e) {
+        if (e.isFolder) {
+            root.menuStack = root._menuResolve(e.menuIds);
+            root.menuPendingId = "";
+            if (root.query !== "") { searchField.text = ""; root.query = ""; }
+            root.selectedIndex = 0;
+            root._userNavigated = false;
+            root.scheduleRebuild();
+            return true;
+        }
+        if (e.command === null || e.command === undefined) return true;
+        if (e.confirm && root.menuPendingId !== e.menuIds.join(".")) {
+            root.menuPendingId = e.menuIds.join(".");
+            root.scheduleRebuild();
+            return true;
+        }
+        root.menuPendingId = "";
+        root._menuRun(e.command);
+        return false;
     }
 
     function _buildActionsMode(items, disp) {
         const acts = [];
         const A = (name, act, key, cat) => acts.push({ kind: "action", name: name, action: act, iconKey: key, category: cat || "Actions" });
-        A("Send Message", "action:msg", "message", "Actions");
-        A("Create Note", "action:note", "note", "Actions");
         A("Start Timer", "action:timer", "timer", "Actions");
-        A("Run Shortcut", "action:shortcut", "shortcut", "Actions");
         A("Lock Screen", "lock", "lock", "System");
         A("Sleep", "sleep", "moon", "System");
         A("Restart\u2026", "restart", "restart", "System");
         A("Shut Down\u2026", "shutdown", "power", "System");
         A("Log Out", "logout", "logout", "System");
         root._addItems(items, disp, acts, "ACTIONS");
-    }
-
-    function _buildConfigMode(items, disp, q, ql) {
-        if (!ql) {
-            // Show top-level config sections
-            const items = [];
-            const pageMap = {
-                "Quick": "QuickConfig.qml",
-                "Wi-Fi": "WifiConfig.qml",
-                "Bluetooth": "BluetoothConfig.qml",
-                "Bar": "BarConfig.qml",
-                "Dock": "DockConfig.qml",
-                "Interface": "InterfaceConfig.qml",
-                "appearance": "InterfaceConfig.qml",
-                "Background": "BackgroundConfig.qml",
-                "Decorations": "DecorationsConfig.qml",
-                "Display": "DisplayConfig.qml",
-                "Layouts": "LayoutsConfig.qml",
-                "Keyboard": "KeyboardConfig.qml",
-                "Mouse": "MouseConfig.qml",
-                "Power": "PowerConfig.qml",
-                "Accounts": "AccountsConfig.qml",
-                "Services": "ServicesConfig.qml",
-                "Manage": "ManageAppsConfig.qml"
-            };
-            for (const key in Config.options) {
-                if (!Config.options.hasOwnProperty(key)) continue;
-                const val = Config.options[key];
-                if (val && typeof val === "object" && !Array.isArray(val)) {
-                    const page = pageMap[key];
-                    items.push({
-                        kind: "configSection",
-                        name: key,
-                        path: key,
-                        category: page ? "Open settings → " + key : "Section",
-                        iconKey: page ? "settings" : "folder",
-                        settingsPage: page
-                    });
-                } else {
-                    let displayVal = "";
-                    if (typeof val === "boolean") displayVal = val ? "true" : "false";
-                    else if (typeof val === "number") displayVal = String(val);
-                    else if (typeof val === "string") displayVal = val;
-                    else if (Array.isArray(val)) displayVal = "[" + val.join(", ") + "]";
-                    else displayVal = JSON.stringify(val);
-                    
-                    items.push({
-                        kind: "configValue",
-                        name: key + ": " + displayVal,
-                        path: key,
-                        value: val,
-                        category: "Setting",
-                        iconKey: "settings"
-                    });
-                }
-            }
-            root._addItems(items, disp, items, "SETTINGS");
-        } else {
-            // Filter config items by query
-            const filtered = root.configItems.filter(it => 
-                it.name.toLowerCase().includes(ql) || 
-                it.path.toLowerCase().includes(ql)
-            );
-            root._addItems(items, disp, filtered, "CONFIG: " + root.configPath);
-        }
     }
 
     // -- Search mode, split into blocks (section order is preserved)
@@ -3598,6 +4784,11 @@ else:
         if ((ql === "bateria" || ql === "battery") && root.batteryText) A(root._infoRow(root.batteryText, "Battery"), "BATTERY");
         if ((ql === "meu ip" || ql === "my ip") && root.ipText) A(root._infoRow(root.ipText, "Network"), "MY IP");
         if (root.currencyText) A(root._calcRow(root.currencyText, root.currencyText, "Currency"), "CURRENCY");
+        if (root.quoteResult.q && root.quoteResult.q === ql.replace(/\s+/g, " ")) {
+            if (root.quoteResult.loading) A(root._infoRow(root.quoteResult.text, "Cota\u00e7\u00e3o"), "COTA\u00c7\u00c3O");
+            else if (root.quoteResult.raw) A(root._calcRow(root.quoteResult.text, root.quoteResult.raw, root.quoteResult.sub, "trend"), "COTA\u00c7\u00c3O");
+            else A(root._infoRow(root.quoteResult.text, "Cota\u00e7\u00e3o"), "COTA\u00c7\u00c3O");
+        }
     }
 
     function _searchActions(items, disp, q, ql) {
@@ -3619,6 +4810,17 @@ else:
             if (unit === "s" || unit === "sec" || unit === "seg") secs = n;
             else if (unit === "h") secs = n * 3600;
             A([{ kind: "action", name: "Start " + n + " " + unit + " timer", action: "realtimer:" + secs + ":" + n + " " + unit, iconKey: "timer", category: "Timer" }], "TIMER");
+        }
+
+        const lembrarMatch = ql.match(/^lembrar\s+(\d+)\s*(min|m|s|sec|seg|h)?\s+(.+)$/);
+        if (lembrarMatch) {
+            const n = parseInt(lembrarMatch[1]);
+            const unit = lembrarMatch[2] || "min";
+            const msg = lembrarMatch[3].trim();
+            let secs = n * 60;
+            if (unit === "s" || unit === "sec" || unit === "seg") secs = n;
+            else if (unit === "h") secs = n * 3600;
+            A([{ kind: "action", name: "Lembrar daqui a " + n + " " + unit + ": " + msg, action: "localreminder:" + secs + ":" + msg, iconKey: "bell", category: "Lembrete" }], "LEMBRAR");
         }
 
         if ("lock screen sleep restart shut down log out".includes(ql)) {
@@ -3829,6 +5031,28 @@ else:
         safe("info", () => root._searchInfo(items, disp, q, ql));
         safe("actions", () => root._searchActions(items, disp, q, ql));
         safe("tophit", () => root._promoteTopHit(items, disp));
+        safe("volume", () => {
+            if (!/^(vol|volu|volum|volume|som)$/.test(ql)) return;
+            disp.unshift({ kind: "volume" });                    // display-only card, pinned on top
+            disp.forEach((d, i) => { if (d._idx !== undefined) d._dispIdx = i; });
+        });
+        safe("brightness", () => {
+            if (!/^(bri|brig|brigh|bright|brightn|brightne|brightnes|brightness|bril|brilh|brilho)$/.test(ql)) return;
+            disp.unshift({ kind: "brightness" });
+            disp.forEach((d, i) => { if (d._idx !== undefined) d._dispIdx = i; });
+        });
+        safe("mic", () => {
+            if (/^(mic|microf|microfo|microfon|microfone|microp|microph|micropho|microphon|microphone)$/.test(ql)) root._pinCard(disp, "mic");
+        });
+        safe("night", () => {
+            if (/^(noi|noit|noite|nig|nigh|night)$/.test(ql)) root._pinCard(disp, "night");
+        });
+        safe("power", () => {
+            if (/^(ener|energ|energi|energia|power)$/.test(ql)) root._pinCard(disp, "power");
+        });
+        safe("qr", () => {
+            if (/^\s*qr\s+\S/i.test(q) || /^wifi\s+qr$/.test(ql)) root._pinCard(disp, "qr");
+        });
     }
 
     // Moves the best match to a "TOP HIT" section at the very top (macOS-style).
@@ -3865,16 +5089,33 @@ else:
         const prevKey = root.itemKey(root.items[root.selectedIndex]);
         const sig = m + "|" + q;
 
-        if (ql.startsWith("/")) root._buildSlashMode(items, disp, q, ql);
+        const bareLembrar = m === "search" && /^lembrar\s+\S/.test(ql)
+            && !/^lembrar\s+\d+\s*(?:min|m|s|sec|seg|h)?\s+\S/.test(ql);
+        const netWord = (m === "search" && root.netPassFor === "") ? root._netWordOf(ql) : null;
+        const extraWord = (m === "search" && root.netPassFor === "") ? root._extraWordOf(ql) : null;
+
+        if (root.netPassFor !== "") root._buildPasswordPrompt(items, disp);
+        else if (root.renameFor !== "") root._buildRenamePrompt(items, disp);
+        else if (root.fileActFor) root._buildFileActions(items, disp);
+        else if (extraWord && extraWord.kind === "kill") root._buildKillMode(items, disp, extraWord.filter);
+        else if (extraWord && extraWord.kind === "usb") root._buildUsbMode(items, disp, extraWord.filter);
+        else if (extraWord && extraWord.kind === "keys") root._buildKeysMode(items, disp, extraWord.filter);
+        else if (ql.startsWith("/")) root._buildSlashMode(items, disp, q, ql);
+        else if (bareLembrar) root._buildSlashMode(items, disp, "/" + q, "/" + ql);
+        else if (netWord && netWord.kind === "wifi") root._buildWifiMode(items, disp, netWord.filter);
+        else if (netWord && netWord.kind === "bluetooth") root._buildBluetoothMode(items, disp, netWord.filter);
         else switch (m) {
             case "apps":      root._buildAppsMode(items, disp, q, ql); break;
             case "files":     root._buildFilesMode(items, disp, ql); break;
             case "clipboard": root._buildClipboardMode(items, disp); break;
             case "windows":   root._buildWindowsMode(items, disp, ql); break;
-            case "wifi":      root._buildWifiMode(items, disp); break;
-            case "bluetooth": root._buildBluetoothMode(items, disp); break;
+            case "wifi":      root._buildWifiMode(items, disp, ql); break;
+            case "bluetooth": root._buildBluetoothMode(items, disp, ql); break;
+            case "menu":      root._buildMenuMode(items, disp, q, ql); break;
+            case "kill":      root._buildKillMode(items, disp, ql); break;
+            case "usb":       root._buildUsbMode(items, disp, ql); break;
+            case "keys":      root._buildKeysMode(items, disp, ql); break;
             case "actions":   root._buildActionsMode(items, disp); break;
-            case "config":    root._buildConfigMode(items, disp, q, ql); break;
             default:          root._buildSearchMode(items, disp, q, ql);
         }
 
@@ -3901,84 +5142,14 @@ else:
         if (m === "files") { root.browseDir = ""; root.runRecents(); }
         if (m === "clipboard") root.runClip();
         if (m === "windows") _windows.running = true;
-        if (m === "wifi") _wifi.running = true;
-        if (m === "bluetooth") _bt.running = true;
-        if (m === "config") root.enterConfig();
+        if (m === "wifi") root.wifiScan();
+        if (m === "bluetooth") root.btScan();
+        if (m === "kill") root.procScan();
+        if (m === "usb") root.usbScan();
+        if (m === "keys") root.keysScan();
+        if (m === "menu" || m === "wifi" || m === "bluetooth" || m === "kill" || m === "usb" || m === "keys") root.circlesLocked = true;   // locked: typing filters the list instead of leaving the mode
+        if (m === "menu") root.menuReset();
         root.scheduleRebuild();
-    }
-
-    // =====================================================================
-    //  CONFIG BROWSER
-    // =====================================================================
-    function enterConfig() {
-        root.configPath = "";
-        root.configDepth = 0;
-        root.configStack = [];
-        root.buildConfigItems(Config.options);
-    }
-
-    function buildConfigItems(obj, pathPrefix) {
-        const items = [];
-        const prefix = pathPrefix || "";
-        for (const key in obj) {
-            if (!obj.hasOwnProperty(key)) continue;
-            const val = obj[key];
-            const fullPath = prefix + key;
-            if (val && typeof val === "object" && !Array.isArray(val)) {
-                // It's a nested object (section)
-                items.push({
-                    kind: "configSection",
-                    name: key,
-                    path: fullPath,
-                    category: "Section",
-                    iconKey: "folder"
-                });
-            } else {
-                // It's a leaf value
-                let displayVal = "";
-                if (typeof val === "boolean") displayVal = val ? "true" : "false";
-                else if (typeof val === "number") displayVal = String(val);
-                else if (typeof val === "string") displayVal = val;
-                else if (Array.isArray(val)) displayVal = "[" + val.join(", ") + "]";
-                else displayVal = JSON.stringify(val);
-                
-                items.push({
-                    kind: "configValue",
-                    name: key + ": " + displayVal,
-                    path: fullPath,
-                    value: val,
-                    category: "Setting",
-                    iconKey: "settings"
-                });
-            }
-        }
-        root.configItems = items;
-        root.scheduleRebuild();
-    }
-
-    function navigateConfig(path) {
-        const keys = path.split(".");
-        let obj = Config.options;
-        for (const k of keys) {
-            if (!obj || !obj.hasOwnProperty(k)) return;
-            obj = obj[k];
-        }
-        root.configStack.push({ path: root.configPath, items: root.configItems });
-        root.configPath = path;
-        root.configDepth++;
-        root.buildConfigItems(obj, path + ".");
-    }
-
-    function goBackConfig() {
-        if (root.configDepth > 0) {
-            const prev = root.configStack.pop();
-            root.configPath = prev.path;
-            root.configDepth--;
-            root.configItems = prev.items;
-            root.scheduleRebuild();
-        } else if (root.mode === "config") {
-            root.setMode("search");
-        }
     }
 
     function animateRail(target) {
@@ -4005,20 +5176,51 @@ else:
     }
 
     function submit(event) {
-        root.openSelected(!!(event.modifiers & Qt.ShiftModifier));
+        const sel = root.selectedItem;
+        const isFile = !!sel && sel.kind === "file" && !!sel.path;
+        const ctrl = !!(event.modifiers & Qt.ControlModifier);
+        const shift = !!(event.modifiers & Qt.ShiftModifier);
+        if (shift && !ctrl && isFile) {                          // Shift+Enter on a file → actions panel (same as Shift+click)
+            root.fileActOpen(sel);
+            event.accepted = true;
+            return;
+        }
+        root.openSelected(shift || (ctrl && isFile));            // Ctrl+Enter on a file → its folder
         event.accepted = true;
     }
 
     // Search field shortcuts. Returns true if the key was handled.
     function handleSearchKey(event, hasSelection) {
-        if (event.key === Qt.Key_Backspace && root.query === ""
-                && root.mode === "files" && root.browseDir !== "" && root.browseDir !== "/") {
-            root.browseUp();
+        if (root.volCardShown && !(event.modifiers & Qt.ControlModifier)
+                && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            const step = (event.modifiers & Qt.ShiftModifier) ? 0.01 : 0.05;
+            root.volSet(root.volLevel + (event.key === Qt.Key_Right ? step : -step));
+            return true;
+        }
+        if (root.brightCardShown && !(event.modifiers & Qt.ControlModifier)
+                && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            const bstep = (event.modifiers & Qt.ShiftModifier) ? 0.01 : 0.05;
+            root.brightSet(root.brightLevel + (event.key === Qt.Key_Right ? bstep : -bstep));
+            return true;
+        }
+        if (!(event.modifiers & Qt.ControlModifier) && (event.key === Qt.Key_Left || event.key === Qt.Key_Right)) {
+            const dir = event.key === Qt.Key_Right ? 1 : -1;
+            const fine = (event.modifiers & Qt.ShiftModifier) ? 0.01 : 0.05;
+            if (root.micCardShown) { root.micSet(root.micLevel + dir * fine); return true; }
+            if (root.nightCardShown) { root.nightSet(root.nightLevel + dir * fine); return true; }
+            if (root.powerCardShown) { root.ppCycle(dir); return true; }
+        }
+        if (event.key === Qt.Key_Backspace && root.query === "" && root.mode === "menu") {
+            if (!root.menuBack()) root.setMode("search");
+            return true;
+        }
+        if (event.key === Qt.Key_Backspace && root.query === "" && (root.mode === "wifi" || root.mode === "bluetooth" || root.mode === "kill" || root.mode === "usb" || root.mode === "keys")) {
+            root.setMode("search");
             return true;
         }
         if (event.key === Qt.Key_Backspace && root.query === ""
-                && root.mode === "config" && root.configDepth > 0) {
-            root.goBackConfig();
+                && root.mode === "files" && root.browseDir !== "" && root.browseDir !== "/") {
+            root.browseUp();
             return true;
         }
         if (!(event.modifiers & Qt.ControlModifier)) return false;
@@ -4027,7 +5229,7 @@ else:
             case Qt.Key_2: root.setMode("files"); return true;
             case Qt.Key_3: root.setMode("actions"); return true;
             case Qt.Key_4: root.setMode("clipboard"); return true;
-            case Qt.Key_5: root.setMode("config"); return true;
+            case Qt.Key_5: root.openSettingsApp(); return true;
             case Qt.Key_C:
                 if (!hasSelection && root.selectedItem && root.selectedItem.kind === "file") {
                     root.copyText(root.selectedItem.path);
@@ -4063,10 +5265,17 @@ else:
     }
 
     function openSelected(alt) {
+        if (root.renameFor !== "") { root.renameSubmit(); return; }
+        if (root.netPassFor !== "") { root.wifiSubmitPassword(); return; }
         const queryText = root.query.trim();
         if (queryText.startsWith(">")) {
             const command = queryText.slice(1).trim();
             if (command.length > 0) root.runInTerminal(command);
+            return;
+        }
+        if (root.mode === "menu" && !queryText.startsWith("/")) {
+            const msel = root.items[root.selectedIndex];
+            if (msel && !root._activate(msel, alt)) spotlightController.spotlightOpen = false;
             return;
         }
         const aiPrompt = root.aiPromptFor(queryText);
@@ -4107,17 +5316,6 @@ else:
                     spotlightController.run("cliphist decode " + e.id + " | wl-copy 2>/dev/null || true");
                 }
                 return false;
-            case "configSection":
-                if (e.settingsPage) {
-                    spotlightController.run("qs -c ii ipc call settings showPage " + e.settingsPage);
-                } else {
-                    root.navigateConfig(e.path);
-                }
-                return true;
-            case "configValue":
-                root.copyText(JSON.stringify(e.value));
-                root.notify("Copied: " + e.path + " = " + JSON.stringify(e.value));
-                return false;
             case "calc":
             case "emoji":
                 root.copyText(e.raw);
@@ -4133,14 +5331,24 @@ else:
                 if (e.name && e.name !== "Thinking…") root.copyText(e.name);
                 return false;
             case "window":
-                root.focusWindow(e.address);
+                root.focusWindowReliably({ address: e.address, cls: e.category || "" }, e.name);
                 return false;
             case "wifi":
-                spotlightController.run("nmcli connection up id " + root.shellQuote(e.name) + " 2>/dev/null || nmcli device wifi connect " + root.shellQuote(e.name) + " 2>/dev/null");
-                return false;
+                return root._activateWifi(e, alt);
             case "bt":
-                spotlightController.run("bluetoothctl connect " + root.shellQuote(e.address));
-                return false;
+                return root._activateBt(e, alt);
+            case "kproc":
+                return root._activateProc(e, alt);
+            case "usb":
+                return root._activateUsb(e, alt);
+            case "fact":
+                return root._activateFileAct(e);
+            case "fapp":
+                return root._activateFileApp(e);
+            case "key":
+                return root._activateKey(e);
+            case "menu":
+                return root._activateMenu(e);
             case "action":
                 return root._activateAction(e);
             case "cmd":
@@ -4181,27 +5389,27 @@ else:
             root.runHermes(a.slice(6));
             return true;
         }
-        if (a.startsWith("aiintent:")) {
-            const rest = a.slice(9);
-            const colon = rest.indexOf(":");
-            const kind = colon >= 0 ? rest.slice(0, colon) : rest;
-            const arg = colon >= 0 ? rest.slice(colon + 1) : "";
-            const promptMap = { note: "create a note: " + arg, email: "send an email " + arg };
-            root.runHermes(promptMap[kind] || arg);
-            return true;
-        }
         if (a.startsWith("spotifyplay:")) {
-            const term = a.slice(12);
             spotlightController.run(
-                "pgrep -x spotify >/dev/null || (setsid flatpak run com.spotify.Client </dev/null >/dev/null 2>&1 &); " +
-                "sleep 1; " + root.xdgOpenCmd("spotify:search:" + root.urlq(term)) + "; " +
-                "sleep 1; wtype -k Return 2>/dev/null || true"
+                "export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}; " +
+                "export DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}; " +
+                "pgrep -x spotify >/dev/null || (setsid spotify-launcher </dev/null >/dev/null 2>&1 &); " +
+                "~/.local/bin/spotify-play " + root.shellQuote(a.slice(12)) + " >> /tmp/spotify-play.log 2>&1"
             );
             return false;
         }
         if (a.startsWith("realtimer:")) {
             const parts = a.slice(10).split(":");
-            root.startTimer(parts[0], parts[1] || (parts[0] + "s"));
+            const secs = parts[0];
+            const label = parts.slice(1).join(":");
+            root.startTimer(secs, label || (secs + "s"));
+            return false;
+        }
+        if (a.startsWith("localreminder:")) {
+            const parts = a.slice(14).split(":");
+            const secs = parts[0];
+            const msg = parts.slice(1).join(":");
+            root.scheduleLocalReminder(secs, msg || (secs + "s"));
             return false;
         }
         if (a === "addtodo:") { root.addTodoFromItem(e); return false; }
@@ -4216,10 +5424,7 @@ else:
         }
         if (a.startsWith("action:")) {
             const sub = a.slice(7);
-            if (sub === "msg") root.xdgOpen("https://messages.google.com/web");
-            else if (sub === "note") root.xdgOpen("obsidian://new");
-            else if (sub === "timer") root.startTimer(300, "5 min");
-            else if (sub === "shortcut") root.xdgOpen("shortcuts://");
+            if (sub === "timer") root.startTimer(300, "5 min");
             else spotlightController.requestAction(a);
             return false;
         }
@@ -4251,24 +5456,11 @@ else:
 
     function _activateCmd(e) {
         const a = e.action;
-        if (a === "screen:") {
-            // /screen -> explains the screen | /screen <question> -> answers about the screen
-            root._screenQuestion = root.query.replace(/^\/screen\s*/i, "").trim();
-            root.aiText = "🖥️ Capturing the screen…";
-            root._capturing = true;          // hides Spotlight before the screenshot
-            _captureGuard.restart();
-            spotlightActions.runScreenContext();
-            return true;
-        }
         if (a === "ocrtr:") {
             // /translate -> Portuguese | /translate en -> English, etc.
             root._beginScreenshotSelect("translate",
                 root.query.replace(/^\/(?:translate|traduzir)\s*/i, "").trim().toLowerCase() || "pt",
                 "📸 Select the text to translate…");
-            return true;
-        }
-        if (a === "screenshot:") {
-            root._beginScreenshotSelect("analyze", undefined, "📸 Select the area…");
             return true;
         }
         if (a === "sum:") {
@@ -4283,23 +5475,25 @@ else:
             }
             return true;
         }
-        if (a === "mem-on:" || a === "mem-off:") {
-            const on = a === "mem-on:";
-            root.aiPersistentHistory = on;
-            root.aiText = on ? "💾 Persistent memory ON" : "💾 Persistent memory OFF";
-            root.scheduleRebuild();
+        if (a.startsWith("lembrar:")) {
+            const reminderText = root.query.replace(/^\/lembrar\s*/i, "").trim();
+            if (!reminderText) {
+                searchField.text = "/lembrar ";
+                searchField.cursorPosition = searchField.text.length;
+                searchField.forceActiveFocus();
+                return true;
+            }
+            // Parse time from text and use local timer (like TimerService)
+            const parsed = root.parseTodoInput(reminderText);
+            if (parsed.text && parsed.remindMs > Date.now()) {
+                const seconds = Math.round((parsed.remindMs - Date.now()) / 1000);
+                root.scheduleLocalReminder(seconds, parsed.text);
+            } else if (parsed.text) {
+                // No valid future time, just add to todo
+                root.addTodoFromItem({ todoText: parsed.text, todoDue: parsed.dueStr, todoRemind: parsed.remindAt, todoRemindMs: parsed.remindMs });
+            }
             return true;
         }
-        if (a.startsWith("focus:")) {
-            root.notify(spotlightActions.enterFocusMode(parseInt(a.slice(6)) || 120));
-            return true;
-        }
-        if (a.startsWith("meeting:")) {
-            root.notify(spotlightActions.enterMeetingMode());
-            return true;
-        }
-        if (a.startsWith("briefing:")) { spotlightActions.runBriefing(root.weatherCity); return true; }
-        if (a.startsWith("git:")) { spotlightActions.runGitCommit(); return true; }
         if (a.startsWith("mode:")) {
             searchField.text = "";
             root.query = "";
@@ -4328,7 +5522,7 @@ else:
             searchField.forceActiveFocus();
             return true;
         }
-        if (a === "web:" || a === "calc:" || a === "search:" || a === "ai:" || a === "todo:") {
+        if (a === "web:" || a === "maps:" || a === "calc:" || a === "search:" || a === "ai:" || a === "todo:" || a === "lembrar:" || a === "timer:") {
             searchField.text = e.name + " ";
             searchField.cursorPosition = searchField.text.length;
             searchField.forceActiveFocus();
@@ -4371,33 +5565,9 @@ else:
             }
             root.runInternalAi(root.buildResumePrompt(page, focus), "🌐 Summarize: " + (page.title || page.url));
         }
-        function onScreenContextReady(windows, ocr) {
-            _captureGuard.stop();
-            root._capturing = false;
-            Qt.callLater(() => searchField.forceActiveFocus());
-            const q = root._screenQuestion;
-            root._screenQuestion = "";
-            if (!windows && !ocr) {
-                root.aiFail("❌ Couldn't capture the screen (grim/hyprctl)");
-                return;
-            }
-            root.runInternalAi(root.buildScreenPrompt(windows, ocr, q), "🖥️ " + (q || "What is on my screen?"));
-        }
-        function onScrapeReady(text) {
-            if (!text) { root.aiFail("❌ Couldn't download the link"); return; }
-            root.runInternalAi("Summarize this web page content concisely:\n\n" + text.slice(0, 5000));
-        }
         function onPdfReady(text) {
             if (!text) { root.aiFail("❌ Couldn't read the PDF"); return; }
             root.runInternalAi("Summarize this PDF concisely:\n\n" + text.slice(0, 6000));
-        }
-        function onGitDiffReady(diff) {
-            if (!diff) {
-                root.aiText = "📭 Nothing to commit";
-                root.rebuildIfShown();
-                return;
-            }
-            root.runInternalAi("Generate a commit message (Conventional Commits) for:\n\n" + diff);
         }
         function onBriefingReady(text) {
             if (!text) {
@@ -4429,6 +5599,15 @@ else:
             searchField.text = "";
             root.circlesVisible = false;
             root.circlesLocked = false;
+            root.netPassFor = "";
+            root.netPass = "";
+            root._netWordShown = "";
+            root._extraShown = "";
+            root._qrWanted = "";
+            root.fileActFor = null;
+            root.fileActStage = "actions";
+            root.fileActPending = "";
+            root.renameFor = "";
             root.clearAi();
             if (!root.aiPersistentHistory) root.aiHistory = [];
             else spotlightActions.loadHistory();
@@ -4440,6 +5619,8 @@ else:
             root._procKey = "";
             root.devResult = { q: "", text: "", label: "" };
             root._devQ = "";
+            root.quoteResult = { q: "", loading: false, text: "", sub: "", raw: "" };
+            root._quoteQ = "";
             root._buildSig = "";
             root._previewKeyShown = "";
             root.previewKind = "";
@@ -4538,7 +5719,7 @@ else:
         anchors.top: parent.top
         anchors.topMargin: Math.round(root.screen.height * 0.22) + root.panelYOffset
         width: root.panelWidth
-        height: root.searchH + (root.hasBody ? root.resultsHeight + 8 : 0)
+        height: root.panelTotalH
         transformOrigin: Item.Top
         scale: root.panelScale
         opacity: root.panelOpacity
@@ -4549,10 +5730,12 @@ else:
         Rectangle {
             id: panelChrome
             anchors.left: parent.left
+            anchors.leftMargin: root.panelPad - root.bodyPad
             anchors.top: parent.top
-            width: root.hasBody ? parent.width : morphSurface.mainWidth
-            height: root.searchH + (root.hasBody ? root.resultsHeight + 8 : 0)
-            radius: root.panelRadius
+            width: root.framed ? parent.width : morphSurface.mainWidth
+            height: root.panelTotalH
+            radius: root.framed ? root.panelRadius : 22
+            Behavior on radius { NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
             color: root.glassBg
             border.color: root.glassBorder
             border.width: 1
@@ -4561,10 +5744,24 @@ else:
             Rectangle {
                 anchors.fill: parent
                 anchors.margins: 1
-                radius: root.panelRadius - 1
+                radius: panelChrome.radius - 1
                 color: "transparent"
                 border.color: root.glassHighlight
                 border.width: 1
+            }
+            // Soft top sheen (frosted-glass look)
+            Rectangle {
+                anchors.top: parent.top
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.margins: 1
+                height: Math.min(parent.height - 2, 260)
+                radius: panelChrome.radius - 1
+                gradient: Gradient {
+                    GradientStop { position: 0.0; color: Qt.rgba(1, 1, 1, 0.10) }
+                    GradientStop { position: 0.45; color: Qt.rgba(1, 1, 1, 0.025) }
+                    GradientStop { position: 1.0; color: Qt.rgba(1, 1, 1, 0.0) }
+                }
             }
         }
 
@@ -4572,8 +5769,10 @@ else:
         Item {
             id: searchHeader
             anchors.left: parent.left
+            anchors.leftMargin: root.panelPad
             anchors.top: parent.top
-            width: parent.width
+            anchors.topMargin: root.bodyPad
+            width: parent.width - 2 * root.panelPad
             height: root.searchH
             z: 2
 
@@ -4584,8 +5783,8 @@ else:
                 anchors.fill: parent
                 railProgress: root.railProgress
                 mainLeft: 0
-                collapsedMainWidth: root.panelWidth
-                expandedMainWidth: root.panelWidth - 5 * (root.circleSize + root.circlesGap)
+                collapsedMainWidth: root.panelWidth - 2 * root.panelPad
+                expandedMainWidth: root.panelWidth - 2 * root.panelPad - 5 * (root.circleSize + root.circlesGap)
                 shapeCenterY: root.searchH / 2
                 shapeHeight: root.searchH
                 buttonDiameter: root.circleSize
@@ -4606,7 +5805,7 @@ else:
 
                 Item {
                     anchors.fill: parent
-                    anchors.leftMargin: 16
+                    anchors.leftMargin: 22
                     anchors.rightMargin: 16
 
                     Item {
@@ -4641,8 +5840,9 @@ else:
                         anchors.verticalCenter: parent.verticalCenter
                         height: parent.height
                         color: root.sFg
-                        font { family: root.fontDisplay; pixelSize: 24; weight: Font.Light }
+                        font { family: root.fontDisplay; pixelSize: 24; weight: Font.Normal }
                         verticalAlignment: TextInput.AlignVCenter
+                        echoMode: root.netPassFor !== "" ? TextInput.Password : TextInput.Normal
                         selectByMouse: true; clip: true; cursorVisible: root._opened
                         focus: true
                         onActiveFocusChanged: { if (activeFocus) root.circlesLocked = false }
@@ -4651,6 +5851,9 @@ else:
                         Keys.onReturnPressed: (event) => root.submit(event)
                         Keys.onEnterPressed: (event) => root.submit(event)
                         Keys.onEscapePressed: (event) => {
+                            if (root.renameFor !== "") { root.renameCancel(); event.accepted = true; return; }
+                            if (root.fileActFor) { if (!root.fileActBack()) root.fileActClose(); event.accepted = true; return; }
+                            if (root.netPassFor !== "") { root.wifiCancelPassword(); event.accepted = true; return; }
                             if (!root._screenshotSelecting) spotlightController.spotlightOpen = false;
                             event.accepted = true;
                         }
@@ -4659,20 +5862,27 @@ else:
                             if (root.handleSearchKey(event, searchField.selectedText !== "")) event.accepted = true;
                         }
                         onTextChanged: {
+                            if (root.renameFor !== "") { root.renameText = text; return; }   // rename: keep it out of root.query
+                            if (root.netPassFor !== "") { root.netPass = text; return; }   // password: keep it out of root.query
+                            if (root.fileActFor) { root.fileActFor = null; root.fileActStage = "actions"; root.fileActPending = ""; }   // typing leaves the actions panel
                             root._userNavigated = false;
                             root.query = text;
                             if (text.length > 0 && !root.circlesLocked && root.mode !== "search") root.mode = "search";
                             root.scheduleRebuild();
                             _fdDeb.restart();
                             _sideEffectsDeb.restart();
+                            root._netWordHook(text);
+                            root._extraWordHook(text);
+                            root._qrHook(text);
                             if (text.length > 0) root.circlesVisible = false
                         }
                     }
 
                     Text {
                         anchors.left: searchIconWrap.right; anchors.leftMargin: 12; anchors.verticalCenter: parent.verticalCenter
-                        text: root.placeholderText
-                        font { family: root.fontDisplay; pixelSize: 24; weight: Font.Light }
+                        text: root.renameFor !== "" ? "New name"
+                              : (root.netPassFor !== "" ? ("Password for \u201C" + root.netPassFor + "\u201D") : root.placeholderText)
+                        font { family: root.fontDisplay; pixelSize: 24; weight: Font.Normal }
                         color: root.placeholderFg
                         visible: searchField.text.length === 0
                     }
@@ -4688,7 +5898,7 @@ else:
 
                 Repeater {
                     model: [
-                        { m: "apps",      tip: "Applications", icon: Quickshell.shellPath("assets/Apps.png") },
+                        { m: "apps",      tip: "Applications", icon: Quickshell.shellPath("assets/app-store.png") },
                         { m: "files",     tip: "Files",        icon: Quickshell.shellPath("assets/Finder.png") },
                         { m: "actions",   tip: "Actions",      icon: Quickshell.shellPath("assets/Shortcuts.png") },
                         { m: "clipboard", tip: "Clipboard",    icon: Quickshell.shellPath("assets/clipboard.png") },
@@ -4822,9 +6032,9 @@ else:
         // ---- Button that opens/closes the modes
         Rectangle {
             id: modesToggle
-            x: morphSurface.mainWidth - width - 10
-            y: (searchHeader.height - height) / 2
-            width: 28; height: 28; radius: 8
+            x: root.panelPad + morphSurface.mainWidth - width - 12
+            y: root.bodyPad + (searchHeader.height - height) / 2
+            width: 28; height: 28; radius: 14
             z: 120
             visible: root.query.length === 0
             color: modesToggleMA.containsMouse || root.circlesVisible ? root.white14 : "transparent"
@@ -4859,8 +6069,8 @@ else:
             id: clipTrashBtn
             property bool armed: false
             // right below the arrow (right-aligned, on the "CLIPBOARD" header line)
-            x: morphSurface.mainWidth - width - 10
-            y: searchHeader.height + 1 + (root.headerH - height) / 2
+            x: root.panelPad + morphSurface.mainWidth - width - 10
+            y: root.bodyPad + searchHeader.height + root.listGap + 4 + (root.headerH - height) / 2
             width: 22; height: 22; radius: 6
             z: 120
             visible: root.mode === "clipboard" && root.clipItems.length > 0
@@ -4912,10 +6122,12 @@ else:
         Item {
             id: resultsCard
             anchors.top: searchHeader.bottom
-            anchors.topMargin: 1
+            anchors.topMargin: root.listGap
             anchors.left: parent.left
+            anchors.leftMargin: root.listPad
             anchors.right: parent.right
-            height: root.resultsHeight
+            anchors.rightMargin: root.listPad
+            height: root.resultsHeight + (root.hasBody ? root.footerH : 0)
             visible: root.hasBody && height > 0
             z: 1
             clip: true
@@ -4948,11 +6160,11 @@ else:
                         visible: root.mode !== "apps"
                         anchors.fill: parent
                         anchors.topMargin: 4
-                        anchors.bottomMargin: 8
-                        anchors.leftMargin: 8
-                        anchors.rightMargin: 8
+                        anchors.bottomMargin: 20   // hides the slack that would show a cut-off row
+                        anchors.leftMargin: 0
+                        anchors.rightMargin: 0
                         model: root.results
-                        spacing: 1
+                        spacing: 0
                         boundsBehavior: Flickable.StopAtBounds
                         clip: true
                         reuseItems: true
@@ -4977,20 +6189,30 @@ else:
                             readonly property bool isDanger: modelData.action === "clipboard:clear"
                             readonly property bool isHeader: modelData.isHeader === true
                             readonly property bool isWeather: modelData.kind === "weather"
+                            readonly property bool isVolume: modelData.kind === "volume"
+                            readonly property bool isBrightness: modelData.kind === "brightness"
+                            readonly property bool isMic: modelData.kind === "mic"
+                            readonly property bool isNight: modelData.kind === "night"
+                            readonly property bool isPower: modelData.kind === "power"
+                            readonly property bool isQr: modelData.kind === "qr"
+                            readonly property bool isCard: isWeather || isVolume || isBrightness || isMic || isNight || isPower || isQr
                             readonly property bool isClipImage: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
                             width: resultList.width
-                            height: isHeader ? root.headerH : (isWeather ? root.weatherH : root.rowH)
+                            height: isHeader ? root.headerH : (isWeather ? root.weatherH : (isPower ? root.powerH : (isQr ? root.qrH : ((isVolume || isBrightness || isMic || isNight) ? root.volumeH : root.rowH))))
                             Text {
                                 visible: isHeader
-                                anchors.left: parent.left; anchors.leftMargin: 10; anchors.bottom: parent.bottom; anchors.bottomMargin: 2
+                                anchors.left: parent.left; anchors.leftMargin: 16; anchors.bottom: parent.bottom; anchors.bottomMargin: 2
                                 text: modelData.title || ""
-                                font { family: root.fontDisplay; pixelSize: 11; weight: Font.DemiBold }
+                                font { family: root.fontDisplay; pixelSize: 12; weight: Font.DemiBold }
                                 color: root.headerFg
                             }
                             Rectangle {
-                                visible: !isHeader && !isWeather
-                                anchors.fill: parent; anchors.leftMargin: 4; anchors.rightMargin: 4
-                                radius: 8
+                                visible: !isHeader && !isCard
+                                anchors.fill: parent; anchors.leftMargin: 3; anchors.rightMargin: 3
+                                anchors.topMargin: 1; anchors.bottomMargin: 1
+                                radius: 10
+                                border.width: (!isDanger && root.selectedIndex === modelData._idx) ? 1 : 0
+                                border.color: root.selectionBorder
                                 color: {
                                     if (isDanger) return rowHover.containsMouse ? Qt.rgba(1, 0.27, 0.23, 0.20) : Qt.rgba(1, 0.27, 0.23, 0.10);
                                     if (root.selectedIndex === modelData._idx) return root.selectionBg;
@@ -5000,10 +6222,10 @@ else:
                                 Behavior on color { ColorAnimation { duration: root.animFast } }
                             }
                             RowLayout {
-                                visible: !isHeader && !isWeather
-                                anchors.fill: parent; anchors.leftMargin: 12
-                                anchors.rightMargin: modelData.kind === "media" ? 122 : (modelData.kind === "clip" ? 44 : 10)
-                                spacing: 10
+                                visible: !isHeader && !isCard
+                                anchors.fill: parent; anchors.leftMargin: 16
+                                anchors.rightMargin: modelData.kind === "media" ? 122 : (modelData.kind === "clip" ? 44 : 14)
+                                spacing: 12
                                 Image {
                                     visible: modelData.kind === "app"
                                     Layout.preferredWidth: root.iconSize; Layout.preferredHeight: root.iconSize; Layout.alignment: Qt.AlignVCenter
@@ -5050,16 +6272,36 @@ else:
                                         visible: modelData.kind === "file"
                                         folder: modelData.isDirectory === true
                                     }
+                                    Shape {
+                                        id: rowGlyph
+                                        readonly property string glyph: root.rowGlyphPath(modelData)
+                                        anchors.centerIn: parent
+                                        width: 24; height: 24
+                                        scale: 20 / 24
+                                        visible: glyph !== ""
+                                        opacity: 0.85
+                                        preferredRendererType: Shape.CurveRenderer
+                                        antialiasing: true
+
+                                        ShapePath {
+                                            strokeColor: root.sFg
+                                            strokeWidth: 2
+                                            fillColor: "transparent"
+                                            capStyle: ShapePath.RoundCap
+                                            joinStyle: ShapePath.RoundJoin
+                                            PathSvg { path: rowGlyph.glyph }
+                                        }
+                                    }
                                     SpotlightSearchIcon {
                                         anchors.centerIn: parent
-                                        width: 18; height: 18
-                                        visible: (modelData.action || "").indexOf("web:") === 0 || modelData.category === "Site shortcut"
+                                        width: 20; height: 20
+                                        visible: modelData.kind !== "cmd" && ((modelData.action || "").indexOf("web:") === 0 || modelData.category === "Site shortcut" || modelData.category === "Google Maps")
                                         color: root.sFg
                                         opacity: 0.8
                                     }
                                     SiriOrb {
                                         anchors.centerIn: parent
-                                        size: 24
+                                        size: 28
                                         visible: (modelData.action || "").indexOf("askai:") === 0
                                     }
                                 }
@@ -5067,7 +6309,7 @@ else:
                                     Layout.fillWidth: true; spacing: 0; Layout.alignment: Qt.AlignVCenter
                                     Text {
                                         Layout.fillWidth: true; text: modelData.name || ""
-                                        font { family: root.fontDisplay; pixelSize: 14; weight: Font.Medium }
+                                        font { family: root.fontDisplay; pixelSize: 14; weight: Font.DemiBold }
                                         color: isDanger ? "#FF6961" : root.sFg
                                         elide: Text.ElideRight; maximumLineCount: 1
                                         wrapMode: modelData.kind === "info" ? Text.Wrap : Text.NoWrap
@@ -5082,10 +6324,28 @@ else:
                                     }
                                 }
                             }
+                            // Enter glyph on the selected row
+                            Canvas {
+                                visible: false && !isHeader && !isCard && root.selectedIndex === modelData._idx
+                                         && modelData.kind !== "media" && modelData.kind !== "clip"
+                                anchors.right: parent.right; anchors.rightMargin: 24
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: 16; height: 16
+                                onVisibleChanged: if (visible) requestPaint()
+                                Component.onCompleted: requestPaint()
+                                onPaint: {
+                                    var ctx = getContext("2d"); ctx.reset()
+                                    ctx.strokeStyle = root.sFgDim
+                                    ctx.lineWidth = 1.5; ctx.lineCap = "round"; ctx.lineJoin = "round"
+                                    ctx.beginPath(); ctx.moveTo(13, 3); ctx.lineTo(13, 9.5); ctx.lineTo(3.5, 9.5); ctx.stroke()
+                                    ctx.beginPath(); ctx.moveTo(6.5, 6.5); ctx.lineTo(3.5, 9.5); ctx.lineTo(6.5, 12.5); ctx.stroke()
+                                }
+                            }
                             MouseArea {
                                 id: rowHover
-                                visible: !isHeader && !isWeather
+                                visible: !isHeader && !isCard
                                 anchors.fill: parent
+                                acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: true
                                 cursorShape: Qt.PointingHandCursor
 
@@ -5098,24 +6358,44 @@ else:
                                 onClicked: (mouse) => {
                                     root.selectedIndex = modelData._idx
 
-                                    // Ctrl + click → copies the file path
-                                    if (mouse.modifiers & Qt.ControlModifier) {
-                                        const it = root.items[root.selectedIndex]
-                                        if (it && it.kind === "file" && it.path) {
+                                    const ctrl = !!(mouse.modifiers & Qt.ControlModifier)
+                                    const shift = !!(mouse.modifiers & Qt.ShiftModifier)
+                                    const it = root.items[root.selectedIndex]
+                                    const isFile = !!(it && it.kind === "file" && it.path)
+
+                                    // Right click on a file → actions panel (like Shift + click); on other rows it does nothing
+                                    if (mouse.button === Qt.RightButton) {
+                                        if (isFile) root.fileActOpen(it)
+                                        return
+                                    }
+
+                                    // Ctrl + Shift + click → copies the file path
+                                    if (ctrl && shift) {
+                                        if (isFile) {
                                             root.copyText(it.path)
                                             spotlightController.spotlightOpen = false
                                         }
                                         return
                                     }
-                                    // Shift + click → opens the folder | normal click → opens the file
-                                    root.openSelected(!!(mouse.modifiers & Qt.ShiftModifier))
+                                    // Ctrl + click → opens the folder that contains the file
+                                    if (ctrl) {
+                                        if (isFile) root.openSelected(true)
+                                        return
+                                    }
+                                    // Shift + click on a file → actions panel (open, open folder, open with, copy, rename, trash...)
+                                    if (shift && isFile) {
+                                        root.fileActOpen(it)
+                                        return
+                                    }
+                                    // Shift + click on other rows → their alternate action | normal click → default action
+                                    root.openSelected(shift)
                                 }
                             }
                             // Media controls (SpotlightMediaControls.qml component)
                             SpotlightMediaControls {
                                 visible: !isHeader && modelData.kind === "media"
                                 z: 2
-                                anchors.right: parent.right; anchors.rightMargin: 10
+                                anchors.right: parent.right; anchors.rightMargin: 18
                                 anchors.verticalCenter: parent.verticalCenter
                                 fg: root.sFg
                                 playing: root.nowPlayingStatus === "Playing"
@@ -5128,7 +6408,7 @@ else:
                                          && (rowHover.containsMouse || pinMA.containsMouse || dlg.isPinned
                                              || root.selectedIndex === modelData._idx)
                                 z: 3
-                                anchors.right: parent.right; anchors.rightMargin: 12
+                                anchors.right: parent.right; anchors.rightMargin: 20
                                 anchors.verticalCenter: parent.verticalCenter
                                 width: 24; height: 24; radius: 6
                                 color: pinMA.containsMouse ? root.white14 : "transparent"
@@ -5159,7 +6439,7 @@ else:
                                     anchors.fill: parent
                                     hoverEnabled: true
                                     cursorShape: Qt.PointingHandCursor
-                                    onEntered: root.placeholderText = dlg.isPinned ? "Unpin" : "Pin to top (Ctrl+P)"
+                                    onEntered: root.placeholderText = dlg.isPinned ? "Unpin" : "Pin"
                                     onExited: root.placeholderText = "Search or Ask"
                                     onClicked: { root.toggleClipPin(modelData); searchField.forceActiveFocus() }
                                 }
@@ -5167,7 +6447,7 @@ else:
                             SpotlightWeatherCard {
                                 visible: isWeather
                                 anchors.fill: parent
-                                anchors.leftMargin: 4; anchors.rightMargin: 4
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
                                 anchors.topMargin: 2; anchors.bottomMargin: 6
                                 info: isWeather ? modelData.wx : null
                                 fontFamily: root.fontDisplay
@@ -5177,6 +6457,114 @@ else:
                                 panelBorder: root.white10
                                 onOpenBrowser: root.openUrl(modelData.wx.url)
                             }
+                            SpotlightVolumeCard {
+                                visible: isVolume
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                level: root.volLevel
+                                isMuted: root.volMuted
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                accent: root.accent
+                                panel: root.white06
+                                panelBorder: root.white10
+                                speakerPath: root.cmdGlyphPaths["volume"]
+                                hint: "Volume  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps  \u00B7  click the speaker to mute"
+                                onLevelChosen: (value) => root.volSet(value)
+                                onMuteToggled: root.volSetMute(!root.volMuted)
+                                onDraggingChanged: root.volDragging = dragging
+                            }
+                            SpotlightVolumeCard {
+                                visible: isBrightness
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                level: root.brightLevel
+                                muteEnabled: false
+                                dimmed: !root.brightControllable
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                accent: root.accent
+                                panel: root.white06
+                                panelBorder: root.white10
+                                speakerPath: root.cmdGlyphPaths["theme"]
+                                hint: root.brightControllable
+                                      ? ("Brightness \u00B7 " + root.screen.name + (root.brightMonitor.isDdc ? " (DDC)" : "") + "  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps")
+                                      : ("No brightness control for " + (root.screen ? root.screen.name : "this monitor") + "  \u00B7  needs ddcutil (and i2c access)")
+                                onLevelChosen: (value) => root.brightSet(value)
+                            }
+                            SpotlightVolumeCard {
+                                visible: isMic
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                level: root.micLevel
+                                isMuted: root.micMuted
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                accent: root.accent
+                                panel: root.white06
+                                panelBorder: root.white10
+                                speakerPath: root.cmdGlyphPaths["mic"]
+                                hint: "Microphone input level  \u00B7  \u2190 \u2192 adjust  \u00B7  click the mic to mute"
+                                onLevelChosen: (value) => root.micSet(value)
+                                onMuteToggled: root.micSetMute(!root.micMuted)
+                                onDraggingChanged: root.micDragging = dragging
+                            }
+                            SpotlightVolumeCard {
+                                visible: isNight
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                level: root.nightLevel
+                                isMuted: !root.nightActive
+                                valueText: root.nightActive ? (root.nightTemp + "K") : "Off"
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                accent: "#FF9F0A"
+                                panel: root.white06
+                                panelBorder: root.white10
+                                speakerPath: root.cmdGlyphPaths["moon"]
+                                hint: "Night light  \u00B7  \u2190 \u2192 cooler / warmer  \u00B7  click the moon to turn on or off"
+                                onLevelChosen: (value) => root.nightSet(value)
+                                onMuteToggled: root.nightToggle()
+                            }
+                            SpotlightPowerCard {
+                                visible: isPower
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                profiles: root.ppProfiles
+                                current: root.ppCurrent
+                                batteryText: root.powerBatteryText
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                accent: root.accent
+                                panel: root.white06
+                                panelBorder: root.white10
+                                onProfileChosen: (id) => root.ppSet(id)
+                            }
+                            SpotlightQrCard {
+                                visible: isQr
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                source: isQr ? root.qrFile : ""
+                                label: root.qrLabel
+                                busy: root.qrBusy
+                                error: root.qrError
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                panel: root.white06
+                                panelBorder: root.white10
+                            }
                         }
                         onCountChanged: { if (root.selectedIndex >= root.items.length) root.selectedIndex = 0 }
                     }
@@ -5184,8 +6572,8 @@ else:
                     GridView {
                         id: resultGrid
                         visible: root.mode === "apps"
-                        anchors.fill: parent; anchors.margins: 6
-                        cellWidth: Math.floor(width / 2); cellHeight: 46
+                        anchors.fill: parent; anchors.margins: 0
+                        cellWidth: Math.floor(width / 2); cellHeight: root.rowH
                         model: root.items; clip: true
                         currentIndex: root.selectedIndex
                         reuseItems: true
@@ -5201,7 +6589,9 @@ else:
                             width: resultGrid.cellWidth
                             height: resultGrid.cellHeight
                             Rectangle {
-                                anchors.fill: parent; anchors.margins: 3; radius: 8
+                                anchors.fill: parent; anchors.margins: 2; radius: 10
+                                border.width: root.selectedIndex === index ? 1 : 0
+                                border.color: root.selectionBorder
                                 color: {
                                     if (root.selectedIndex === index) return root.selectionBg;
                                     if (gridHover.containsMouse) return root.hoverBg;
@@ -5210,16 +6600,16 @@ else:
                                 Behavior on color { ColorAnimation { duration: root.animFast } }
                             }
                             RowLayout {
-                                anchors.fill: parent; anchors.leftMargin: 10; anchors.rightMargin: 8; spacing: 8
+                                anchors.fill: parent; anchors.leftMargin: 14; anchors.rightMargin: 10; spacing: 12
                                 Image {
-                                    Layout.preferredWidth: 26; Layout.preferredHeight: 26; Layout.alignment: Qt.AlignVCenter
-                                    source: modelData.icon || ""; sourceSize { width: 52; height: 52 }
+                                    Layout.preferredWidth: 30; Layout.preferredHeight: 30; Layout.alignment: Qt.AlignVCenter
+                                    source: modelData.icon || ""; sourceSize { width: 60; height: 60 }
                                     asynchronous: true; smooth: true
                                 }
                                 Text {
                                     Layout.fillWidth: true; Layout.alignment: Qt.AlignVCenter
                                     text: modelData.name || ""
-                                    font { family: root.fontDisplay; pixelSize: 13 }
+                                    font { family: root.fontDisplay; pixelSize: 14; weight: Font.Medium }
                                     color: root.sFg
                                     elide: Text.ElideRight; maximumLineCount: 1
                                 }
@@ -5246,6 +6636,82 @@ else:
                         visible: root.query.length > 0 && root.items.length === 0
                     }
                 }
+
+                // ---- Footer: settings button (left) + key hints (right)
+                Item {
+                    visible: root.footerH > 0
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: root.footerH
+                    Layout.minimumHeight: root.footerH
+
+                    Rectangle {
+                        id: gearBtn
+                        anchors.left: parent.left
+                        anchors.leftMargin: 3
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: 2
+                        width: 28; height: 28; radius: 14
+                        color: gearMA.containsMouse ? root.white14 : "transparent"
+                        border.width: 0
+                        Behavior on color { ColorAnimation { duration: root.animFast } }
+                        MouseArea {
+                            id: gearMA
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: root.openSettingsApp()
+                        }
+                        Canvas {
+                            anchors.centerIn: parent
+                            width: 20; height: 20
+                            scale: 0.8
+                            opacity: gearMA.containsMouse ? 1.0 : 0.75
+                            Behavior on opacity { NumberAnimation { duration: root.animFast } }
+                            Component.onCompleted: requestPaint()
+                            onPaint: {
+                                var ctx = getContext("2d"); ctx.reset()
+                                ctx.strokeStyle = root.sFgDim
+                                ctx.lineWidth = 1.4; ctx.lineJoin = "round"; ctx.lineCap = "round"
+                                var cx = 10, cy = 10, n = 8, ro = 8.2, ri = 6.2, st = Math.PI * 2 / n
+                                ctx.beginPath()
+                                for (var k = 0; k < n; k++) {
+                                    var a = st * k
+                                    var pts = [[ri, a - 0.30 * st], [ro, a - 0.17 * st], [ro, a + 0.17 * st], [ri, a + 0.30 * st]]
+                                    for (var m = 0; m < 4; m++) {
+                                        var x = cx + pts[m][0] * Math.cos(pts[m][1]), y = cy + pts[m][0] * Math.sin(pts[m][1])
+                                        if (k === 0 && m === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
+                                    }
+                                }
+                                ctx.closePath(); ctx.stroke()
+                                ctx.beginPath(); ctx.arc(cx, cy, 2.6, 0, Math.PI * 2); ctx.stroke()
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        anchors.right: parent.right
+                        anchors.rightMargin: 16
+                        anchors.verticalCenter: parent.verticalCenter
+                        anchors.verticalCenterOffset: 2
+                        spacing: 22
+                        Repeater {
+                            model: root.footerHints
+                            delegate: RowLayout {
+                                spacing: 6
+                                Text {
+                                    text: modelData.k
+                                    color: root.sFgDim
+                                    font { family: root.fontText; pixelSize: 12; weight: Font.Medium }
+                                }
+                                Text {
+                                    text: modelData.t
+                                    color: root.sFgDim
+                                    font { family: root.fontText; pixelSize: 12; weight: Font.Medium }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -5254,8 +6720,9 @@ else:
             id: previewPopup
             visible: root.previewKind !== ""
             anchors.left: searchHeader.right
-            anchors.leftMargin: 16
+            anchors.leftMargin: 16 + root.panelPad
             anchors.top: searchHeader.top
+            anchors.topMargin: -root.bodyPad
             width: root.previewBox.w
             height: root.previewBox.h
             radius: root.panelRadius
@@ -5435,8 +6902,9 @@ else:
             id: aiPopup
             visible: root.aiText.length > 0 && root.previewKind === ""
             anchors.left: searchHeader.right
-            anchors.leftMargin: 16
+            anchors.leftMargin: 16 + root.panelPad
             anchors.top: searchHeader.top
+            anchors.topMargin: -root.bodyPad
 
             width: 460
 
@@ -5775,6 +7243,24 @@ else:
     Timer { id: _fdDeb; interval: 140; repeat: false; onTriggered: root.runFd() }
     Timer { id: _sideEffectsDeb; interval: 250; repeat: false; onTriggered: root.runSideEffects() }
     Timer { id: _rebuildDeb; interval: 30; repeat: false; onTriggered: root.buildResults() }
+
+    // Command menu sources: your menu.jsonc wins, menu.default.json (next to this file) is the fallback
+    FileView {
+        id: _menuUserFile
+        path: Quickshell.env("HOME") + "/.config/illogical-impulse/menu.jsonc"
+        watchChanges: true
+        printErrors: false
+        onFileChanged: reload()
+        onLoaded: { root._menuUserText = root._menuStripComments(text()); root.menuRebuild(); }
+        onLoadFailed: { root._menuUserText = ""; root.menuRebuild(); }
+    }
+    FileView {
+        id: _menuDefaultFile
+        path: Qt.resolvedUrl("menu.default.json").toString().replace(/^file:\/\//, "")
+        watchChanges: true
+        onFileChanged: reload()
+        onLoaded: { root._menuDefaultText = root._menuStripComments(text()); root.menuRebuild(); }
+    }
     Timer { id: _aiDeb; interval: 1200; repeat: false; onTriggered: root.runHermes(root._pendingAiPrompt) }
 
     Timer {
@@ -5783,17 +7269,6 @@ else:
         repeat: false
         property bool useSelectArea: true
         onTriggered: spotlightActions.runScreenshotOcr(useSelectArea)
-    }
-
-    Timer {
-        id: _captureGuard
-        interval: 45000; repeat: false
-        onTriggered: {
-            if (!root._capturing) return;
-            root._capturing = false;
-            root._screenQuestion = "";
-            root.aiFail("❌ The screen capture took too long");
-        }
     }
 
     Timer {
@@ -5990,6 +7465,45 @@ else:
     }
 
     Process {
+        id: _quote; running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const p = root._pendingQuote;
+                if (!p || root._quoteQ !== p.q) return;       // query changed while fetching
+                root._pendingQuote = null;
+                let res = null;
+                try {
+                    const d = JSON.parse(text)[p.pair.replace("-", "")];
+                    const bid = parseFloat(d.bid);
+                    if (!isNaN(bid)) {
+                        const dec = bid >= 100 ? 2 : (bid >= 0.1 ? 4 : 6);
+                        const pct = parseFloat(d.pctChange);
+                        const arrow = isNaN(pct) ? "" : (pct >= 0 ? "\u25b2 +" : "\u25bc ") + root.fmtBR(pct, 2) + "% \u00b7 ";
+                        const hi = parseFloat(d.high), lo = parseFloat(d.low), ask = parseFloat(d.ask);
+                        let sub = arrow;
+                        if (!isNaN(ask)) sub += "venda " + root.fmtBR(ask, dec) + " \u00b7 ";
+                        if (!isNaN(hi) && !isNaN(lo)) sub += "m\u00e1x " + root.fmtBR(hi, dec) + " \u00b7 m\u00edn " + root.fmtBR(lo, dec) + " \u00b7 ";
+                        const ts = parseInt(d.timestamp);
+                        if (!isNaN(ts)) {
+                            const dt = new Date(ts * 1000);
+                            sub += String(dt.getHours()).padStart(2, "0") + ":" + String(dt.getMinutes()).padStart(2, "0") + " \u00b7 ";
+                        }
+                        sub += "clique para copiar";
+                        res = { text: p.label + ": R$ " + root.fmtBR(bid, dec), sub: sub, raw: root.fmtBR(bid, dec) };
+                    }
+                } catch (e) { res = null; }
+                if (res) {
+                    root.cacheSet("quote:" + p.pair, res);
+                    root.quoteResult = { q: p.q, loading: false, text: res.text, sub: res.sub, raw: res.raw };
+                } else {
+                    root.quoteResult = { q: p.q, loading: false, text: "N\u00e3o consegui buscar a cota\u00e7\u00e3o de " + p.label, sub: "", raw: "" };
+                }
+                root.rebuildIfShown();
+            }
+        }
+    }
+
+    Process {
         id: _battery; running: false
         command: ["bash", "-c", "upower -i $(upower -e | grep -m1 BAT) 2>/dev/null | grep -E 'percentage|state'"]
         stdout: StdioCollector {
@@ -6031,40 +7545,370 @@ else:
         }
     }
 
+    // Wi-Fi: saved profiles ("S:name") + visible networks ("N:in-use:signal:security:ssid")
+    readonly property string _wifiListScript: [
+        "nmcli -t -f NAME,TYPE connection show 2>/dev/null | while IFS= read -r l; do t=\"${l##*:}\"; n=\"${l%:*}\"; case \"$t\" in wifi|802-11-wireless) printf 'S:%s\\n' \"$n\";; esac; done",
+        "nmcli -t -f IN-USE,SIGNAL,SECURITY,SSID device wifi list 2>/dev/null | sed 's/^/N:/'"
+    ].join("\n")
+
     Process {
         id: _wifi; running: false
-        command: ["bash", "-c", "nmcli -t -f active,ssid dev wifi list 2>/dev/null"]
+        command: ["bash", "-c", root._wifiListScript]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.trim().split("\n").filter(Boolean);
-                const seen = {}; const out = [];
-                for (const l of lines) {
-                    const parts = l.split(":");
-                    const active = parts[0] === "yes";
-                    const ssid = parts.slice(1).join(":");
-                    if (!ssid || seen[ssid]) continue;
-                    seen[ssid] = true;
-                    out.push({ ssid: ssid, active: active });
+                const unesc = s => s.replace(/\\(.)/g, "$1");
+                const saved = {};
+                const best = {};
+                for (const l of text.split("\n")) {
+                    if (l.startsWith("S:")) { saved[unesc(l.slice(2))] = true; continue; }
+                    if (!l.startsWith("N:")) continue;
+                    const m = l.slice(2).match(/^([^:]*):([^:]*):([^:]*):(.*)$/);
+                    if (!m) continue;
+                    const ssid = unesc(m[4]);
+                    if (!ssid) continue;
+                    const sec = m[3].trim();
+                    const o = { ssid: ssid, active: m[1].trim() === "*", signal: parseInt(m[2]) || 0,
+                                secure: sec !== "" && sec !== "--" };
+                    const prev = best[ssid];
+                    if (!prev || o.active || (!prev.active && o.signal > prev.signal)) best[ssid] = o;
                 }
+                const out = Object.keys(best).map(k => { best[k].saved = !!saved[k]; return best[k]; });
+                out.sort((a, b) => (b.active - a.active) || (b.saved - a.saved) || (b.signal - a.signal));
                 root.wifiItems = out;
-                if (root.mode === "wifi") root.scheduleRebuild();
+                if (root.mode === "wifi" || root._netWordShown === "wifi") root.scheduleRebuild();
             }
         }
     }
 
+    // Ask NetworkManager for a fresh scan, then refresh the list
+    Process {
+        id: _wifiRescan; running: false
+        command: ["bash", "-c", "nmcli device wifi rescan >/dev/null 2>&1; sleep 3"]
+        onExited: _wifi.running = true
+    }
+
+    // Bluetooth: every device BlueZ knows about (paired or just discovered), with its state
+    readonly property string _btListScript: [
+        "bluetoothctl devices 2>/dev/null | while read -r _ mac name; do",
+        "  i=$(bluetoothctl info \"$mac\" 2>/dev/null)",
+        "  p=no; c=no",
+        "  case \"$i\" in *'Paired: yes'*) p=yes;; esac",
+        "  case \"$i\" in *'Connected: yes'*) c=yes;; esac",
+        "  printf '%s\\t%s\\t%s\\t%s\\n' \"$mac\" \"$p\" \"$c\" \"$name\"",
+        "done"
+    ].join("\n")
+
     Process {
         id: _bt; running: false
-        command: ["bash", "-c", "bluetoothctl devices Paired 2>/dev/null"]
+        command: ["bash", "-c", root._btListScript]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.trim().split("\n").filter(Boolean);
-                root.btItems = lines.map(l => {
-                    const p = l.trim().split(" ");
-                    return { mac: p[1] || "", name: p.slice(2).join(" ") || l };
-                });
-                if (root.mode === "bluetooth") root.scheduleRebuild();
+                const out = [];
+                for (const l of text.split("\n")) {
+                    const p = l.split("\t");
+                    if (p.length < 4 || !p[0]) continue;
+                    const name = p.slice(3).join("\t");
+                    // devices that only advertise their address have nothing useful to show
+                    if (name.replace(/-/g, ":").toUpperCase() === p[0].toUpperCase()) continue;
+                    out.push({ mac: p[0], name: name, paired: p[1] === "yes", connected: p[2] === "yes" });
+                }
+                out.sort((a, b) => (b.connected - a.connected) || (b.paired - a.paired) || a.name.localeCompare(b.name));
+                root.btItems = out;
+                if (root.mode === "bluetooth" || root._netWordShown === "bluetooth") root.scheduleRebuild();
             }
         }
+    }
+
+    // Discovery: powers the adapter on if needed and scans for a while so new devices show up
+    Process {
+        id: _btDiscover; running: false
+        command: ["bash", "-c",
+            "bluetoothctl show 2>/dev/null | grep -q 'Powered: yes' || { bluetoothctl power on >/dev/null 2>&1; sleep 1; }; " +
+            "bluetoothctl --timeout 20 scan on >/dev/null 2>&1"]
+    }
+
+    // While the Bluetooth list is on screen, refresh it so discovered devices appear
+    Timer {
+        id: _btPoll
+        interval: 2000; repeat: true
+        running: root._shown && (root.mode === "bluetooth" || root._netWordShown === "bluetooth")
+        onTriggered: { if (!_bt.running) _bt.running = true; }
+    }
+
+    // Connect / pair / disconnect actions (values come in as SP_* environment variables)
+    Process { id: _netAct; running: false }
+
+    // ---- Open with...: apps registered for the file's MIME type ("id<TAB>name<TAB>path of the .desktop file")
+    readonly property string _openWithScript: [
+        "mime=$(xdg-mime query filetype \"$SP_FILE\" 2>/dev/null)",
+        "[ -n \"$mime\" ] || mime=$(file -b --mime-type \"$SP_FILE\" 2>/dev/null)",
+        "gio mime \"$mime\" 2>/dev/null | sed -n 's/^[[:space:]]\\{1,\\}\\([^[:space:]]\\{1,\\}\\.desktop\\)$/\\1/p' | awk '!s[$0]++' | while read -r id; do",
+        "  f=\"\"",
+        "  for d in \"${XDG_DATA_HOME:-$HOME/.local/share}\" $(printf '%s' \"${XDG_DATA_DIRS:-/usr/local/share:/usr/share}\" | tr ':' ' '); do",
+        "    [ -f \"$d/applications/$id\" ] && { f=\"$d/applications/$id\"; break; }",
+        "  done",
+        "  [ -n \"$f\" ] || continue",
+        "  n=$(grep -m1 '^Name=' \"$f\" | cut -d= -f2-)",
+        "  printf '%s\\t%s\\t%s\\n' \"$id\" \"${n:-$id}\" \"$f\"",
+        "done"
+    ].join("\n")
+
+    Process {
+        id: _openWith; running: false
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = [];
+                for (const l of text.split("\n")) {
+                    const p = l.split("\t");
+                    if (p.length >= 3 && p[0]) out.push({ id: p[0], name: p[1], file: p.slice(2).join("\t") });
+                }
+                root.fileOpenWith = out;
+                if (root.fileActFor && root.fileActStage === "apps") root.scheduleRebuild();
+            }
+        }
+    }
+
+    // ---- /keys
+    Process {
+        id: _keys; running: false
+        command: ["bash", "-c", "hyprctl binds -j 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let data = [];
+                try { data = JSON.parse(text); } catch (err) { data = []; }
+                if (!Array.isArray(data)) data = [];
+                const modNames = [[64, "Super"], [4, "Ctrl"], [8, "Alt"], [1, "Shift"]];
+                const keyNames = {
+                    "return": "Enter", "escape": "Esc", "space": "Space", "tab": "Tab", "backspace": "Backspace",
+                    "delete": "Del", "print": "PrtSc", "left": "\u2190", "right": "\u2192", "up": "\u2191", "down": "\u2193",
+                    "prior": "PgUp", "next": "PgDn", "grave": "`", "minus": "-", "equal": "=", "bracketleft": "[",
+                    "bracketright": "]", "comma": ",", "period": ".", "slash": "/", "semicolon": ";",
+                    "apostrophe": "'", "backslash": "\\"
+                };
+                const mouseNames = { "mouse:272": "Left click", "mouse:273": "Right click", "mouse:274": "Middle click",
+                                     "mouse_down": "Scroll down", "mouse_up": "Scroll up" };
+                const out = [];
+                for (const b of data) {
+                    const mods = modNames.filter(n => ((b.modmask || 0) & n[0]) !== 0).map(n => n[1]);
+                    let key = b.key || "";
+                    if (mouseNames[key]) key = mouseNames[key];
+                    else if (key.startsWith("mouse:")) key = "Mouse " + key.slice(6);
+                    else if (key.length === 1) key = key.toUpperCase();
+                    else if (key) key = keyNames[key.toLowerCase()] || key.replace(/^XF86/, "");
+                    else if (b.keycode) key = "code:" + b.keycode;
+                    else if (b.catch_all) key = "Any key";
+                    const desc = (b.has_description && b.description) ? b.description : "";
+                    const act = desc || (((b.dispatcher || "") + " " + (b.arg || "")).trim());
+                    if (!key && !act) continue;
+                    out.push({
+                        idx: out.length,
+                        combo: mods.concat([key]).join(" + "),
+                        action: act || "(custom action)",
+                        submap: b.submap || ""
+                    });
+                }
+                root.keysItems = out;
+                if (root.mode === "keys" || root._extraShown === "keys") root.scheduleRebuild();
+            }
+        }
+    }
+
+    // ---- Microphone: read the input level while the card is up, write it throttled
+    Process {
+        id: _micGet; running: false
+        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SOURCE@ 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = text.match(/Volume:\s*([0-9.]+)/);
+                if (!m || root.micDragging || Date.now() < root._micHold) return;
+                root.micLevel = Math.max(0, Math.min(1, parseFloat(m[1])));
+                root.micMuted = text.indexOf("[MUTED]") >= 0;
+            }
+        }
+    }
+    Timer {
+        id: _micPoll
+        interval: 1000; repeat: true; triggeredOnStart: true
+        running: root._shown && root.micCardShown
+        onTriggered: { if (!_micGet.running) _micGet.running = true; }
+    }
+    Timer {
+        id: _micApply
+        interval: 60; repeat: false
+        onTriggered: spotlightController.run("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0; wpctl set-volume @DEFAULT_AUDIO_SOURCE@ " + Math.round(root.micLevel * 100) + "%")
+    }
+
+    // ---- Night light: state comes from the Hyprsunset service, the temperature goes into the shell config
+    Timer {
+        id: _nightPoll
+        interval: 3000; repeat: true; triggeredOnStart: true
+        running: root._shown && root.nightCardShown
+        onTriggered: Hyprsunset.fetchState()
+    }
+    Timer {
+        id: _nightApply
+        interval: 80; repeat: false
+        onTriggered: Config.options.light.night.colorTemperature = root._nightTarget
+    }
+
+    // ---- Power profile (power-profiles-daemon): current profile "---" available profiles
+    Process {
+        id: _ppGet; running: false
+        command: ["bash", "-c", "powerprofilesctl get 2>/dev/null; echo '---'; powerprofilesctl list 2>/dev/null | grep -oE '^[* ]*[a-z-]+:' | tr -d '* :'"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const parts = text.split("---");
+                const cur = (parts[0] || "").trim();
+                const order = ["power-saver", "balanced", "performance"];
+                const labels = { "power-saver": "Power saver", "balanced": "Balanced", "performance": "Performance" };
+                const ids = (parts[1] || "").split("\n").map(s => s.trim()).filter(s => s.length > 0);
+                ids.sort((a, b) => (order.indexOf(a) < 0 ? 99 : order.indexOf(a)) - (order.indexOf(b) < 0 ? 99 : order.indexOf(b)));
+                root.ppProfiles = ids.map(id => ({ id: id, label: labels[id] || id }));
+                if (cur && Date.now() >= root._ppHold) root.ppCurrent = cur;
+            }
+        }
+    }
+    Timer {
+        id: _ppPoll
+        interval: 2000; repeat: true; triggeredOnStart: true
+        running: root._shown && root.powerCardShown
+        onTriggered: { if (!_ppGet.running) _ppGet.running = true; }
+    }
+
+    // ---- QR code: qrencode writes a PNG that the card shows
+    readonly property string _qrScript: [
+        "command -v qrencode >/dev/null 2>&1 || exit 3",
+        "find /tmp -maxdepth 1 -name 'spotlight-qr-*.png' ! -path \"$SP_OUT\" -delete 2>/dev/null",
+        "if [ \"$SP_MODE\" = wifi ]; then",
+        "  prof=$(nmcli -t -f NAME,TYPE connection show --active 2>/dev/null | while IFS= read -r l; do t=\"${l##*:}\"; n=\"${l%:*}\"; case \"$t\" in wifi|802-11-wireless) printf '%s\\n' \"$n\"; break;; esac; done)",
+        "  [ -n \"$prof\" ] || exit 2",
+        "  ssid=$(nmcli -g 802-11-wireless.ssid connection show \"$prof\" 2>/dev/null)",
+        "  pass=$(nmcli -s -g 802-11-wireless-security.psk connection show \"$prof\" 2>/dev/null)",
+        "  esc() { printf '%s' \"$1\" | sed -e 's/[\\\\;,:\"]/\\\\&/g'; }",
+        "  if [ -n \"$pass\" ]; then SP_QR=\"WIFI:T:WPA;S:$(esc \"$ssid\");P:$(esc \"$pass\");;\"; else SP_QR=\"WIFI:T:nopass;S:$(esc \"$ssid\");;\"; fi",
+        "fi",
+        "printf '%s' \"$SP_QR\" | qrencode -s 8 -m 2 -o \"$SP_OUT\""
+    ].join("\n")
+
+    Process {
+        id: _qrGen; running: false
+        onExited: (exitCode, exitStatus) => {
+            if (root._qrRanFor !== root._qrWanted) { _qrDeb.restart(); return; }   // text changed meanwhile
+            if (exitCode === 0) { root.qrFile = "file://" + root._qrOut; root.qrError = ""; }
+            else {
+                root.qrFile = "";
+                root.qrError = exitCode === 3 ? "qrencode is not installed"
+                             : (exitCode === 2 ? "No active Wi-Fi network" : "Could not create the QR code (text too long?)");
+            }
+            root.qrBusy = false;
+        }
+    }
+    Timer { id: _qrDeb; interval: 250; repeat: false; onTriggered: root._qrRun() }
+
+    // ---- /kill: processes of your user, busiest first
+    Process {
+        id: _procs; running: false
+        command: ["bash", "-c", "ps -u \"$(id -u)\" -o pid=,pcpu=,pmem=,args= --sort=-pcpu 2>/dev/null | head -120"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const out = [];
+                for (const l of text.split("\n")) {
+                    const m = l.match(/^\s*(\d+)\s+([\d.,]+)\s+([\d.,]+)\s+(.+)$/);
+                    if (!m) continue;
+                    const args = m[4];
+                    if (args.indexOf("--sort=-pcpu") >= 0) continue;          // this very listing
+                    const parts = args.split(/\s+/);
+                    let base = parts[0].split("/").pop() || parts[0];
+                    if (/^(python[\d.]*|bash|sh|zsh|fish|node|java|perl|ruby|electron)$/.test(base)) {
+                        const next = parts.slice(1).find(p => p.length > 0 && p[0] !== "-");
+                        if (next) base = next.split("/").pop() || next;
+                    }
+                    out.push({
+                        pid: parseInt(m[1]),
+                        cpu: parseFloat(m[2].replace(",", ".")) || 0,
+                        mem: parseFloat(m[3].replace(",", ".")) || 0,
+                        name: base,
+                        args: args
+                    });
+                }
+                root.killList = out;
+                if (root.mode === "kill" || root._extraShown === "kill") root.scheduleRebuild();
+            }
+        }
+    }
+    Timer {
+        id: _procPoll
+        interval: 2000; repeat: true; triggeredOnStart: false
+        running: root._shown && (root.mode === "kill" || root._extraShown === "kill")
+        onTriggered: { if (!_procs.running) _procs.running = true; }
+    }
+    Timer { id: _procRefresh; interval: 500; repeat: false; onTriggered: root.procScan() }
+
+    // ---- /usb: external partitions (mounted or not)
+    Process {
+        id: _usb; running: false
+        command: ["bash", "-c", "lsblk -J -o NAME,PATH,LABEL,SIZE,MOUNTPOINTS,RM,HOTPLUG,TRAN,TYPE,MODEL,FSTYPE 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                let data = null;
+                try { data = JSON.parse(text); } catch (err) { data = null; }
+                const truthy = v => v === true || v === 1 || v === "1" || v === "true";
+                const out = [];
+                for (const d of ((data && data.blockdevices) || [])) {
+                    if (d.type !== "disk") continue;
+                    if (!(truthy(d.hotplug) || truthy(d.rm) || d.tran === "usb")) continue;
+                    const parts = (d.children || []).filter(c => c.type === "part");
+                    const cands = parts.length ? parts : [d];
+                    for (const p of cands) {
+                        const fs = p.fstype || "";
+                        if (!fs || fs === "swap" || /LUKS|LVM/i.test(fs)) continue;
+                        const mps = (p.mountpoints || [p.mountpoint]).filter(Boolean);
+                        out.push({
+                            dev: p.path,
+                            parent: d.path,
+                            name: p.label || (d.model || "").trim() || p.name,
+                            size: p.size || "",
+                            mp: mps[0] || ""
+                        });
+                    }
+                }
+                root.usbItems = out;
+                if (root.mode === "usb" || root._extraShown === "usb") root.scheduleRebuild();
+            }
+        }
+    }
+    Timer {
+        id: _usbPoll
+        interval: 3000; repeat: true
+        running: root._shown && (root.mode === "usb" || root._extraShown === "usb")
+        onTriggered: { if (!_usb.running) _usb.running = true; }
+    }
+
+    // Volume: read the current level while the card is on screen, write it (throttled) when you move the bar
+    Process {
+        id: _volGet; running: false
+        command: ["bash", "-c", "wpctl get-volume @DEFAULT_AUDIO_SINK@ 2>/dev/null"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const m = text.match(/Volume:\s*([0-9.]+)/);
+                if (!m || root.volDragging || Date.now() < root._volHold) return;
+                root.volLevel = Math.max(0, Math.min(1, parseFloat(m[1])));
+                root.volMuted = text.indexOf("[MUTED]") >= 0;
+            }
+        }
+    }
+
+    Timer {
+        id: _volPoll
+        interval: 1000; repeat: true; triggeredOnStart: true
+        running: root._shown && root.volCardShown
+        onTriggered: { if (!_volGet.running) _volGet.running = true; }
+    }
+
+    Timer {
+        id: _volApply
+        interval: 60; repeat: false
+        onTriggered: spotlightController.run("wpctl set-mute @DEFAULT_AUDIO_SINK@ 0; wpctl set-volume @DEFAULT_AUDIO_SINK@ " + Math.round(root.volLevel * 100) + "%")
     }
 
     Process {

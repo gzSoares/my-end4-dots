@@ -17,40 +17,19 @@ Scope {
     property bool visible: false
     readonly property MprisPlayer activePlayer: MprisController.activePlayer
     readonly property var realPlayers: MprisController.players
-
-    // Cached meaningful players - recomputed only when dependencies change
-    property var _meaningfulPlayersCache: []
-    property var _meaningfulPlayersDeps: ""
-    property var _lastRecencyOrder: ""
-
-    function _computeMeaningfulPlayers() {
-        const order = MprisController.recentPlayerNames.join(",");
-        const playerCount = realPlayers.length;
-        const deps = order + "|" + playerCount + "|" + Config.options.media.maxShownPlayers;
-
-        if (deps === _meaningfulPlayersDeps && _meaningfulPlayersCache.length > 0) {
-            return _meaningfulPlayersCache;
-        }
-
-        _meaningfulPlayersDeps = deps;
-
-        const sorted = MprisController.orderByRecency(realPlayers);
-        // Move Spotify to front if present
-        const spotifyIdx = sorted.findIndex(p => p.dbusName?.includes("spotify"));
-        if (spotifyIdx > 0) {
-            const spotify = sorted[spotifyIdx];
-            sorted.splice(spotifyIdx, 1);
-            sorted.unshift(spotify);
-        }
-        _meaningfulPlayersCache = filterDuplicatePlayers(sorted).slice(0, Config.options.media.maxShownPlayers);
-        return _meaningfulPlayersCache;
+    // Recency-ordered and capped: with per-tab browser players the full list
+    // grows unbounded, so only the most recently played few are shown. Any
+    // older player re-enters the moment it plays or is selected. The local
+    // read of recentPlayerNames makes the recency dependency explicit so the
+    // binding re-evaluates on every bump.
+    readonly property var meaningfulPlayers: {
+        const order = MprisController.recentPlayerNames;
+        return filterDuplicatePlayers(MprisController.orderByRecency(realPlayers)).slice(0, Config.options.media.maxShownPlayers);
     }
-
-    readonly property var meaningfulPlayers: _computeMeaningfulPlayers()
     readonly property real osdWidth: Appearance.sizes.osdWidth
     readonly property real widgetWidth: Appearance.sizes.mediaControlsWidth
     readonly property real widgetHeight: Appearance.sizes.mediaControlsHeight
-    property real popupRounding: Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1
+    property real popupRounding: RoundedCorners.on ? Appearance.rounding.screenRounding - Appearance.sizes.hyprlandGapsOut + 1 : 0
 
     function filterDuplicatePlayers(players) {
         let filtered = [];

@@ -9,9 +9,17 @@ Rectangle {
     id: root
     required property WifiAccessPoint wifiNetwork
     
-    property bool isConnecting: Network.wifiConnectTarget === root.wifiNetwork && !wifiNetwork?.active
+    property bool isConnecting: !!root.wifiNetwork && Network.wifiConnectTarget === root.wifiNetwork && !root.wifiNetwork.active
     property bool isActive: wifiNetwork?.active ?? false
     property bool isAskingPassword: wifiNetwork?.askingPassword ?? false
+    // Steam's link to the Steam Frame: only Steam joins it, and it cannot be shared.
+    readonly property bool isFrameProfile: wifiNetwork?.frameProfile ?? false
+    // Leaving the page counts as Cancel: a prompt left open would hold the
+    // list still in every view that shows it.
+    Component.onDestruction: {
+        if (root.wifiNetwork?.askingPassword)
+            root.wifiNetwork.askingPassword = false;
+    }
     property bool expanded: false
     
     // Parse security type for display
@@ -41,6 +49,50 @@ Rectangle {
     
     property bool hovered: mouseArea.containsMouse
 
+    // Made when asked for and let go of after, so a long list of networks
+    // does not carry a dialog each.
+    Loader {
+        id: shareLoader
+        active: false
+        sourceComponent: WifiShareDialog {
+            ssid: root.wifiNetwork?.ssid ?? ""
+            onClosed: shareLoader.active = false
+        }
+        onLoaded: item.open()
+    }
+
+    component QrShareButton: Item {
+        id: qrButton
+        signal clicked
+        implicitWidth: 36
+        implicitHeight: 36
+        Rectangle {
+            anchors.fill: parent
+            radius: 18
+            color: qrMouse.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
+            Behavior on color {
+                animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
+            }
+        }
+        MaterialSymbol {
+            anchors.centerIn: parent
+            text: "qr_code_2"
+            iconSize: 20
+            color: Appearance.colors.colOnLayer3
+        }
+        MouseArea {
+            id: qrMouse
+            anchors.fill: parent
+            hoverEnabled: true
+            cursorShape: Qt.PointingHandCursor
+            onClicked: qrButton.clicked()
+        }
+        StyledToolTip {
+            extraVisibleCondition: qrMouse.containsMouse
+            text: Translation.tr("Share with a QR code")
+        }
+    }
+
     Behavior on color {
         animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
     }
@@ -54,7 +106,7 @@ Rectangle {
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
-        enabled: !isConnecting && !isAskingPassword
+        enabled: !isConnecting && !isAskingPassword && !isFrameProfile
         
         onClicked: {
             if (isActive) {
@@ -356,6 +408,12 @@ Rectangle {
                     text: Translation.tr("Forget network")
                 }
             }
+
+            // Share button (for saved networks, not active/connecting)
+            QrShareButton {
+                visible: (root.wifiNetwork?.isSaved ?? false) && !root.isActive && !root.isConnecting && !root.isAskingPassword && !root.isFrameProfile
+                onClicked: shareLoader.active = true
+            }
         }
 
         // Expanded details section (for connected network)
@@ -501,6 +559,11 @@ Rectangle {
                         extraVisibleCondition: root.expanded && root.isActive
                         text: Translation.tr("Forget Network")
                     }
+                }
+
+                // Share button
+                QrShareButton {
+                    onClicked: shareLoader.active = true
                 }
             }
         }

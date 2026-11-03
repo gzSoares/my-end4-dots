@@ -102,7 +102,7 @@ Item {
     // win.floating themselves since tiled windows have no z-order to alter.
     function raiseToplevel(fullAddr) {
         Hyprland.dispatch(
-            `hl.dsp.window.alter_zorder({mode = "top", window = "address:${fullAddr}"})`
+            `MainstreamRaiseFloat("address:${fullAddr}")`
         );
     }
 
@@ -593,6 +593,10 @@ Item {
                                 folderColumn.renaming = false;
                             }
                             Keys.onEscapePressed: folderColumn.renaming = false
+
+                            ContextMenu.menu: null
+
+                            TextFieldContextMenuArea {}
                         }
 
                         // Confirm button (only visible when renaming)
@@ -639,7 +643,7 @@ Item {
                                 const apps = [];
                                 for (let i = 0; i < root.folderPopupData.appIds.length; i++) {
                                     const appId = root.folderPopupData.appIds[i];
-                                    const entry = DesktopEntries.heuristicLookup(appId);
+                                    const entry = AppSearch.recordFor(DesktopEntries.heuristicLookup(appId));
                                     if (entry) {
                                         apps.push({ id: appId, entry: entry });
                                     }

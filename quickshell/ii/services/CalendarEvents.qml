@@ -81,6 +81,9 @@ Singleton {
         function onSidebarRightOpenChanged() {
             if (GlobalStates.sidebarRightOpen) root.refresh()
         }
+        function onSidebarLeftOpenChanged() {
+            if (GlobalStates.sidebarLeftOpen) root.refresh()
+        }
     }
 
     Timer {

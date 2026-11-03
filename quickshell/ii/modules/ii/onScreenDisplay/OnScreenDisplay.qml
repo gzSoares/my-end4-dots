@@ -142,22 +142,7 @@ Scope {
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        // Keep OSD open while hovering, close only when leaving
-                        onEntered: {
-                            osdTimeout.stop();
-                        }
-                        onExited: {
-                            osdTimeout.restart();
-                        }
-                        // Mouse wheel to control volume
-                        onWheel: (wheel) => {
-                            if (root.currentIndicator === "volume" && Audio.ready) {
-                                const delta = wheel.angleDelta.y > 0 ? 5 : -5;
-                                const newVol = Math.max(0, Math.min(150, (Audio.sink?.audio.volume ?? 0) * 100 + delta));
-                                Audio.sink.audio.volume = newVol / 100;
-                                root.triggerOsd(); // restart timeout
-                            }
-                        }
+                        onEntered: GlobalStates.osdVolumeOpen = false
                     }
 
                     Column {

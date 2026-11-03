@@ -21,6 +21,16 @@ ContentPage {
     // / onExited so it doesn't linger longer than needed.
     property string pendingPassword: ""
 
+    property bool snapshotsAvailable: true
+    Process {
+        id: snapshotProbe
+        running: true
+        // What the page offers is the boot-menu rollback, which needs the
+        // snapshot service configured for this root, not merely a Btrfs one.
+        command: ["sh", "-c", "test -f /etc/limine-snapper-sync.conf && test -f /etc/snapper/configs/root"]
+        onExited: (code) => root.snapshotsAvailable = (code === 0)
+    }
+
     function startRestore() {
         if (isRunning) return;
         if (passwordField.text.length === 0) {
@@ -137,11 +147,20 @@ ContentPage {
 
         NoticeBox {
             Layout.fillWidth: true
+            visible: root.snapshotsAvailable
             materialIcon: "restore"
             text: Translation.tr("Don't panic. Your pre-update snapshot is waiting for you. Simply reboot your computer to recover.")
         }
 
+        NoticeBox {
+            Layout.fillWidth: true
+            visible: !root.snapshotsAvailable
+            materialIcon: "info"
+            text: Translation.tr("Snapshots were never set up on this install, so there are none to roll back to. Repair Install below still puts the system's own files right.")
+        }
+
         Rectangle {
+            visible: root.snapshotsAvailable
             Layout.fillWidth: true
             implicitHeight: recoveryColumn.implicitHeight + 24
             radius: Appearance.rounding.normal
@@ -232,7 +251,9 @@ ContentPage {
                 StyledText {
                     id: outputDisplay
                     width: outputFlickable.width
-                    text: root.outputText || Translation.tr("No output yet. Press \"Restore Snapshot\" to begin.")
+                    text: root.outputText || (root.snapshotsAvailable
+                        ? Translation.tr("Enter your password and press \"Restore Snapshot\" to begin.")
+                        : Translation.tr("Press \"Repair Install\" or \"Repair Package Keys\" to begin."))
                     font.family: Appearance.font.family.monospace
                     font.pixelSize: Appearance.font.pixelSize.small
                     color: root.outputText ? Appearance.colors.colOnLayer0 : Appearance.m3colors.m3outlineVariant
@@ -277,6 +298,7 @@ ContentPage {
             // field clears the moment the user clicks Restore so the
             // password doesn't sit on screen during the restore.
             Rectangle {
+                visible: root.snapshotsAvailable
                 Layout.fillWidth: true
                 Layout.preferredHeight: 38
                 radius: Appearance.rounding.small
@@ -313,6 +335,7 @@ ContentPage {
                 }
             }
             RippleButtonWithIcon {
+                visible: root.snapshotsAvailable
                 materialIcon: root.isRunning ? "hourglass_top" : "play_arrow"
                 mainText: root.isRunning ? Translation.tr("Restoring\u2026") : Translation.tr("Restore Snapshot")
                 enabled: !root.isRunning && passwordField.text.length > 0

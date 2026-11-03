@@ -50,14 +50,15 @@ Item {
     // keeps the current line in the middle rather than cutting it off.
     readonly property int reach: {
         const room = root.height;
-        const line = size => size * 1.45 + linesColumn.spacing;
-        let used = line(Appearance.font.pixelSize.normal);
+        const line = size => size * 1.5 + linesColumn.spacing;
+        let used = line(Appearance.font.pixelSize.large);
+        const centerIndex = Math.floor(linesColumn.maxLines / 2);
         for (let d = 1; d <= LyricsService.before; d++) {
-            used += 2 * line(d === 1 ? Appearance.font.pixelSize.small : Appearance.font.pixelSize.smaller);
+            used += 2 * line(d === 1 ? Appearance.font.pixelSize.normal : Appearance.font.pixelSize.small);
             if (used > room)
                 return d - 1;
         }
-        return LyricsService.before;
+        return Math.min(LyricsService.before, centerIndex);
     }
 
     Item {
@@ -118,8 +119,21 @@ Item {
         visible: root.hasLyrics
         spacing: 6
 
+        // Dynamic number of lines based on available height
+        readonly property int maxLines: {
+            const lineHeight = Appearance.font.pixelSize.large * 1.5 + linesColumn.spacing;
+            const smallLineHeight = Appearance.font.pixelSize.small * 1.5 + linesColumn.spacing;
+            let lines = 1; // center line
+            let used = lineHeight;
+            while (used + 2 * smallLineHeight <= root.height) {
+                lines += 2;
+                used += 2 * smallLineHeight;
+            }
+            return Math.min(lines, 21); // cap at 21 lines (10 each side + center)
+        }
+
         Repeater {
-            model: 7
+            model: linesColumn.maxLines
             delegate: StyledText {
                 id: lyricSlot
                 required property int index
@@ -131,17 +145,20 @@ Item {
                 elide: Text.ElideRight
                 text: LyricsService.slots[index] ?? ""
                 textFormat: Text.PlainText
-                readonly property int dist: Math.abs(index - LyricsService.before)
+                readonly property int centerIndex: Math.floor(linesColumn.maxLines / 2)
+                readonly property int dist: Math.abs(index - centerIndex)
                 font.pixelSize: {
-                    if (dist === 0) return Appearance.font.pixelSize.normal
-                    if (dist === 1) return Appearance.font.pixelSize.small
+                    if (dist === 0) return Appearance.font.pixelSize.large
+                    if (dist === 1) return Appearance.font.pixelSize.normal
+                    if (dist === 2) return Appearance.font.pixelSize.small
                     return Appearance.font.pixelSize.smaller
                 }
+                font.weight: dist === 0 ? Font.DemiBold : Font.Normal
                 opacity: {
-                    if (dist === 0) return 1.0
-                    if (dist === 1) return 0.6
-                    if (dist === 2) return 0.35
-                    return 0.15
+                    if (dist === 0) return 1
+                    if (dist === 1) return 0.8
+                    if (dist === 2) return 0.6
+                    return 0.25
                 }
                 color: dist === 0 ? root.activeColor : root.textColor
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }

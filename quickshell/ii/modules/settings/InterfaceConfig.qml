@@ -28,6 +28,82 @@ ContentPage {
     property real scrollOverviewWorkspaceScale: 0.5  // 0.0–1.0 — overview shrink factor
     property string scrollOverviewLayout: "vertical" // "vertical" | "horizontal" — overview scroll axis
 
+    // Settings one monitor keeps apart from the ones above, saved one line per
+    // monitor in hypr/custom/scrolloverview.monitors ("DP-1 layout=vertical
+    // scale=0.40"), which plugins.lua hands to the plugin on every reload. A
+    // monitor with no line, or a value missing from its line, follows the rest.
+    readonly property string scrollOverviewMonitorsFile: `${root.customDir}/scrolloverview.monitors`
+    property var scrollOverviewMonitors: ({})
+    // The connected monitors, plus any unplugged one that still has settings
+    // saved, so those can be seen and cleared.
+    readonly property var scrollOverviewMonitorNames: {
+        const names = Quickshell.screens.map(s => s.name);
+        for (const name in root.scrollOverviewMonitors)
+            if (!names.includes(name)) names.push(name);
+        return names;
+    }
+
+    function parseScrollOverviewMonitors(text) {
+        const all = {};
+        for (const line of text.split("\n")) {
+            const parts = line.trim().split(/\s+/);
+            if (parts.length < 2 || !/^[A-Za-z0-9._-]+$/.test(parts[0])) continue;
+            const entry = {};
+            for (const part of parts.slice(1)) {
+                const m = part.match(/^([a-z_]+)=(.+)$/);
+                if (!m) continue;
+                if (m[1] === "layout" && (m[2] === "vertical" || m[2] === "horizontal")) entry.layout = m[2];
+                else if (m[1] === "workspace_gap" && /^\d+$/.test(m[2])) entry.workspace_gap = parseInt(m[2]);
+                else if (m[1] === "scale" && /^\d+(?:\.\d+)?$/.test(m[2])) entry.scale = parseFloat(m[2]);
+            }
+            if (Object.keys(entry).length > 0) all[parts[0]] = entry;
+        }
+        return all;
+    }
+
+    function writeScrollOverviewMonitors(all) {
+        root.scrollOverviewMonitors = all;
+        scrollOverviewMonitorsSaveTimer.restart();
+    }
+
+    // The plugin forgets its per-monitor settings on every reload and takes them
+    // again from plugins.lua, so a reload is what applies the file.
+    function saveScrollOverviewMonitors() {
+        scrollOverviewMonitorsSaveTimer.stop();
+        const all = root.scrollOverviewMonitors;
+        const text = Object.keys(all).sort().map(name => [name].concat(Object.keys(all[name]).sort()
+            .map(key => `${key}=${key === "scale" ? Number(all[name][key]).toFixed(2) : all[name][key]}`)).join(" ")).join("\n");
+        Quickshell.execDetached(["bash", "-c", 'printf "%s" "$1" > "$0" && hyprctl reload',
+            root.scrollOverviewMonitorsFile, text.length > 0 ? text + "\n" : ""]);
+    }
+
+    // Saved once the value settles: a held spin button or a typed number would
+    // otherwise reload Hyprland at every step.
+    Timer {
+        id: scrollOverviewMonitorsSaveTimer
+        interval: 500
+        onTriggered: root.saveScrollOverviewMonitors()
+    }
+    Component.onDestruction: if (scrollOverviewMonitorsSaveTimer.running) root.saveScrollOverviewMonitors()
+
+    // A null value drops that one setting, so the monitor follows the rest again.
+    function setScrollOverviewMonitorKey(output, key, value) {
+        if (!/^[A-Za-z0-9._-]+$/.test(output)) return;
+        const all = JSON.parse(JSON.stringify(root.scrollOverviewMonitors));
+        const entry = all[output] ?? {};
+        if (value === null) delete entry[key];
+        else entry[key] = value;
+        if (Object.keys(entry).length > 0) all[output] = entry;
+        else delete all[output];
+        root.writeScrollOverviewMonitors(all);
+    }
+
+    function clearScrollOverviewMonitor(output) {
+        const all = JSON.parse(JSON.stringify(root.scrollOverviewMonitors));
+        delete all[output];
+        root.writeScrollOverviewMonitors(all);
+    }
+
     function runPy(py, args) {
         Quickshell.execDetached(["python3", "-c", py, ...args])
     }
@@ -82,6 +158,7 @@ ContentPage {
         lockTimeoutReader.running = true
         scrollOverviewConfReader.running = true
         scrollOverviewStateReader.running = true
+        scrollOverviewMonitorsReader.running = true
     }
 
     // When a theme apply finishes, the shared state file flips back to "idle"
@@ -95,7 +172,18 @@ ContentPage {
             scrollOverviewConfReader.running = true
             scrollOverviewStateReader.running = false
             scrollOverviewStateReader.running = true
+            scrollOverviewMonitorsReader.running = false
+            scrollOverviewMonitorsReader.running = true
         }
+    }
+
+    Process {
+        id: scrollOverviewMonitorsReader
+        command: ["cat", root.scrollOverviewMonitorsFile]
+        property string buf: ""
+        onRunningChanged: if (running) buf = ""
+        stdout: SplitParser { onRead: data => scrollOverviewMonitorsReader.buf += data + "\n" }
+        onExited: root.scrollOverviewMonitors = root.parseScrollOverviewMonitors(scrollOverviewMonitorsReader.buf)
     }
 
     Process {
@@ -194,101 +282,6 @@ ContentPage {
             "awk '" + awkProg + "' '" + hyprIdleConf + "' > '" + hyprIdleConf + ".tmp' && mv '" + hyprIdleConf + ".tmp' '" + hyprIdleConf + "' && pkill -x hypridle; hypridle &"
         ])
     }
-
-    /*
-    ContentSection {
-        icon: "keyboard"
-        title: Translation.tr("Cheat sheet")
-
-        ContentSubsection {
-            title: Translation.tr("Super key symbol")
-            tooltip: Translation.tr("You can also manually edit cheatsheet.superKey")
-            ConfigSelectionArray {
-                currentValue: Config.options.cheatsheet.superKey
-                onSelected: newValue => {
-                    Config.options.cheatsheet.superKey = newValue;
-                }
-                // Use a nerdfont to see the icons
-                options: ([
-                  "󰖳", "", "󰨡", "", "󰌽", "󰣇", "", "", "", 
-                  "", "", "󱄛", "", "", "", "⌘", "󰀲", "󰟍", ""
-                ]).map(icon => { return {
-                  displayName: icon,
-                  value: icon
-                  }
-                })
-            }
-        }
-
-        ConfigSwitch {
-            buttonIcon: "󰘵"
-            text: Translation.tr("Use macOS-like symbols for mods keys")
-            checked: Config.options.cheatsheet.useMacSymbol
-            onCheckedChanged: {
-                Config.options.cheatsheet.useMacSymbol = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("e.g. 󰘴  for Ctrl, 󰘵  for Alt, 󰘶  for Shift, etc")
-            }
-        }
-
-        ConfigSwitch {
-            buttonIcon: "󱊶"
-            text: Translation.tr("Use symbols for function keys")
-            checked: Config.options.cheatsheet.useFnSymbol
-            onCheckedChanged: {
-                Config.options.cheatsheet.useFnSymbol = checked;
-            }
-            StyledToolTip {
-              text: Translation.tr("e.g. 󱊫 for F1, 󱊶  for F12")
-            }
-        }
-        ConfigSwitch {
-            buttonIcon: "󰍽"
-            text: Translation.tr("Use symbols for mouse")
-            checked: Config.options.cheatsheet.useMouseSymbol
-            onCheckedChanged: {
-                Config.options.cheatsheet.useMouseSymbol = checked;
-            }
-            StyledToolTip {
-              text: Translation.tr("Replace 󱕐   for \"Scroll ↓\", 󱕑   \"Scroll ↑\", L󰍽   \"LMB\", R󰍽   \"RMB\", 󱕒   \"Scroll ↑/↓\" and ⇞/⇟ for \"Page_↑/↓\"")
-            }
-        }
-        ConfigSwitch {
-            buttonIcon: "highlight_keyboard_focus"
-            text: Translation.tr("Split buttons")
-            checked: Config.options.cheatsheet.splitButtons
-            onCheckedChanged: {
-                Config.options.cheatsheet.splitButtons = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("Display modifiers and keys in multiple keycap (e.g., \"Ctrl + A\" instead of \"Ctrl A\" or \"󰘴 + A\" instead of \"󰘴 A\")")
-            }
-
-        }
-
-        ConfigSpinBox {
-            text: Translation.tr("Keybind font size")
-            value: Config.options.cheatsheet.fontSize.key
-            from: 8
-            to: 30
-            stepSize: 1
-            onValueChanged: {
-                Config.options.cheatsheet.fontSize.key = value;
-            }
-        }
-        ConfigSpinBox {
-            text: Translation.tr("Description font size")
-            value: Config.options.cheatsheet.fontSize.comment
-            from: 8
-            to: 30
-            stepSize: 1
-            onValueChanged: {
-                Config.options.cheatsheet.fontSize.comment = value;
-            }
-        }
-    }
-    */
 
     // ── Left Hot Corner ──────────────────────────────────────────────────────
     ContentSection {
@@ -475,6 +468,120 @@ ContentPage {
         }
 
         } // end of Scrolling Overview ContentSubsection
+
+        // A monitor can keep its own layout, gap and scale. Only offered with
+        // more than one monitor, or while an unplugged one still has settings.
+        ContentSubsection {
+            visible: Config.options.bar.hotCorners.trigger === "scrolloverview" && root.scrollOverviewEnabled
+                && root.scrollOverviewMonitorNames.length > 1
+            title: Translation.tr("Each monitor")
+
+            Repeater {
+                model: root.scrollOverviewMonitorNames
+                delegate: ColumnLayout {
+                    id: monitorBlock
+                    required property string modelData
+                    readonly property var entry: root.scrollOverviewMonitors[modelData] ?? ({})
+                    readonly property var screen: Quickshell.screens.find(s => s.name === modelData) ?? null
+                    readonly property int effectiveGap: entry.workspace_gap ?? root.scrollOverviewWorkspaceGap
+                    // The plugin keeps a monitor's scale between 10% and 90%, and
+                    // turns down a monitor's settings outright past that.
+                    readonly property int effectiveScalePercent: Math.max(10, Math.min(90,
+                        Math.round((entry.scale ?? root.scrollOverviewWorkspaceScale) * 100)))
+                    Layout.fillWidth: true
+                    spacing: 2
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        Layout.topMargin: 6
+                        spacing: 8
+                        OptionalMaterialSymbol {
+                            icon: "monitor"
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                        StyledText {
+                            Layout.alignment: Qt.AlignVCenter
+                            text: monitorBlock.modelData
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            elide: Text.ElideRight
+                            text: monitorBlock.screen ? (monitorBlock.screen.model ?? "") : Translation.tr("Not connected")
+                            font.pixelSize: Appearance.font.pixelSize.smaller
+                            color: Appearance.colors.colSubtext
+                        }
+                        DialogButton {
+                            visible: Object.keys(monitorBlock.entry).length > 0
+                            buttonText: Translation.tr("Match the others")
+                            onClicked: root.clearScrollOverviewMonitor(monitorBlock.modelData)
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 8
+                        Layout.rightMargin: 8
+                        OptionalMaterialSymbol {
+                            icon: "splitscreen"
+                            Layout.alignment: Qt.AlignVCenter
+                        }
+                        StyledText {
+                            Layout.fillWidth: true
+                            Layout.alignment: Qt.AlignVCenter
+                            Layout.leftMargin: 6
+                            text: Translation.tr("Layout")
+                            color: Appearance.colors.colOnSecondaryContainer
+                        }
+                        ConfigSelectionArray {
+                            Layout.fillWidth: false
+                            Layout.alignment: Qt.AlignVCenter
+                            currentValue: monitorBlock.entry.layout ?? ""
+                            onSelected: newValue => root.setScrollOverviewMonitorKey(monitorBlock.modelData, "layout", newValue === "" ? null : newValue)
+                            options: [
+                                { displayName: Translation.tr("Same as above"), icon: "link",      value: "" },
+                                { displayName: Translation.tr("Vertical"),      icon: "view_day",  value: "vertical" },
+                                { displayName: Translation.tr("Horizontal"),    icon: "view_week", value: "horizontal" },
+                            ]
+                        }
+                    }
+
+                    ConfigRow {
+                        uniform: true
+                        ConfigSpinBox {
+                            Layout.fillWidth: true
+                            icon: "space_bar"
+                            text: Translation.tr("Workspace gap")
+                            value: monitorBlock.effectiveGap
+                            from: 0
+                            to: 500
+                            stepSize: 10
+                            onValueChanged: {
+                                if (value === monitorBlock.effectiveGap) return;
+                                root.setScrollOverviewMonitorKey(monitorBlock.modelData, "workspace_gap", value);
+                            }
+                        }
+                        ConfigSpinBox {
+                            Layout.fillWidth: true
+                            icon: "aspect_ratio"
+                            text: Translation.tr("Workspace scale")
+                            suffix: "%"
+                            value: monitorBlock.effectiveScalePercent
+                            from: 10
+                            to: 90
+                            stepSize: 5
+                            onValueChanged: {
+                                if (value === monitorBlock.effectiveScalePercent) return;
+                                root.setScrollOverviewMonitorKey(monitorBlock.modelData, "scale", value / 100);
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     ContentSection {
@@ -489,16 +596,15 @@ ContentPage {
                 Config.options.overview.enable = checked;
             }
         }
-        /*
         ConfigSwitch {
-            buttonIcon: "center_focus_strong"
-            text: Translation.tr("Center icons")
-            checked: Config.options.overview.centerIcons
+            buttonIcon: "apps"
+            text: Translation.tr("Open on all apps when off")
+            tooltipText: Translation.tr("With the overview switched off there are no workspace previews, so the launcher opens on the full list of apps.\nTurn this off to open on the short list and reach the rest yourself.")
+            checked: Config.options.overview.showAllAppsWhenOff
             onCheckedChanged: {
-                Config.options.overview.centerIcons = checked;
+                Config.options.overview.showAllAppsWhenOff = checked;
             }
         }
-        */
         ConfigSpinBox {
             icon: "loupe"
             text: Translation.tr("Size (%)")
@@ -548,263 +654,8 @@ ContentPage {
                 }
             }
         }
-        /*
-        ConfigRow {
-            uniform: true
-            ConfigSelectionArray {
-                currentValue: Config.options.overview.orderRightLeft
-                onSelected: newValue => {
-                    Config.options.overview.orderRightLeft = newValue
-                }
-                options: [
-                    {
-                        displayName: Translation.tr("Left to right"),
-                        icon: "arrow_forward",
-                        value: 0
-                    },
-                    {
-                        displayName: Translation.tr("Right to left"),
-                        icon: "arrow_back",
-                        value: 1
-                    }
-                ]
-            }
-            ConfigSelectionArray {
-                currentValue: Config.options.overview.orderBottomUp
-                onSelected: newValue => {
-                    Config.options.overview.orderBottomUp = newValue
-                }
-                options: [
-                    {
-                        displayName: Translation.tr("Top-down"),
-                        icon: "arrow_downward",
-                        value: 0
-                    },
-                    {
-                        displayName: Translation.tr("Bottom-up"),
-                        icon: "arrow_upward",
-                        value: 1
-                    }
-                ]
-            }
-        }
-        */
     }
 
-
-    /*
-    ContentSection {
-        icon: "notifications"
-        title: Translation.tr("Notifications")
-
-        ConfigSpinBox {
-            icon: "av_timer"
-            text: Translation.tr("Timeout duration (if not defined by notification) (ms)")
-            value: Config.options.notifications.timeout
-            from: 1000
-            to: 60000
-            stepSize: 1000
-            onValueChanged: {
-                Config.options.notifications.timeout = value;
-            }
-        }
-
-        ConfigSwitch {
-            buttonIcon: "monitor"
-            text: Translation.tr("Force specific monitor")
-            checked: Config.options.notifications.forceMonitor.enable
-            onCheckedChanged: {
-                Config.options.notifications.forceMonitor.enable = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("If you have multiple monitors and want notifications to only show on one of them, enable this and enter the monitor name below (e.g., eDP-1)")
-            }
-        }
-
-        ConfigRow {
-            enabled: Config.options.notifications.forceMonitor.enable
-            MaterialTextArea {
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("Monitor name to show notifications on (e.g., eDP-1)")
-                text: Config.options.notifications.forceMonitor.name
-                wrapMode: TextEdit.Wrap
-                onTextChanged: {
-                    Config.options.notifications.forceMonitor.name = text;
-                }
-            }
-        }
-    }
-
-    ContentSection {
-        icon: "select_window"
-        title: Translation.tr("Overlay: General")
-
-        ConfigSwitch {
-            buttonIcon: "high_density"
-            text: Translation.tr("Enable opening zoom animation")
-            checked: Config.options.overlay.openingZoomAnimation
-            onCheckedChanged: {
-                Config.options.overlay.openingZoomAnimation = checked;
-            }
-        }
-        ConfigSwitch {
-            buttonIcon: "texture"
-            text: Translation.tr("Darken screen")
-            checked: Config.options.overlay.darkenScreen
-            onCheckedChanged: {
-                Config.options.overlay.darkenScreen = checked;
-            }
-        }
-    }
-
-    ContentSection {
-        icon: "point_scan"
-        title: Translation.tr("Overlay: Crosshair")
-
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("Crosshair code (in Valorant's format)")
-            text: Config.options.crosshair.code
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.crosshair.code = text;
-            }
-        }
-
-        RowLayout {
-            StyledText {
-                Layout.leftMargin: 10
-                color: Appearance.colors.colSubtext
-                font.pixelSize: Appearance.font.pixelSize.smallie
-                text: Translation.tr("Press Super+G to open the overlay and pin the crosshair")
-            }
-            Item {
-                Layout.fillWidth: true
-            }
-            RippleButtonWithIcon {
-                id: editorButton
-                buttonRadius: Appearance.rounding.full
-                materialIcon: "open_in_new"
-                mainText: Translation.tr("Open editor")
-                onClicked: {
-                    Qt.openUrlExternally(`https://www.vcrdb.net/builder?c=${Config.options.crosshair.code}`);
-                }
-                StyledToolTip {
-                    text: "www.vcrdb.net"
-                }
-            }
-        }
-    }
-
-    ContentSection {
-        icon: "point_scan"
-        title: Translation.tr("Overlay: Floating Image")
-
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("Image source")
-            text: Config.options.overlay.floatingImage.imageSource
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.overlay.floatingImage.imageSource = text;
-            }
-        }
-    }
-
-    ContentSection {
-        icon: "screenshot_frame_2"
-        title: Translation.tr("Region selector (screen snipping/Google Lens)")
-
-        ContentSubsection {
-            title: Translation.tr("Hint target regions")
-            ConfigRow {
-                ConfigSwitch {
-                    buttonIcon: "select_window"
-                    text: Translation.tr('Windows')
-                    checked: Config.options.regionSelector.targetRegions.windows
-                    onCheckedChanged: {
-                        Config.options.regionSelector.targetRegions.windows = checked;
-                    }
-                }
-                ConfigSwitch {
-                    buttonIcon: "right_panel_open"
-                    text: Translation.tr('Layers')
-                    checked: Config.options.regionSelector.targetRegions.layers
-                    onCheckedChanged: {
-                        Config.options.regionSelector.targetRegions.layers = checked;
-                    }
-                }
-                ConfigSwitch {
-                    buttonIcon: "nearby"
-                    text: Translation.tr('Content')
-                    checked: Config.options.regionSelector.targetRegions.content
-                    onCheckedChanged: {
-                        Config.options.regionSelector.targetRegions.content = checked;
-                    }
-                    StyledToolTip {
-                        text: Translation.tr("Could be images or parts of the screen that have some containment.\nMight not always be accurate.\nThis is done with an image processing algorithm run locally and no AI is used.")
-                    }
-                }
-            }
-        }
-        
-        ContentSubsection {
-            title: Translation.tr("Google Lens")
-            
-            ConfigSelectionArray {
-                currentValue: Config.options.search.imageSearch.useCircleSelection ? "circle" : "rectangles"
-                onSelected: newValue => {
-                    Config.options.search.imageSearch.useCircleSelection = (newValue === "circle");
-                }
-                options: [
-                    { icon: "activity_zone", value: "rectangles", displayName: Translation.tr("Rectangular selection") },
-                    { icon: "gesture", value: "circle", displayName: Translation.tr("Circle to Search") }
-                ]
-            }
-        }
-
-        ContentSubsection {
-            title: Translation.tr("Rectangular selection")
-
-            ConfigSwitch {
-                buttonIcon: "point_scan"
-                text: Translation.tr("Show aim lines")
-                checked: Config.options.regionSelector.rect.showAimLines
-                onCheckedChanged: {
-                    Config.options.regionSelector.rect.showAimLines = checked;
-                }
-            }
-        }
-
-        ContentSubsection {
-            title: Translation.tr("Circle selection")
-            
-            ConfigSpinBox {
-                icon: "eraser_size_3"
-                text: Translation.tr("Stroke width")
-                value: Config.options.regionSelector.circle.strokeWidth
-                from: 1
-                to: 20
-                stepSize: 1
-                onValueChanged: {
-                    Config.options.regionSelector.circle.strokeWidth = value;
-                }
-            }
-
-            ConfigSpinBox {
-                icon: "screenshot_frame_2"
-                text: Translation.tr("Padding")
-                value: Config.options.regionSelector.circle.padding
-                from: 0
-                to: 100
-                stepSize: 5
-                onValueChanged: {
-                    Config.options.regionSelector.circle.padding = value;
-                }
-            }
-        }
-    }
-    */
     // ── Left Sidebar ──────────────────────────────────────────────────────────
     ContentSection {
         objectName: "leftSidebarSection"
@@ -812,8 +663,24 @@ ContentPage {
         mirrorIcon: true
         title: Translation.tr("Left Sidebar")
 
-        ConfigRow {
+        ConfigSwitch {
+            buttonIcon: "push_pin"
+            text: Translation.tr("Pinned by default")
+            tooltipText: Translation.tr("Open the left sidebar pinned, reserving screen space for it")
+            checked: Config.options.sidebar.pinnedOnStartup
+            onCheckedChanged: {
+                Config.options.sidebar.pinnedOnStartup = checked;
+            }
+        }
+
+        GridLayout {
+            Layout.fillWidth: true
+            columns: 2
+            columnSpacing: 32
+            rowSpacing: 8
+
             ColumnLayout {
+                Layout.alignment: Qt.AlignTop
                 ContentSubsectionLabel {
                     text: Translation.tr("AI")
                 }
@@ -823,12 +690,14 @@ ContentPage {
                         Config.options.policies.ai = newValue;
                     }
                     options: [
-                        { displayName: Translation.tr("No"),  icon: "close", value: 0 },
-                        { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
+                        { displayName: Translation.tr("No"),         icon: "close",              value: 0 },
+                        { displayName: Translation.tr("Yes"),        icon: "check",              value: 1 },
+                        { displayName: Translation.tr("Local only"), icon: "sync_saved_locally", value: 2 }
                     ]
                 }
             }
             ColumnLayout {
+                Layout.alignment: Qt.AlignTop
                 ContentSubsectionLabel {
                     text: Translation.tr("Translator")
                 }
@@ -844,18 +713,70 @@ ContentPage {
                 }
             }
             ColumnLayout {
+                Layout.alignment: Qt.AlignTop
                 ContentSubsectionLabel {
-                    text: Translation.tr("Anime")
+                    text: Translation.tr("Media")
                 }
                 ConfigSelectionArray {
-                    currentValue: Config.options.policies.weeb
+                    currentValue: Config.options.sidebar.media.enable ? 1 : 0
                     onSelected: newValue => {
-                        Config.options.policies.weeb = newValue;
+                        Config.options.sidebar.media.enable = (newValue === 1);
                     }
                     options: [
                         { displayName: Translation.tr("No"),  icon: "close", value: 0 },
                         { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
                     ]
+                }
+            }
+            ColumnLayout {
+                Layout.alignment: Qt.AlignTop
+                ContentSubsectionLabel {
+                    text: Translation.tr("Calendar & To Do")
+                }
+                ConfigSelectionArray {
+                    currentValue: Config.options.sidebar.calendarTodo.enable ? 1 : 0
+                    onSelected: newValue => {
+                        Config.options.sidebar.calendarTodo.enable = (newValue === 1);
+                    }
+                    options: [
+                        { displayName: Translation.tr("No"),  icon: "close", value: 0 },
+                        { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
+                    ]
+                }
+            }
+        }
+
+        ContentSubsection {
+            visible: Config.options.sidebar.media.enable
+
+            // The Media tab has these options too, so after a click here has
+            // set one each switch goes back to following it, and a change
+            // made in the sidebar shows here.
+            ConfigSwitch {
+                buttonIcon: "lyrics"
+                text: Translation.tr("Lyrics")
+                checked: Config.options.sidebar.media.showLyrics
+                onCheckedChanged: {
+                    Config.options.sidebar.media.showLyrics = checked;
+                    checked = Qt.binding(() => Config.options.sidebar.media.showLyrics);
+                }
+            }
+            ConfigSwitch {
+                buttonIcon: "palette"
+                text: Translation.tr("Album colors")
+                checked: Config.options.sidebar.media.artColors
+                onCheckedChanged: {
+                    Config.options.sidebar.media.artColors = checked;
+                    checked = Qt.binding(() => Config.options.sidebar.media.artColors);
+                }
+            }
+            ConfigSwitch {
+                buttonIcon: "blur_on"
+                text: Translation.tr("Blurred art")
+                checked: Config.options.sidebar.media.blurredBackground
+                onCheckedChanged: {
+                    Config.options.sidebar.media.blurredBackground = checked;
+                    checked = Qt.binding(() => Config.options.sidebar.media.blurredBackground);
                 }
             }
         }
@@ -865,28 +786,6 @@ ContentPage {
     ContentSection {
         icon: "side_navigation"
         title: Translation.tr("Right Sidebar")
-        /*
-        ConfigSwitch {
-            buttonIcon: "memory"
-            text: Translation.tr('Keep right sidebar loaded')
-            checked: Config.options.sidebar.keepRightSidebarLoaded
-            onCheckedChanged: {
-                Config.options.sidebar.keepRightSidebarLoaded = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("When enabled keeps the content of the right sidebar loaded to reduce the delay when opening,\nat the cost of around 15MB of consistent RAM usage. Delay significance depends on your system's performance.\nUsing a custom kernel like linux-cachyos might help")
-            }
-        }
-
-        ConfigSwitch {
-            buttonIcon: "translate"
-            text: Translation.tr('Enable translator')
-            checked: Config.options.sidebar.translator.enable
-            onCheckedChanged: {
-                Config.options.sidebar.translator.enable = checked;
-            }
-        }
-        */
         ContentSubsection {
             title: Translation.tr("Quick toggles")
             
@@ -966,131 +865,6 @@ ContentPage {
                 }
             }
         }
-        /*
-        ContentSubsection {
-            title: Translation.tr("Corner open")
-            tooltip: Translation.tr("Allows you to open sidebars by clicking or hovering screen corners regardless of bar position")
-            ConfigRow {
-                uniform: true
-                ConfigSwitch {
-                    buttonIcon: "check"
-                    text: Translation.tr("Enable")
-                    checked: Config.options.sidebar.cornerOpen.enable
-                    onCheckedChanged: {
-                        Config.options.sidebar.cornerOpen.enable = checked;
-                    }
-                }
-            }
-            ConfigSwitch {
-                buttonIcon: "highlight_mouse_cursor"
-                text: Translation.tr("Hover to trigger")
-                checked: Config.options.sidebar.cornerOpen.clickless
-                onCheckedChanged: {
-                    Config.options.sidebar.cornerOpen.clickless = checked;
-                }
-
-                StyledToolTip {
-                    text: Translation.tr("When this is off you'll have to click")
-                }
-            }
-            Row {
-                ConfigSwitch {
-                    enabled: !Config.options.sidebar.cornerOpen.clickless
-                    text: Translation.tr("Force hover open at absolute corner")
-                    checked: Config.options.sidebar.cornerOpen.clicklessCornerEnd
-                    onCheckedChanged: {
-                        Config.options.sidebar.cornerOpen.clicklessCornerEnd = checked;
-                    }
-
-                    StyledToolTip {
-                        text: Translation.tr("When the previous option is off and this is on,\nyou can still hover the corner's end to open sidebar,\nand the remaining area can be used for volume/brightness scroll")
-                    }
-                }
-                ConfigSpinBox {
-                    icon: "arrow_cool_down"
-                    text: Translation.tr("with vertical offset")
-                    value: Config.options.sidebar.cornerOpen.clicklessCornerVerticalOffset
-                    from: 0
-                    to: 20
-                    stepSize: 1
-                    onValueChanged: {
-                        Config.options.sidebar.cornerOpen.clicklessCornerVerticalOffset = value;
-                    }
-                    MouseArea {
-                        id: mouseArea
-                        anchors.fill: parent
-                        hoverEnabled: true
-                        acceptedButtons: Qt.NoButton
-                        StyledToolTip {
-                            extraVisibleCondition: mouseArea.containsMouse
-                            text: Translation.tr("Why this is cool:\nFor non-0 values, it won't trigger when you reach the\nscreen corner along the horizontal edge, but it will when\nyou do along the vertical edge")
-                        }
-                    }
-                }
-            }
-            
-            ConfigRow {
-                uniform: true
-                ConfigSwitch {
-                    buttonIcon: "vertical_align_bottom"
-                    text: Translation.tr("Place at bottom")
-                    checked: Config.options.sidebar.cornerOpen.bottom
-                    onCheckedChanged: {
-                        Config.options.sidebar.cornerOpen.bottom = checked;
-                    }
-
-                    StyledToolTip {
-                        text: Translation.tr("Place the corners to trigger at the bottom")
-                    }
-                }
-                ConfigSwitch {
-                    buttonIcon: "unfold_more_double"
-                    text: Translation.tr("Value scroll")
-                    checked: Config.options.sidebar.cornerOpen.valueScroll
-                    onCheckedChanged: {
-                        Config.options.sidebar.cornerOpen.valueScroll = checked;
-                    }
-
-                    StyledToolTip {
-                        text: Translation.tr("Brightness and volume")
-                    }
-                }
-            }
-            ConfigSwitch {
-                buttonIcon: "visibility"
-                text: Translation.tr("Visualize region")
-                checked: Config.options.sidebar.cornerOpen.visualize
-                onCheckedChanged: {
-                    Config.options.sidebar.cornerOpen.visualize = checked;
-                }
-            }
-            ConfigRow {
-                ConfigSpinBox {
-                    icon: "arrow_range"
-                    text: Translation.tr("Region width")
-                    value: Config.options.sidebar.cornerOpen.cornerRegionWidth
-                    from: 1
-                    to: 300
-                    stepSize: 1
-                    onValueChanged: {
-                        Config.options.sidebar.cornerOpen.cornerRegionWidth = value;
-                    }
-                }
-                ConfigSpinBox {
-                    icon: "height"
-                    text: Translation.tr("Region height")
-                    value: Config.options.sidebar.cornerOpen.cornerRegionHeight
-                    from: 1
-                    to: 300
-                    stepSize: 1
-                    onValueChanged: {
-                        Config.options.sidebar.cornerOpen.cornerRegionHeight = value;
-                    }
-                }
-            }
-        }
-        */
-
         ContentSubsection {
             title: Translation.tr("Timer")
 
@@ -1166,19 +940,6 @@ ContentPage {
     ContentSection {
         icon: "lock"
         title: Translation.tr("Lock screen")
-        /*
-        ConfigSwitch {
-            buttonIcon: "water_drop"
-            text: Translation.tr('Use Hyprlock (instead of Quickshell)')
-            checked: Config.options.lock.useHyprlock
-            onCheckedChanged: {
-                Config.options.lock.useHyprlock = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("If you want to somehow use fingerprint unlock...")
-            }
-        }
-        */
         ConfigSwitch {
             Layout.fillWidth: true
             buttonIcon: "timer"
@@ -1258,25 +1019,6 @@ ContentPage {
 
         ContentSubsection {
             title: Translation.tr("Style: general")
-            /*
-            ConfigSwitch {
-                buttonIcon: "center_focus_weak"
-                text: Translation.tr('Center clock')
-                checked: Config.options.lock.centerClock
-                onCheckedChanged: {
-                    Config.options.lock.centerClock = checked;
-                }
-            }
-
-            ConfigSwitch {
-                buttonIcon: "info"
-                text: Translation.tr('Show "Locked" text')
-                checked: Config.options.lock.showLockedText
-                onCheckedChanged: {
-                    Config.options.lock.showLockedText = checked;
-                }
-            }
-            */
             ConfigSwitch {
                 buttonIcon: "shapes"
                 text: Translation.tr('Use varying shapes for password characters')
@@ -1297,19 +1039,69 @@ ContentPage {
                     Config.options.lock.blur.enable = checked;
                 }
             }
-            /*
-            ConfigSpinBox {
-                icon: "loupe"
-                text: Translation.tr("Extra wallpaper zoom (%)")
-                value: Config.options.lock.blur.extraZoom * 100
-                from: 1
-                to: 150
-                stepSize: 2
-                onValueChanged: {
-                    Config.options.lock.blur.extraZoom = value / 100;
+        }
+    }
+
+    ContentSection {
+        id: notificationsSection
+        objectName: "notificationsSection"
+        icon: "notifications"
+        title: Translation.tr("Notifications")
+
+        readonly property list<var> positions: [
+            { displayName: Translation.tr("Top left"), icon: "north_west", value: "top_left" },
+            { displayName: Translation.tr("Top center"), icon: "north", value: "top_center" },
+            { displayName: Translation.tr("Top right"), icon: "north_east", value: "top_right" },
+            { displayName: Translation.tr("Bottom left"), icon: "south_west", value: "bottom_left" },
+            { displayName: Translation.tr("Bottom center"), icon: "south", value: "bottom_center" },
+            { displayName: Translation.tr("Bottom right"), icon: "south_east", value: "bottom_right" }
+        ]
+
+        ConfigRow {
+            Layout.leftMargin: 8
+            Layout.rightMargin: 8
+            OptionalMaterialSymbol {
+                icon: "picture_in_picture"
+                Layout.alignment: Qt.AlignVCenter
+            }
+            StyledText {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
+                Layout.leftMargin: 6
+                text: Translation.tr("Position")
+                color: Appearance.colors.colOnSecondaryContainer
+            }
+            StyledComboBox {
+                textRole: "displayName"
+                Layout.fillWidth: false
+                Layout.preferredWidth: 220
+                model: notificationsSection.positions
+                currentIndex: Math.max(0, model.findIndex(p => p.value === Appearance.sizes.notificationPosition))
+                onActivated: index => {
+                    Config.options.notifications.position = model[index].value;
+                    // A sample in the new spot shows where it is. Settings runs
+                    // in its own process, where the shell's notification
+                    // service would start a second server, so the sample goes
+                    // out through notify-send like any app's, and transient so
+                    // it stays out of the history.
+                    Quickshell.execDetached(["notify-send", "--transient", "-a", Translation.tr("Settings"),
+                        Translation.tr("Notifications"), model[index].displayName]);
                 }
             }
-            */
+        }
+
+        // How long a popup stays up when the app sending it leaves that to
+        // the desktop.
+        ConfigSpinBox {
+            icon: "av_timer"
+            text: Translation.tr("Timeout (ms)")
+            value: Config.options.notifications.timeout
+            from: 1000
+            to: 60000
+            stepSize: 1000
+            onValueChanged: {
+                Config.options.notifications.timeout = value;
+            }
         }
     }
 

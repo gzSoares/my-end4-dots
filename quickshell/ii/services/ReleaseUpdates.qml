@@ -1,6 +1,7 @@
 pragma Singleton
 
 import qs.modules.common
+import qs.modules.common.functions
 import qs.services
 import QtQuick
 import Quickshell
@@ -203,10 +204,8 @@ Singleton {
     }
 
     function openUpdatesPage() {
-        Quickshell.execDetached({
-            command: ["qs", "-p", Directories.settingsAppPath],
-            environment: ({ "QS_SETTINGS_PAGE": "UpdateConfig.qml" })
-        });
+        // One window, so a second update cannot start beside the first.
+        Session.openSettings("UpdateConfig.qml");
     }
 
     function openChangelog() {

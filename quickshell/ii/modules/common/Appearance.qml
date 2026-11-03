@@ -1016,38 +1016,14 @@ Singleton {
         readonly property color colLauncherDimWindow: Qt.rgba(0, 0, 0, 0.01)
         // Layer 1
         property color colLayer1Base: m3colors.m3surfaceContainerLow
-        
-        // Cached colLayer1 - only recomputed when dependencies change
-        property var _colLayer1Cache: null
-        property var _colLayer1Deps: ""
-        function _computeColLayer1() {
-            const deps = colLayer0Base + "|" + colLayer1Base + "|" + (1 - root.contentTransparency);
-            if (deps === _colLayer1Deps && _colLayer1Cache !== null) return _colLayer1Cache;
-            _colLayer1Deps = deps;
-            _colLayer1Cache = ColorUtils.solveOverlayColor(colLayer0Base, colLayer1Base, 1 - root.contentTransparency);
-            return _colLayer1Cache;
-        }
-        property color colLayer1: _computeColLayer1()
-        
+        property color colLayer1: ColorUtils.solveOverlayColor(colLayer0Base, colLayer1Base, 1 - root.contentTransparency);
         // colLayer1 carries only the opacity an overlay needs to look right on
         // top of a solid layer 0 — about a tenth — which is why widget groups
         // vanish once the strip beneath them stops being solid.
-        readonly property real barWidgetStockAlpha: 0.85
+        readonly property real barWidgetStockAlpha: colLayer1.a
         // The slot for the mode on screen; the other waits for its mode.
         readonly property string barWidgetPick: modePick(Config.options?.bar.widgetColorDark, Config.options?.bar.widgetColorLight)
-
-        // Cached bar widget color - only recomputed when dependencies change
-        property var _colBarWidgetCache: null
-        property var _colBarWidgetDeps: ""
-        function _computeColBarWidget() {
-            const deps = barWidgetPick + "|" + colLayer0 + "|" + (Config.options?.bar.widgetOpacity ?? -1) + "|" + barWidgetStockAlpha;
-            if (deps === _colBarWidgetDeps && _colBarWidgetCache !== null) return _colBarWidgetCache;
-            _colBarWidgetDeps = deps;
-            _colBarWidgetCache = surfaceColor(barWidgetPick, colLayer0, Config.options?.bar.widgetOpacity, barWidgetStockAlpha);
-            return _colBarWidgetCache;
-        }
-        property color colBarWidget: _computeColBarWidget()
-
+        property color colBarWidget: surfaceColor(barWidgetPick, colLayer1, Config.options?.bar.widgetOpacity, barWidgetStockAlpha)
         property color colOnLayer1: m3colors.m3onSurfaceVariant;
         property color colOnLayer1Inactive: ColorUtils.mix(colOnLayer1, colLayer1, 0.45);
         property color colLayer1Hover: ColorUtils.transparentize(ColorUtils.mix(colLayer1, colOnLayer1, 0.92), root.contentTransparency)
@@ -1142,6 +1118,9 @@ Singleton {
         property int full: 9999
         property int screenRounding: large
         property int windowRounding: 18
+        // Sidebars follow the "Widget pills" slider (Bar > Shape), the same
+        // bar.widgetRadius that barWidget reads, so one slider moves both.
+        readonly property real sidebar: barWidget
         // What "the interface decides" means for the bar's two shape sliders,
         // named so the mark on their tracks and the fallback stay one value.
         readonly property real barWidgetStock: small
@@ -1153,9 +1132,9 @@ Singleton {
         readonly property real barFloatMax: 30
         // The notch curves as far as it can by default, the way its dock
         // does, so the two read as one shape. A floating strip keeps the
-        // roundness the widget pills use so corners don't leak past them.
+        // roundness the rest of the interface uses.
         readonly property real barFloatStock: root.sizes.barIsNotch
-            ? barFloatMax : barWidgetStock
+            ? barFloatMax : windowRounding
         readonly property real barFloat: (Config.options?.bar.floatRadius ?? -1) >= 0
             ? Config.options.bar.floatRadius : barFloatStock
         // The dock's roundness tracks run to this, and the marks on them are
@@ -1412,9 +1391,7 @@ Singleton {
     }
 
     sizes: QtObject {
-        readonly property real barStockHeight: 40
-        property real baseBarHeight: (Config.options?.bar.thickness ?? -1) >= 0
-            ? Config.options.bar.thickness : barStockHeight
+        property real baseBarHeight: 40
         // A floating strip spans the whole screen unless it is told otherwise,
         // as a percentage so one setting reads the same on every monitor
         // rather than leaving a wide screen barely trimmed and a narrow one
@@ -1669,7 +1646,7 @@ Singleton {
         property real hyprlandGapsOut: 5
         property real mediaControlsWidth: 440
         property real mediaControlsHeight: 160
-        property real notificationPopupWidth: 450
+        property real notificationPopupWidth: 410
         // Where notification popups sit, read by the popup and by the picker in
         // Settings so the spot shown picked is always the one in use. A
         // hand-edited value neither knows lands on the stock corner.
@@ -1680,7 +1657,7 @@ Singleton {
         property real searchWidth: 360
         property real sidebarWidth: 460
         property real sidebarWidthExtended: 750
-        property real baseVerticalBarWidth: 46 + (baseBarHeight - barStockHeight)
+        property real baseVerticalBarWidth: 46
         property real verticalBarWidth: Config.options.bar.cornerStyle === 1 ? 
             (baseVerticalBarWidth + root.sizes.hyprlandGapsOut * 2) : baseVerticalBarWidth
         property real wallpaperSelectorWidth: 1200

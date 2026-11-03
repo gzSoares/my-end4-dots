@@ -3,7 +3,6 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
 import qs.modules.ii.sidebarRight.calendar
-import qs.modules.ii.sidebarRight.todo
 import qs.modules.ii.sidebarRight.pomodoro
 import QtQuick
 import QtQuick.Layouts
@@ -13,23 +12,13 @@ Rectangle {
     radius: Appearance.rounding.normal
     color: Appearance.colors.colLayer1
     clip: true
-    implicitHeight: collapsed ? collapsedBottomWidgetGroupRow.implicitHeight : 350
-    property int selectedTab: Persistent.states.sidebar.bottomGroup.tab
+    // Recolhido: só a faixa com a seta e as abas; o resto é cortado pelo clip
+    implicitHeight: collapsed ? 50 : 350
+    // Só existe a aba do Timer agora; o min() evita índice inválido caso o valor salvo seja de uma aba removida
+    property int selectedTab: Math.min(Persistent.states.sidebar.bottomGroup.tab, tabs.length - 1)
     property int previousIndex: -1
     property bool collapsed: Persistent.states.sidebar.bottomGroup.collapsed
     property var tabs: [
-        {
-            "type": "calendar",
-            "name": Translation.tr("Calendar"),
-            "icon": "calendar_month",
-            "widget": "calendar/CalendarWidget.qml"
-        },
-        {
-            "type": "todo",
-            "name": Translation.tr("To Do"),
-            "icon": "done_outline",
-            "widget": "todo/TodoWidget.qml"
-        },
         {
             "type": "timer",
             "name": Translation.tr("Timer"),
@@ -48,24 +37,6 @@ Rectangle {
 
     function setCollapsed(state) {
         Persistent.states.sidebar.bottomGroup.collapsed = state;
-        if (collapsed) {
-            bottomWidgetGroupRow.opacity = 0;
-        } else {
-            collapsedBottomWidgetGroupRow.opacity = 0;
-        }
-        collapseCleanFadeTimer.start();
-    }
-
-    Timer {
-        id: collapseCleanFadeTimer
-        interval: Appearance.animation.elementMove.duration / 2
-        repeat: false
-        onTriggered: {
-            if (collapsed)
-                collapsedBottomWidgetGroupRow.opacity = 1;
-            else
-                bottomWidgetGroupRow.opacity = 1;
-        }
     }
 
     Keys.onPressed: event => {
@@ -79,108 +50,29 @@ Rectangle {
         }
     }
 
-    // The thing when collapsed
-    RowLayout {
-        id: collapsedBottomWidgetGroupRow
-        opacity: collapsed ? 1 : 0
-        visible: opacity > 0
-        Behavior on opacity {
-            NumberAnimation {
-                id: collapsedBottomWidgetGroupRowFade
-                duration: Appearance.animation.elementMove.duration / 2
-                easing.type: Appearance.animation.elementMove.type
-                easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-            }
-        }
-
-        spacing: 15
-
-        CalendarHeaderButton {
-            Layout.margins: 10
-            Layout.rightMargin: 0
-            forceCircle: true
-            downAction: () => {
-                root.setCollapsed(false);
-            }
-            contentItem: MaterialSymbol {
-                text: "keyboard_arrow_up"
-                iconSize: Appearance.font.pixelSize.larger
-                horizontalAlignment: Text.AlignHCenter
-                color: Appearance.colors.colOnLayer1
-            }
-        }
-
-        StyledText {
-            property int remainingTasks: Todo.list.filter(task => !task.done).length
-            Layout.margins: 10
-            Layout.leftMargin: 0
-            // text: `${DateTime.collapsedCalendarFormat}   •   ${remainingTasks} task${remainingTasks > 1 ? "s" : ""}`
-            text: Translation.tr("%1   •   %2 tasks").arg(DateTime.collapsedCalendarFormat).arg(remainingTasks)
-            font.pixelSize: Appearance.font.pixelSize.large
-            color: Appearance.colors.colOnLayer1
-        }
-    }
-
-    // The thing when expanded
     RowLayout {
         id: bottomWidgetGroupRow
 
-        opacity: collapsed ? 0 : 1
-        visible: opacity > 0
-        Behavior on opacity {
-            NumberAnimation {
-                id: bottomWidgetGroupRowFade
-                duration: Appearance.animation.elementMove.duration / 2
-                easing.type: Appearance.animation.elementMove.type
-                easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
-            }
-        }
-
         anchors.fill: parent
-        // implicitHeight: tabStack.implicitHeight
         spacing: 20
 
-        // Navigation rail
+        // Collapse button - anchored to top-left
         Item {
-            Layout.fillHeight: true
+            Layout.alignment: Qt.AlignTop | Qt.AlignLeft
             Layout.fillWidth: false
-            Layout.leftMargin: 10
+            Layout.fillHeight: false
             Layout.topMargin: 10
-            implicitWidth: tabBar.implicitWidth
-            // Navigation rail buttons
-            NavigationRailTabArray {
-                id: tabBar
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.left: parent.left
-                anchors.leftMargin: 5
-                currentIndex: root.selectedTab
-                expanded: false
-                Repeater {
-                    model: root.tabs
-                    NavigationRailButton {
-                        required property int index
-                        required property var modelData
-                        showToggledHighlight: false
-                        toggled: root.selectedTab == index
-                        buttonText: modelData.name
-                        buttonIcon: modelData.icon
-                        onPressed: {
-                            root.selectedTab = index;
-                            Persistent.states.sidebar.bottomGroup.tab = index;
-                        }
-                    }
-                }
-            }
-            // Collapse button
+            Layout.leftMargin: 10
+            implicitWidth: 30
+            implicitHeight: 30
             CalendarHeaderButton {
-                anchors.left: parent.left
-                anchors.top: parent.top
+                anchors.fill: parent
                 forceCircle: true
                 downAction: () => {
-                    root.setCollapsed(true);
+                    root.setCollapsed(!root.collapsed);
                 }
                 contentItem: MaterialSymbol {
-                    text: "keyboard_arrow_down"
+                    text: root.collapsed ? "keyboard_arrow_up" : "keyboard_arrow_down"
                     iconSize: Appearance.font.pixelSize.larger
                     horizontalAlignment: Text.AlignHCenter
                     color: Appearance.colors.colOnLayer1
@@ -192,7 +84,6 @@ Rectangle {
         Item {
             Layout.fillWidth: true
             Layout.fillHeight: true
-            // implicitHeight: tabStack.implicitHeight
 
             Loader {
                 id: tabStack

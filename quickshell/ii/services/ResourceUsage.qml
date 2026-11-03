@@ -1,13 +1,15 @@
 pragma Singleton
 pragma ComponentBehavior: Bound
 
+import qs
 import qs.modules.common
+import qs.modules.common.functions
 import QtQuick
 import Quickshell
 import Quickshell.Io
 
 /**
- * Simple polled resource usage service with RAM, Swap, CPU and Disk usage.
+ * Simple polled resource usage service with RAM, Swap, and CPU usage.
  */
 Singleton {
     id: root
@@ -20,7 +22,10 @@ Singleton {
     property real swapUsed: swapTotal - swapFree
     property real swapUsedPercentage: swapTotal > 0 ? (swapUsed / swapTotal) : 0
     property real cpuUsage: 0
+    property double cpuFreqency: 0
+
     property var previousCpuStats
+    property double cpuTemperature: 0
 
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
@@ -30,134 +35,136 @@ Singleton {
     property list<real> cpuUsageHistory: []
     property list<real> memoryUsageHistory: []
     property list<real> swapUsageHistory: []
-
-    property real cpuTemp: 0
-    property real cpuFrequency: 0
-
     property real diskTotal: 1
     property real diskUsed: 0
     property real diskFree: 0
     property real diskUsedPercentage: diskTotal > 0 ? diskUsed / diskTotal : 0
     property list<real> diskUsageHistory: []
-    property string maxAvailableDiskString: kbToGbString(diskTotal)
 
-    Process {
-        id: cpuTempProc
-        command: ["bash", "-c", "cat /sys/class/thermal/thermal_zone0/temp"]
-        running: true
-        stdout: SplitParser {
-            onRead: data => {
-                cpuTemp = (parseInt(data) / 1000).toFixed(0)
-            }
+    function kbToGbString(kb) {
+        return (kb / (1024 * 1024)).toFixed(1) + " GB";
+    }
+
+    function updateMemoryUsageHistory() {
+        memoryUsageHistory = [...memoryUsageHistory, memoryUsedPercentage];
+        if (memoryUsageHistory.length > historyLength) {
+            memoryUsageHistory.shift();
+        }
+    }
+    function updateSwapUsageHistory() {
+        swapUsageHistory = [...swapUsageHistory, swapUsedPercentage];
+        if (swapUsageHistory.length > historyLength) {
+            swapUsageHistory.shift();
+        }
+    }
+    function updateCpuUsageHistory() {
+        cpuUsageHistory = [...cpuUsageHistory, cpuUsage];
+        if (cpuUsageHistory.length > historyLength) {
+            cpuUsageHistory.shift();
         }
     }
 
-    Process {
-        id: cpuFreqProc
-        command: ["bash", "-c", "cat /proc/cpuinfo | grep 'cpu MHz' | head -1 | awk '{print $4}'"]
-        running: true
-        stdout: SplitParser {
-            onRead: data => {
-                cpuFrequency = (parseFloat(data) / 1000).toFixed(2)
-            }
+    function updateDiskUsageHistory() {
+        diskUsageHistory = [...diskUsageHistory, diskUsedPercentage];
+        if (diskUsageHistory.length > historyLength) {
+            diskUsageHistory.shift();
         }
+    }
+
+    function updateHistories() {
+        updateMemoryUsageHistory();
+        updateSwapUsageHistory();
+        updateCpuUsageHistory();
+        updateDiskUsageHistory();
     }
 
     Process {
         id: diskProc
-        command: ["bash", "-c", "df -k / | awk 'NR==2{print $2,$3,$4}'"]
+        command: ["sh", "-c", "df -k / | awk 'NR==2{print $2,$3,$4}'"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const parts = text.trim().split(" ").map(Number)
-                if (parts.length >= 3) {
-                    root.diskTotal = parts[0]
-                    root.diskUsed  = parts[1]
-                    root.diskFree  = parts[2]
+                const parts = text.trim().split(" ").map(Number);
+                if (parts.length >= 3 && parts[0] > 0) {
+                    root.diskTotal = parts[0];
+                    root.diskUsed = parts[1];
+                    root.diskFree = parts[2];
                 }
             }
         }
     }
 
-    Timer {
-        interval: 5000
-        running: true
-        repeat: true
-        onTriggered: {
-            cpuTempProc.running = false
-            cpuTempProc.running = true
-            cpuFreqProc.running = false
-            cpuFreqProc.running = true
-            diskProc.running = false
-            diskProc.running = true
-        }
-    }
-
-    function kbToGbString(kb) {
-        return (kb / (1024 * 1024)).toFixed(1) + " GB"
-    }
-
-    function updateMemoryUsageHistory() {
-        memoryUsageHistory = [...memoryUsageHistory, memoryUsedPercentage]
-        if (memoryUsageHistory.length > historyLength) memoryUsageHistory.shift()
-    }
-    function updateSwapUsageHistory() {
-        swapUsageHistory = [...swapUsageHistory, swapUsedPercentage]
-        if (swapUsageHistory.length > historyLength) swapUsageHistory.shift()
-    }
-    function updateCpuUsageHistory() {
-        cpuUsageHistory = [...cpuUsageHistory, cpuUsage]
-        if (cpuUsageHistory.length > historyLength) cpuUsageHistory.shift()
-    }
-    function updateDiskUsageHistory() {
-        diskUsageHistory = [...diskUsageHistory, diskUsedPercentage]
-        if (diskUsageHistory.length > historyLength) diskUsageHistory.shift()
-    }
-    function updateHistories() {
-        updateMemoryUsageHistory()
-        updateSwapUsageHistory()
-        updateCpuUsageHistory()
-        updateDiskUsageHistory()
-    }
+    // Poll only while something actually displays the data: the bar resources
+    // widget or the overlay resources widget (open or pinned). Mirrors the
+    // users' own Loader/visible gates.
+    readonly property bool barWatching: ObjectUtils.layoutHasEnabledWidget(Config.options.bar.layout, "resources")
+        && GlobalStates.barOpen && !GlobalStates.screenLocked
+    readonly property bool overlayWatching: Persistent.states.overlay.open.includes("resources")
+        && (GlobalStates.overlayOpen || Persistent.states.overlay.resources.pinned)
+    // The desktop resources widget is a third reader, hidden with the lock screen.
+    readonly property bool desktopWatching: Config.options.background.widgets.resources.enable && !GlobalStates.screenLocked
 
     Timer {
-        interval: 1
-        running: true
+        interval: Config.options?.resources?.updateInterval ?? 3000
+        running: root.barWatching || root.overlayWatching || root.desktopWatching
         repeat: true
+        triggeredOnStart: true
         onTriggered: {
-            fileMeminfo.reload()
-            fileStat.reload()
+            // Reload files
+            fileMeminfo.reload();
+            fileStat.reload();
+            fileCpuinfo.reload();
 
-            const textMeminfo = fileMeminfo.text()
-            memoryTotal = Number(textMeminfo.match(/MemTotal: *(\d+)/)?.[1] ?? 1)
-            memoryFree  = Number(textMeminfo.match(/MemAvailable: *(\d+)/)?.[1] ?? 0)
-            swapTotal   = Number(textMeminfo.match(/SwapTotal: *(\d+)/)?.[1] ?? 1)
-            swapFree    = Number(textMeminfo.match(/SwapFree: *(\d+)/)?.[1] ?? 0)
+            // Parse memory and swap usage
+            const textMeminfo = fileMeminfo.text();
+            memoryTotal = Number(textMeminfo.match(/MemTotal: *(\d+)/)?.[1] ?? 1);
+            memoryFree = Number(textMeminfo.match(/MemAvailable: *(\d+)/)?.[1] ?? 0);
+            swapTotal = Number(textMeminfo.match(/SwapTotal: *(\d+)/)?.[1] ?? 1);
+            swapFree = Number(textMeminfo.match(/SwapFree: *(\d+)/)?.[1] ?? 0);
 
-            const textStat = fileStat.text()
-            const cpuLine  = textStat.match(/^cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/)
+            // Parse CPU usage
+            const textStat = fileStat.text();
+            const cpuLine = textStat.match(/^cpu\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(\d+)/);
             if (cpuLine) {
-                const stats = cpuLine.slice(1).map(Number)
-                const total = stats.reduce((a, b) => a + b, 0)
-                const idle  = stats[3]
+                const stats = cpuLine.slice(1).map(Number);
+                const total = stats.reduce((a, b) => a + b, 0);
+                const idle = stats[3];
+
                 if (previousCpuStats) {
-                    const totalDiff = total - previousCpuStats.total
-                    const idleDiff  = idle  - previousCpuStats.idle
-                    cpuUsage = totalDiff > 0 ? (1 - idleDiff / totalDiff) : 0
+                    const totalDiff = total - previousCpuStats.total;
+                    const idleDiff = idle - previousCpuStats.idle;
+                    cpuUsage = totalDiff > 0 ? (1 - idleDiff / totalDiff) : 0;
                 }
-                previousCpuStats = { total, idle }
+
+                previousCpuStats = {
+                    total,
+                    idle
+                };
             }
 
-            root.updateHistories()
-            interval = Config.options?.resources?.updateInterval ?? 3000
+            // Parse CPU frequency
+            const cpuInfo = fileCpuinfo.text();
+            // The first tick can land before the file has been read.
+            const cpuCoreFrequencies = (cpuInfo.match(/cpu MHz\s+:\s+(\d+\.\d+)\n/g) ?? []).map(x => Number(x.match(/\d+\.\d+/)));
+            if (cpuCoreFrequencies.length > 0) {
+                const cpuCoreFreqencyAvg = cpuCoreFrequencies.reduce((a, b) => a + b, 0) / cpuCoreFrequencies.length;
+                cpuFreqency = cpuCoreFreqencyAvg / 1000;
+            }
+            
+
+            //read cpu temp
+            tempProc.running = true
+            diskProc.running = true
+
+            root.updateHistories();
         }
     }
-
-    FileView { id: fileMeminfo; path: "/proc/meminfo" }
-    FileView { id: fileStat;    path: "/proc/stat" }
 
     Process {
         id: findCpuMaxFreqProc
-        environment: ({ LANG: "C", LC_ALL: "C" })
+        environment: ({
+            LANG: "C",
+            LC_ALL: "C"
+        })
         command: ["bash", "-c", "lscpu | grep 'CPU max MHz' | awk '{print $4}'"]
         running: true
         stdout: StdioCollector {
@@ -167,4 +174,38 @@ Singleton {
             }
         }
     }
+
+    FileView {
+        id: fileMeminfo
+        path: "/proc/meminfo"
+    }
+    FileView {
+        id: fileCpuinfo
+        path: "/proc/cpuinfo"
+    }
+    FileView {
+        id: fileStat
+        path: "/proc/stat"
+      }
+
+
+    Process { // only run this once
+      id: fileCreationtempProc
+      running: true
+      command: ["bash", "-c", `${Directories.scriptPath}/cpu/coretemp.sh`.replace(/file:\/\//, "")]
+    }
+    
+      Process { // only run this once
+      id: tempProc
+      running: true
+      command: ["bash", "-c", "cat /tmp/quickshell/coretemp"]
+      stdout: StdioCollector {
+        onStreamFinished: {
+                cpuTemperature = Number(this.text) / 1000;
+
+            }
+        }
+
+    }
+
 }

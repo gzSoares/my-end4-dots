@@ -184,12 +184,12 @@ hl.config({
     decoration = {
         -- 2 = circle, higher = squircle, 4 = very obvious squircle
         -- We use a slightly higher power here to make the rounding feel more continuous
-        rounding_power = 2,
+        rounding_power = 4,
         rounding = 10,
 
         blur = {
             enabled = true,
-            xray = false,
+            xray = true,
             special = false,
             new_optimizations = true,
             size = 10,
@@ -208,13 +208,14 @@ hl.config({
             range = 20,
             offset = {0, 2},
             render_power = 4,
-            color = "rgba(00000021)"
+            color = "rgba(00000020)"
         },
         -- Dim
         dim_inactive = true,
-        dim_strength = 0.15,
+        dim_strength = 0.05,
         dim_special = 0.2,
-        inactive_opacity = 1
+        inactive_opacity = 1,
+        active_opacity = 1
     },
     animations = {
         enabled = true

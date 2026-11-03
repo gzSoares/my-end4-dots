@@ -59,13 +59,42 @@ Variants {
         property int workspaceChunkSize: Config?.options.bar.workspaces.shown ?? 10
         property int totalWorkspaces: Math.ceil(lastWorkspaceId / workspaceChunkSize) * workspaceChunkSize
         // Wallpaper
-        property bool wallpaperIsVideo: Wallpapers.isVideoFile(Config.options.background.wallpaperPath)
-        property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath
-        property bool wallpaperSafetyTriggered: {
-            const enabled = Config.options.workSafety.enable.wallpaper;
-            const sensitiveWallpaper = (CF.StringUtils.stringListContainsSubstring(wallpaperPath.toLowerCase(), Config.options.workSafety.triggerCondition.fileKeywords));
-            const sensitiveNetwork = (CF.StringUtils.stringListContainsSubstring(Network.networkName.toLowerCase(), Config.options.workSafety.triggerCondition.networkNameKeywords));
-            return enabled && sensitiveWallpaper && sensitiveNetwork;
+        // A monitor other than the default one can be given a picture of its
+        // own from the desktop menu. The default monitor always draws the main
+        // wallpaper, the one the colors come from, so it is never handed one.
+        readonly property string screenName: bgRoot.modelData?.name ?? ""
+        // Pictures this screen could not load, so a moved or deleted file gives
+        // way to the main wallpaper instead of leaving the screen bare.
+        property var failedPicturePaths: ({})
+        readonly property var monitorPicture: {
+            const picture = MonitorWallpapers.pictureFor(bgRoot.screenName);
+            return (picture && !bgRoot.failedPicturePaths[picture.path]) ? picture : null;
+        }
+        readonly property bool mainWallpaperIsVideo: Wallpapers.isVideoFile(Config.options.background.wallpaperPath)
+        property bool wallpaperIsVideo: !bgRoot.monitorPicture && bgRoot.mainWallpaperIsVideo
+        property string wallpaperPath: bgRoot.monitorPicture ? bgRoot.monitorPicture.path
+            : (GlobalStates.wallpaperPreviewPath !== "" ? GlobalStates.wallpaperPreviewPath
+            : (bgRoot.mainWallpaperIsVideo ? Config.options.background.thumbnailPath : Config.options.background.wallpaperPath))
+
+        // The picture handed to the Image, and its measured size. They change together,
+        // so the Image decodes once. The size that positions the picture on screen
+        // (wallpaperWidth/Height) follows only when the new picture is ready, so the
+        // old one is never re-laid-out while the new one decodes.
+        property string displayedWallpaperPath: ""
+        property int pendingWallpaperWidth: 0
+        property int pendingWallpaperHeight: 0
+        // True for the one frame in which the geometry changes with a new picture, so
+        // the position animations below do not slide it in.
+        property bool snapGeometry: false
+
+        // The picker's preview is a value in memory; once the config holds that same
+        // wallpaper (or any other, after the picker closed) it is not needed anymore.
+        Connections {
+            target: Config.options.background
+            function onWallpaperPathChanged() {
+                if (GlobalStates.wallpaperPreviewPath !== "" && !GlobalStates.wallpaperSelectorOpen)
+                    GlobalStates.wallpaperPreviewPath = "";
+            }
         }
         // Preserve a minimum 10% headroom so parallax has range to move through even when
         // workspaceZoom is 1. Matches pre-refactor behavior which had a hardcoded 1.1 baseline.
@@ -99,6 +128,15 @@ Variants {
         readonly property real effectiveWallpaperScale: minSuitableScale * parallaxRation
         property real scaledWallpaperWidth: wallpaperWidth * effectiveWallpaperScale
         property real scaledWallpaperHeight: wallpaperHeight * effectiveWallpaperScale
+        // Same figure as before for the size to decode at, but from the picture that is
+        // loading (its measured size) instead of the one on screen.
+        readonly property real decodeBaseWidth: pendingWallpaperWidth > 0 ? pendingWallpaperWidth : wallpaperWidth
+        readonly property real decodeBaseHeight: pendingWallpaperHeight > 0 ? pendingWallpaperHeight : wallpaperHeight
+        readonly property real decodeScale: (decodeBaseWidth > 0 && decodeBaseHeight > 0 && logicalScreenWidth > 0 && logicalScreenHeight > 0)
+            ? Math.max(logicalScreenWidth / decodeBaseWidth, logicalScreenHeight / decodeBaseHeight) * parallaxRation
+            : effectiveWallpaperScale
+        readonly property real decodeWidth: Math.min(decodeBaseWidth, decodeBaseWidth * decodeScale * Math.max(1, bgRoot.monitor?.scale ?? 1))
+        readonly property real decodeHeight: Math.min(decodeBaseHeight, decodeBaseHeight * decodeScale * Math.max(1, bgRoot.monitor?.scale ?? 1))
         property real parallaxTotalPixelsX: Math.max(0, scaledWallpaperWidth - logicalScreenWidth)
         property real parallaxTotalPixelsY: Math.max(0, scaledWallpaperHeight - logicalScreenHeight)
         // Which axis the cover fit actually left room on. Comparing the picture against itself
@@ -111,7 +149,7 @@ Variants {
         property real clockX: (modelData.width / 2)
         property real clockY: (modelData.height / 2)
         property var textHorizontalAlignment: {
-            if ((Config.options.lock.centerClock && GlobalStates.screenLocked) || wallpaperSafetyTriggered)
+            if (Config.options.lock.centerClock && GlobalStates.screenLocked)
                 return Text.AlignHCenter;
             if (clockX < screen.width / 3)
                 return Text.AlignLeft;
@@ -124,8 +162,6 @@ Variants {
         property color dominantColor: Appearance.colors.colPrimary // Default, to be changed
         property bool dominantColorIsDark: dominantColor.hslLightness < 0.5
         property color colText: {
-            if (wallpaperSafetyTriggered)
-                return CF.ColorUtils.mix(Appearance.colors.colOnLayer0, Appearance.colors.colPrimary, 0.75);
             return (GlobalStates.screenLocked && shouldBlur) ? Appearance.colors.colOnLayer0 : CF.ColorUtils.colorWithLightness(Appearance.colors.colPrimary, (dominantColorIsDark ? 0.8 : 0.12));
         }
         Behavior on colText {
@@ -145,14 +181,7 @@ Variants {
             left: true
             right: true
         }
-        color: {
-            if (!bgRoot.wallpaperSafetyTriggered || bgRoot.wallpaperIsVideo)
-                return "transparent";
-            return CF.ColorUtils.mix(Appearance.colors.colLayer0, Appearance.colors.colPrimary, 0.75);
-        }
-        Behavior on color {
-            animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
-        }
+        color: "transparent"
 
         onWallpaperPathChanged: {
             bgRoot.updateZoomScale();
@@ -164,7 +193,43 @@ Variants {
         // that never loads is never the one being carried off.
         property url shownWallpaper: ""
         property bool wallpaperSwapPending: false
+
+        // A screen's own picture is known a moment after the shell starts or
+        // the monitor is plugged in. Until then a change lands without an
+        // effect, so the picture comes up directly instead of animating in
+        // over the main wallpaper. The timer lets effects through should that
+        // moment never come.
+        property bool pictureSettled: false
+        readonly property bool pictureKnown: MonitorWallpapers.ready && MonitorWallpapers.knows(bgRoot.screenName)
+        onPictureKnownChanged: if (bgRoot.pictureKnown) Qt.callLater(() => bgRoot.pictureSettled = true)
+        Timer {
+            running: !bgRoot.pictureSettled
+            interval: 3000
+            onTriggered: bgRoot.pictureSettled = true
+        }
+        // A screen plugged in after the wallpaper was set has no change to
+        // react to, so it is measured once here.
+        Component.onCompleted: {
+            if (bgRoot.pictureKnown) bgRoot.pictureSettled = true;
+            bgRoot.updateZoomScale();
+        }
+        Connections {
+            target: MonitorWallpapers
+            // A new pick may be the same file put back, so it gets another try.
+            function onAssigned(monitorName) {
+                if (monitorName === bgRoot.screenName) bgRoot.failedPicturePaths = ({});
+            }
+        }
         property string swapEffect: "fade"
+        Timer {
+            id: swapWarmup
+            interval: 120
+            onTriggered: {
+                // A newer change took over, or this one was cancelled meanwhile
+                if (bgRoot.wallpaperSwapPending || outgoing.status !== Image.Ready) return;
+                swapAnimation.restart();
+            }
+        }
         // The knobs the effects turn. Every one is animated on every run
         // and the effects differ only in where each ends, so switching the
         // effect between two changes cannot leave a knob stranded.
@@ -199,7 +264,11 @@ Variants {
             if (wallpaper.status !== Image.Ready || outgoing.status !== Image.Ready) return;
             wallpaperSwapPending = false;
             swapEffect = TransitionEffects.resolve(Config.options.background.wallpaperTransition);
-            swapAnimation.restart();
+            // Both pictures are decoded, but a texture only goes to the GPU on the first
+            // frames that draw it. Starting the effect right away puts that stall inside the
+            // first frames of the fade, where it shows as a jerk. Waiting a moment lets it
+            // happen while the old picture still covers the screen.
+            swapWarmup.restart();
         }
 
         function finishSwap() {
@@ -294,24 +363,67 @@ Variants {
             ScriptAction { script: bgRoot.finishSwap() }
         }
 
+        // A measured picture: it goes to the Image together with the size to decode it at.
+        // Its place on screen is updated when it is ready (applyPendingGeometry), except
+        // for the first picture or the same one measured again, which have nothing to keep.
+        function commitMeasured(path, width, height) {
+            const samePicture = bgRoot.displayedWallpaperPath === path;
+            bgRoot.pendingWallpaperWidth = width;
+            bgRoot.pendingWallpaperHeight = height;
+            if (samePicture || bgRoot.shownWallpaper == "") {
+                bgRoot.wallpaperWidth = width;
+                bgRoot.wallpaperHeight = height;
+            }
+            bgRoot.displayedWallpaperPath = path;
+        }
+
+        function applyPendingGeometry() {
+            if (bgRoot.pendingWallpaperWidth <= 0 || bgRoot.pendingWallpaperHeight <= 0) return;
+            if (bgRoot.wallpaperWidth === bgRoot.pendingWallpaperWidth && bgRoot.wallpaperHeight === bgRoot.pendingWallpaperHeight) return;
+            bgRoot.snapGeometry = true;
+            bgRoot.wallpaperWidth = bgRoot.pendingWallpaperWidth;
+            bgRoot.wallpaperHeight = bgRoot.pendingWallpaperHeight;
+            Qt.callLater(() => bgRoot.snapGeometry = false);
+        }
+
         // Wallpaper zoom scale
+        // A picture given to this screen carries the size it was measured at
+        // when picked. Anything else is measured one run at a time, and a
+        // change that lands during a run is measured once that run ends, so a
+        // late answer can never size the wrong picture.
         function updateZoomScale() {
+            const picture = bgRoot.monitorPicture;
+            if (picture && picture.path === bgRoot.wallpaperPath && picture.width > 0 && picture.height > 0) {
+                bgRoot.commitMeasured(bgRoot.wallpaperPath, picture.width, picture.height);
+                return;
+            }
+            if (getWallpaperSizeProc.running) return;
             getWallpaperSizeProc.path = bgRoot.wallpaperPath;
             getWallpaperSizeProc.running = true;
         }
         Process {
             id: getWallpaperSizeProc
-            property string path: bgRoot.wallpaperPath
-            command: ["magick", "identify", "-format", "%w %h", path]
+            property string path
+            // One line per frame for an animated picture; the first is enough.
+            // -ping reads the size from the header instead of decoding the
+            // whole picture.
+            command: ["magick", "identify", "-ping", "-format", "%w %h\n", getWallpaperSizeProc.path]
             stdout: StdioCollector {
                 id: wallpaperSizeOutputCollector
-                onStreamFinished: {
-                    const output = wallpaperSizeOutputCollector.text;
-                    const [width, height] = output.split(" ").map(Number);
-                    bgRoot.wallpaperWidth = width;
-                    bgRoot.wallpaperHeight = height;
-                    // minSuitableScale is a reactive binding; no manual assignment needed.
+            }
+            onExited: {
+                if (getWallpaperSizeProc.path !== bgRoot.wallpaperPath) {
+                    bgRoot.updateZoomScale();
+                    return;
                 }
+                const [width, height] = wallpaperSizeOutputCollector.text.split("\n")[0].split(" ").map(Number);
+                // A picture that cannot be measured is sized to the screen
+                // rather than to whatever was shown before it.
+                const measured = width > 0 && height > 0;
+                bgRoot.commitMeasured(bgRoot.wallpaperPath,
+                    measured ? width : bgRoot.modelData.width,
+                    measured ? height : bgRoot.modelData.height);
+                // minSuitableScale is a reactive binding; no manual assignment needed.
             }
         }
 
@@ -357,8 +469,8 @@ Variants {
                 ]
                 onSourceChanged: {
                     const effect = Config.options.background.wallpaperTransition;
-                    if (bgRoot.shownWallpaper == "" || effect === "none" || bgRoot.wallpaperIsVideo
-                            || bgRoot.wallpaperSafetyTriggered || source == bgRoot.shownWallpaper) {
+                    if (bgRoot.shownWallpaper == "" || !bgRoot.pictureSettled || effect === "none" || bgRoot.wallpaperIsVideo
+                            || source == bgRoot.shownWallpaper || Date.now() < GlobalStates.wallpaperPreviewUntil) {
                         swapAnimation.stop();
                         bgRoot.finishSwap();
                         bgRoot.wallpaperSwapPending = false;
@@ -378,9 +490,20 @@ Variants {
                 }
                 onStatusChanged: {
                     if (status === Image.Ready) {
+                        bgRoot.applyPendingGeometry();
                         bgRoot.shownWallpaper = source;
                         bgRoot.maybeStartSwap();
                     } else if (status === Image.Error) {
+                        // This screen's own picture would not load (moved,
+                        // deleted, or on a drive not mounted yet), so it gives
+                        // way to the main wallpaper. Marking it moves the
+                        // source on at once, and the change handler sets up
+                        // whatever comes next from there.
+                        const picture = bgRoot.monitorPicture;
+                        if (picture) {
+                            bgRoot.failedPicturePaths = Object.assign({}, bgRoot.failedPicturePaths, { [picture.path]: true });
+                            return;
+                        }
                         swapAnimation.stop();
                         bgRoot.finishSwap();
                         bgRoot.wallpaperSwapPending = false;
@@ -462,15 +585,17 @@ Variants {
                 // Fall back to the bundled default wallpaper when no path is set
                 // (e.g. a fresh install before a wallpaper has been chosen), so the
                 // background is never blank.
-                source: bgRoot.wallpaperSafetyTriggered ? "" : (bgRoot.wallpaperPath || Quickshell.shellPath("assets/images/default_wallpaper.webp"))
+                source: bgRoot.displayedWallpaperPath || bgRoot.wallpaperPath || Quickshell.shellPath("assets/images/default_wallpaper.webp")
                 fillMode: Image.PreserveAspectCrop
                 Behavior on x {
+                    enabled: !bgRoot.snapGeometry
                     NumberAnimation {
                         duration: 600
                         easing.type: Easing.OutCubic
                     }
                 }
                 Behavior on y {
+                    enabled: !bgRoot.snapGeometry
                     NumberAnimation {
                         duration: 600
                         easing.type: Easing.OutCubic
@@ -482,8 +607,8 @@ Variants {
                     // unchanged — only the pixel buffer gets denser, which
                     // costs proportional VRAM but keeps detail when the GPU
                     // resamples during pan.
-                    width: Math.min(bgRoot.wallpaperWidth, bgRoot.scaledWallpaperWidth * Math.max(1, bgRoot.monitor?.scale ?? 1))
-                    height: Math.min(bgRoot.wallpaperHeight, bgRoot.scaledWallpaperHeight * Math.max(1, bgRoot.monitor?.scale ?? 1))
+                    width: bgRoot.decodeWidth
+                    height: bgRoot.decodeHeight
                 }
                 width: bgRoot.scaledWallpaperWidth
                 height: bgRoot.scaledWallpaperHeight
@@ -495,7 +620,7 @@ Variants {
             Loader {
                 id: lockVideo
                 anchors.fill: wallpaper
-                active: bgRoot.wallpaperIsVideo && !bgRoot.wallpaperSafetyTriggered
+                active: bgRoot.wallpaperIsVideo
                     && (GlobalStates.screenLocked || scaleAnim.running)
                 visible: !blurLoader.active
                 sourceComponent: VideoOutput {
@@ -541,7 +666,9 @@ Variants {
                     asynchronous: true
                     cache: false
                     smooth: true
-                    mipmap: true
+                    // Shown about 1:1 and only for the length of the fade, so the mip chain
+                    // is not worth the extra upload time.
+                    mipmap: false
                     fillMode: Image.PreserveAspectCrop
                     opacity: 0
                     sourceSize: {
@@ -739,7 +866,6 @@ Variants {
                         scaledScreenHeight: bgRoot.screen.height
                         wallpaperScale: 1
                         wallpaperItem: bgRoot.wallpaperIsVideo ? null : wallpaper
-                        wallpaperSafetyTriggered: bgRoot.wallpaperSafetyTriggered
                         hasActiveMusic: widgetCanvas.hasActiveMusic
                     }
                 }

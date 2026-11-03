@@ -7,6 +7,14 @@ import QtQuick.Layouts
 RippleButton {
     id: root
     required property ListView target
+    // The list keeps itself at its end; it catches up with its own growth after the layout.
+    property bool pinned: false
+    // Content-relative end rather than atYEnd: a list with bottom runway
+    // (margin) is only atYEnd deep inside the blank space, which would keep
+    // this button up permanently. Identical to atYEnd on margin-less lists.
+    readonly property real endY: target ? target.originY + target.contentHeight - target.height : 0
+    readonly property bool atContentEnd: root.pinned || (!target) || (target.contentHeight <= target.height)
+        || target.contentY >= root.endY - 1
 
     anchors {
         bottom: parent.bottom
@@ -14,8 +22,8 @@ RippleButton {
         bottomMargin: 10
     }
 
-    opacity: !target.atYEnd ? 1 : 0
-    scale: !target.atYEnd ? 1 : 0.7
+    opacity: !root.atContentEnd ? 1 : 0
+    scale: !root.atContentEnd ? 1 : 0.7
     visible: opacity > 0
     Behavior on opacity {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
@@ -33,7 +41,18 @@ RippleButton {
     buttonRadius: Appearance.rounding.verysmall
 
     downAction: () => {
-        target.positionViewAtEnd()
+        // positionViewAtEnd works from estimated delegate heights and lands
+        // short on rich messages. It still runs first to instantiate the
+        // tail, then the exact end comes from real geometry, stopping at the
+        // content's edge rather than the runway below it, while leaving room
+        // for the edge glow fade.
+        target.positionViewAtEnd();
+        const updateScroll = () => {
+            if (target && target.contentHeight > target.height)
+                target.contentY = root.endY;
+        };
+        Qt.callLater(updateScroll);
+        Qt.callLater(() => Qt.callLater(updateScroll));
     }
 
     contentItem: Row {

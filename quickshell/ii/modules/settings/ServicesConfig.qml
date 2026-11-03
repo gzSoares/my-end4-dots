@@ -80,24 +80,28 @@ ContentPage {
         }
     }
 
-    /*
     ContentSection {
+        visible: Config.options.policies.ai !== 0
         icon: "neurology"
-        title: Translation.tr("AI")
+        title: Translation.tr("AI Assistant")
 
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("System prompt")
-            text: Config.options.ai.systemPrompt
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Qt.callLater(() => {
-                    Config.options.ai.systemPrompt = text;
-                });
+        ContentSubsection {
+            title: Translation.tr("Execution Mode")
+            tooltip: Translation.tr("Controls how AI models and agent CLIs handle permissions and tools.\n• Ask: Asks for confirmation before executing commands.\n• Auto: Automatically approves tool execution, commands, and web fetching.\n• Plan: Focuses strictly on planning and architecture without running commands or edits.")
+
+            ConfigSelectionArray {
+                currentValue: AiModes.current
+                onSelected: newValue => {
+                    AiModes.set(newValue);
+                }
+                options: AiModes.ids.map(id => ({
+                    displayName: AiModes.name(id),
+                    icon: AiModes.icon(id),
+                    value: id
+                }))
             }
         }
     }
-    */
 
     ContentSection {
         icon: "music_cast"
@@ -231,7 +235,6 @@ ContentPage {
     ContentSection {
         icon: "search"
         title: Translation.tr("Search")
-        /*
         ConfigSwitch {
             text: Translation.tr("Use Levenshtein distance-based algorithm instead of fuzzy")
             checked: Config.options.search.sloppy
@@ -242,7 +245,6 @@ ContentPage {
                 text: Translation.tr("Could be better if you make a ton of typos,\nbut results can be weird and might not work with acronyms\n(e.g. \"GIMP\" might not give you the paint program)")
             }
         }
-        */
 
         ConfigSwitch {
             text: Translation.tr("File and folder search")

@@ -3,7 +3,6 @@ import QtQuick.Layouts
 import Quickshell
 import Quickshell.Bluetooth
 import Quickshell.Services.UPower
-import Quickshell.Services.Mpris
 import qs
 import qs.services
 import qs.modules.common
@@ -108,12 +107,14 @@ Item { // Bar content region
     }
 
     // Modules that render without a surrounding pill.
-    readonly property var chromelessModules: ["sidebarButton"]
+    readonly property bool sidebarButtonInTop: Array.from(Config.options.bar.layout.left ?? [])
+        .some(g => ObjectUtils.layoutGroupWidgets(g).some(w => w.id === "sidebarButton"))
 
     function moduleComponent(name) {
         switch (name) {
         case "sidebarButton": return comp_sidebarButton;
         case "resources": return comp_resources;
+        case "network": return comp_network;
         case "media": return comp_media;
         case "workspaces": return comp_workspaces;
         case "clock": return comp_clock;
@@ -133,14 +134,13 @@ Item { // Bar content region
     // and sits centred — stretching them makes a widget that draws its own
     // background, such as the status indicators, look far wider than it is.
     function moduleFillWidth(name) {
-        return name === "resources" || name === "media"
+        return name === "resources" || name === "network" || name === "media"
             || name === "clock" || name === "battery" || name === "tray";
     }
 
     function moduleVisible(name) {
         switch (name) {
         case "battery": return Battery.available;
-        case "media": return MprisController.trackedPlayer?.isPlaying === true;
         default: return true;
         }
     }
@@ -157,10 +157,6 @@ Item { // Bar content region
             return g.items.map(x => (typeof x === "string") ? ({ id: x, enabled: true }) : x);
         return [];
     }
-    function groupChromeless(g) {
-        const ws = root.groupWidgets(g).filter(w => root.moduleActive(w.id));
-        return ws.length > 0 && ws.every(w => root.chromelessModules.indexOf(w.id) !== -1);
-    }
     function entryActive(w) {
         return w.enabled !== false && root.moduleActive(w.id);
     }
@@ -173,63 +169,34 @@ Item { // Bar content region
         required property string moduleName
         property bool entryEnabled: true
         Layout.alignment: Qt.AlignHCenter
-        // The button used to be inset from the top by half the room left over
-        // beside it, so the gap above matched the gaps either side. Sitting
-        // flush against the top instead puts its round highlight over the
-        // bar's rounded corner.
-        Layout.topMargin: moduleName === "sidebarButton"
-            ? (Appearance.sizes.baseVerticalBarWidth - implicitWidth) / 2 : 0
         Layout.fillWidth: root.moduleFillWidth(moduleName)
         active: entryEnabled && root.moduleActive(moduleName)
         visible: active && root.moduleVisible(moduleName)
         sourceComponent: root.moduleComponent(moduleName)
     }
 
-    // One group = one vertical pill (or a bare column for chromeless-only groups).
+    // One group = one vertical pill.
     component GroupPill: Item {
         id: pill
         required property var group
         readonly property var gw: root.groupWidgets(group)
-        readonly property bool chromeless: root.groupChromeless(group)
         visible: root.groupHasVisible(group)
         implicitWidth: Appearance.sizes.baseVerticalBarWidth
-        implicitHeight: pillLoader.implicitHeight
+        implicitHeight: pillGroup.implicitHeight
         Layout.alignment: Qt.AlignHCenter
         Layout.fillWidth: true
 
-        Loader {
-            id: pillLoader
+        Bar.BarGroup {
+            id: pillGroup
             anchors.fill: parent
-            sourceComponent: pill.chromeless ? chromelessColumn : normalPill
-        }
-
-        Component {
-            id: chromelessColumn
-            ColumnLayout {
-                spacing: 8
-                Repeater {
-                    model: pill.gw
-                    delegate: BarModule {
-                        required property var modelData
-                        moduleName: modelData.id
-                        entryEnabled: modelData.enabled
-                    }
-                }
-            }
-        }
-
-        Component {
-            id: normalPill
-            Bar.BarGroup {
-                vertical: true
-                padding: 8
-                Repeater {
-                    model: pill.gw
-                    delegate: BarModule {
-                        required property var modelData
-                        moduleName: modelData.id
-                        entryEnabled: modelData.enabled
-                    }
+            vertical: true
+            padding: 8
+            Repeater {
+                model: pill.gw
+                delegate: BarModule {
+                    required property var modelData
+                    moduleName: modelData.id
+                    entryEnabled: modelData.enabled
                 }
             }
         }
@@ -240,13 +207,21 @@ Item { // Bar content region
         id: comp_sidebarButton
         Bar.LeftSidebarButton {
             Layout.alignment: Qt.AlignHCenter
-            colBackground: barTopSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
+            colBackground: root.sidebarButtonInTop && barTopSectionMouseArea.hovered ? tones.colLayer1Hover : ColorUtils.transparentize(tones.colLayer1Hover, 1)
         }
     }
 
     Component {
         id: comp_resources
         Resources {
+            Layout.fillWidth: true
+            Layout.fillHeight: false
+        }
+    }
+
+    Component {
+        id: comp_network
+        NetworkSpeed {
             Layout.fillWidth: true
             Layout.fillHeight: false
         }
@@ -317,12 +292,12 @@ Item { // Bar content region
                 implicitHeight: 32
                 buttonRadius: Appearance.rounding.full
                 toggled: volumeBarPopup.shown
-                colBackground: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-                colBackgroundHover: Appearance.colors.colLayer1Hover
-                colRipple: Appearance.colors.colLayer1Active
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
-                colRippleToggled: Appearance.colors.colSecondaryContainerActive
+                colBackground: barBottomSectionMouseArea.hovered ? Appearance.barContent.colLayer1Hover : ColorUtils.transparentize(Appearance.barContent.colLayer1Hover, 1)
+                colBackgroundHover: Appearance.barContent.colLayer1Hover
+                colRipple: Appearance.barContent.colLayer1Active
+                colBackgroundToggled: Appearance.barContent.colSecondaryContainer
+                colBackgroundToggledHover: Appearance.barContent.colSecondaryContainerHover
+                colRippleToggled: Appearance.barContent.colSecondaryContainerActive
                 onClicked: volumeBarPopup.shown = !volumeBarPopup.shown
 
                 contentItem: MaterialSymbol {
@@ -335,7 +310,7 @@ Item { // Bar content region
                         return "volume_up";
                     }
                     iconSize: Appearance.font.pixelSize.larger
-                    color: volumeIconButton.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+                    color: volumeIconButton.toggled ? Appearance.barContent.m3onSecondaryContainer : Appearance.barContent.colOnLayer0
                 }
             }
 
@@ -356,14 +331,14 @@ Item { // Bar content region
             implicitWidth: indicatorsColumnLayout.implicitWidth + 6 * 2
 
             buttonRadius: Appearance.rounding.full
-            colBackground: barBottomSectionMouseArea.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1)
-            colBackgroundHover: Appearance.colors.colLayer1Hover
-            colRipple: Appearance.colors.colLayer1Active
-            colBackgroundToggled: Appearance.colors.colSecondaryContainer
-            colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
-            colRippleToggled: Appearance.colors.colSecondaryContainerActive
+            colBackground: barBottomSectionMouseArea.hovered ? Appearance.barContent.colLayer1Hover : ColorUtils.transparentize(Appearance.barContent.colLayer1Hover, 1)
+            colBackgroundHover: Appearance.barContent.colLayer1Hover
+            colRipple: Appearance.barContent.colLayer1Active
+            colBackgroundToggled: Appearance.barContent.colSecondaryContainer
+            colBackgroundToggledHover: Appearance.barContent.colSecondaryContainerHover
+            colRippleToggled: Appearance.barContent.colSecondaryContainerActive
             toggled: GlobalStates.sidebarRightOpen
-            property color colText: toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer0
+            property color colText: toggled ? Appearance.barContent.m3onSecondaryContainer : Appearance.barContent.colOnLayer0
 
             Behavior on colText {
                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)

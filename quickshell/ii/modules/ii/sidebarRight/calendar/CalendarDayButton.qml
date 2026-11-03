@@ -17,9 +17,9 @@ RippleButton {
     property var eventsForDay: []
     readonly property int todoMargin: 5
 
-    Layout.fillWidth: false
+    Layout.fillWidth: true
     Layout.fillHeight: false
-    implicitWidth: 38;
+    // implicitWidth: 38;
     implicitHeight: 38;
 
     toggled: (isToday == 1)
@@ -171,9 +171,10 @@ RippleButton {
         anchors.fill: parent
 
         StyledText {
-            anchors.centerIn: parent
-            text: day
+            anchors.fill: parent
             horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            text: day
             font.weight: bold ? Font.DemiBold : Font.Normal
             color: (isToday == 1) ? Appearance.m3colors.m3onPrimary :
                 (isToday == 0) ? Appearance.colors.colOnLayer1 :

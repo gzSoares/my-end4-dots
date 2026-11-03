@@ -141,11 +141,23 @@ Singleton {
     // Cleared on every close, so Super+W always opens on the main wallpaper.
     property string wallpaperSelectorMonitor: ""
     property var wallpaperSelectorScreen: null
+    Timer {
+        id: wallpaperPreviewSafety
+        interval: 15000
+        onTriggered: root.wallpaperPreviewPath = ""
+    }
+    function releaseWallpaperPreview() {
+        wallpaperPreviewSafety.restart();
+    }
     onWallpaperSelectorOpenChanged: {
         if (root.wallpaperSelectorOpen) return;
         root.wallpaperSelectorMonitor = "";
         root.wallpaperSelectorScreen = null;
     }
+    // Live preview from wallpaper selector: path shown on desktop while browsing
+    property string wallpaperPreviewPath: ""
+    // Timestamp (ms) until which the preview should use instant transition (no animation)
+    property int wallpaperPreviewUntil: 0
     property bool workspaceShowNumbers: false
     property string openFolderId: ""  // Set by dock to open a folder in the app drawer
     // Whether the hyprland-scroll-overview plugin is currently loaded into
