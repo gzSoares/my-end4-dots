@@ -191,7 +191,6 @@ Singleton {
             FileUtils.trimFileProtocol(root.directory),
             generateThumbnailsMagickScriptPath
         ]
-        // console.log("[Wallpapers] Updating thumbnails with command ", thumbgenProc.command.join(" "))
         root.thumbnailGenerationProgress = 0
         thumbgenProc.running = true
     }

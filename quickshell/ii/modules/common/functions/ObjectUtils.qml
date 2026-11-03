@@ -82,12 +82,10 @@ Singleton {
                 result[key] = toPlainObject(qtObj[key]);
             }
         }
-        // console.log(JSON.stringify(result))
         return result;
     }
 
     function applyToQtObject(qtObj, jsonObj) {
-        // console.log("applyToQtObject", JSON.stringify(qtObj, null, 2), "<<", JSON.stringify(jsonObj, null, 2));
         if (!qtObj || typeof jsonObj !== "object" || jsonObj === null) return;
 
         // Detect array-like Qt objects
@@ -122,7 +120,6 @@ Singleton {
             if (!qtObj.hasOwnProperty(key)) continue;
             const value = qtObj[key];
             const jsonValue = jsonObj[key];
-            // console.log("applying to qt obj key:", value, "jsonValue:", jsonValue);
             if ((Array.isArray(value) || isQtArrayLike(value)) && Array.isArray(jsonValue)) {
                 value.length = 0;
                 for (let i = 0; i < jsonValue.length; i++) {

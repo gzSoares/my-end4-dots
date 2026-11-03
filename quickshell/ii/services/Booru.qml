@@ -359,7 +359,6 @@ Singleton {
 
     function makeRequest(tags, nsfw=false, limit=20, page=1) {
         var url = constructRequestUrl(tags, nsfw, limit, page)
-        console.log("[Booru] Making request to " + url)
 
         const newResponse = root.booruResponseDataComponent.createObject(null, {
             "provider": currentProvider,
@@ -374,7 +373,6 @@ Singleton {
         xhr.onreadystatechange = function() {
             if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
                 try {
-                    // console.log("[Booru] Raw response: " + xhr.responseText)
                     const provider = providers[currentProvider]
                     let response;
                     if (provider.manualParseFunc) {
@@ -383,7 +381,6 @@ Singleton {
                         response = JSON.parse(xhr.responseText)
                         response = provider.mapFunc(response)
                     }
-                    // console.log("[Booru] Mapped response: " + JSON.stringify(response))
                     newResponse.images = response
                     newResponse.message = response.length > 0 ? "" : root.failMessage
                     
@@ -442,10 +439,8 @@ Singleton {
             if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
                 currentTagRequest = null
                 try {
-                    // console.log("[Booru] Raw response: " + xhr.responseText)
                     var response = JSON.parse(xhr.responseText)
                     response = provider.tagMapFunc(response)
-                    // console.log("[Booru] Mapped response: " + JSON.stringify(response))
                     root.tagSuggestion(query, response)
                 } catch (e) {
                     console.log("[Booru] Failed to parse response: " + e)

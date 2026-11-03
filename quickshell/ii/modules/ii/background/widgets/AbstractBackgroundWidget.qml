@@ -169,7 +169,6 @@ AbstractWidget {
             id: leastBusyRegionOutputCollector
             onStreamFinished: {
                 const output = leastBusyRegionOutputCollector.text;
-                // console.log("[Background] Least busy region output:", output)
                 if (output.length === 0) return;
                 const parsedContent = JSON.parse(output);
                 if (root.dominantColorSourceWallpaperPath !== root.wallpaperPath) {

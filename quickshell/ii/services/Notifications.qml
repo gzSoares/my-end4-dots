@@ -180,7 +180,6 @@ Singleton {
                 root.unread++;
             }
             root.notify(newNotifObject);
-            // console.log(notifToString(newNotifObject));
             notifFileView.setText(stringifyList(root.list));
         }
     }
@@ -190,7 +189,6 @@ Singleton {
     }
 
     function discardNotification(id) {
-        console.log("[Notifications] Discarding notification with ID: " + id);
         const index = root.list.findIndex((notif) => notif.notificationId === id);
         const notifServerIndex = notifServer.trackedNotifications.values.findIndex((notif) => notif.id + root.idOffset === id);
         if (index !== -1) {
@@ -237,13 +235,10 @@ Singleton {
     }
 
     function attemptInvokeAction(id, notifIdentifier) {
-        console.log("[Notifications] Attempting to invoke action with identifier: " + notifIdentifier + " for notification ID: " + id);
         const notifServerIndex = notifServer.trackedNotifications.values.findIndex((notif) => notif.id + root.idOffset === id);
-        console.log("Notification server index: " + notifServerIndex);
         if (notifServerIndex !== -1) {
             const notifServerNotif = notifServer.trackedNotifications.values[notifServerIndex];
             const action = notifServerNotif.actions.find((action) => action.identifier === notifIdentifier);
-            // console.log("Action found: " + JSON.stringify(action));
             action.invoke()
         } 
         else {
@@ -288,7 +283,6 @@ Singleton {
                 maxId = Math.max(maxId, notif.notificationId)
             })
 
-            console.log("[Notifications] File loaded")
             root.idOffset = maxId
             root.initDone()
         }

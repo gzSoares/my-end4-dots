@@ -1,0 +1,13 @@
+# Backups e restos de edição
+*.bak
+*.orig
+*.rej
+*~
+*.swp
+
+# Arquivos de lock criados em tempo de execução (flock)
+*.lock
+
+# Python
+__pycache__/
+*.pyc
