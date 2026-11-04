@@ -273,6 +273,12 @@ Item {
                         id: tabBar
                         Layout.alignment: Qt.AlignHCenter
                         tabButtonList: root.tabButtonList
+                        // Hold a tab for a second to drag it to another place
+                        reorderable: true
+                        onReordered: (from, to) => {
+                            const tab = root.tabButtonList[from];
+                            if (tab) SidebarLeftTabs.moveTab(tab.id, to);
+                        }
                         availableWidth: topRow.width - (pinButton.visible ? pinButton.width + topRow.spacing : 0) - tabToolbar.padding * 2
                         onCurrentIndexChanged: if (!root.syncing) root.showPage(tabBar.currentIndex)
                     }

@@ -24,7 +24,29 @@ Singleton {
     // button of its own.
     readonly property bool animeCloset: Config.options.policies.weeb === 2
 
-    readonly property var tabs: root.definitions.filter(tab => tab.enabled && !(tab.id === "anime" && root.animeCloset))
+    // The order the user dragged the tabs into (Config sidebar.tabOrder); a
+    // tab that is not in it keeps its stock place after the ones that are.
+    readonly property var tabs: {
+        const order = Config.options.sidebar.tabOrder ?? [];
+        const rank = id => { const at = order.indexOf(id); return at === -1 ? order.length : at; };
+        return root.definitions
+            .map((tab, i) => ({ tab: tab, i: i }))
+            .filter(e => e.tab.enabled && !(e.tab.id === "anime" && root.animeCloset))
+            .sort((a, b) => (rank(a.tab.id) - rank(b.tab.id)) || (a.i - b.i))
+            .map(e => e.tab);
+    }
+
+    // Puts the tab with this id at this place among the tabs on show.
+    function moveTab(id, toIndex) {
+        const ids = root.tabs.map(tab => tab.id);
+        const from = ids.indexOf(id);
+        if (from === -1 || from === toIndex) return;
+        ids.splice(from, 1);
+        ids.splice(Math.max(0, Math.min(toIndex, ids.length)), 0, id);
+        // Keeps the place of tabs that are switched off right now, after these
+        const rest = (Config.options.sidebar.tabOrder ?? []).filter(x => ids.indexOf(x) === -1);
+        Config.options.sidebar.tabOrder = [...ids, ...rest];
+    }
 
     // Pages in swipe order: one per tab, a placeholder when there are no
     // tabs at all, and last the closeted anime page.

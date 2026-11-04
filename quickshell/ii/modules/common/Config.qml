@@ -1342,6 +1342,8 @@ Singleton {
 
             property JsonObject sidebar: JsonObject {
                 property bool pinnedOnStartup: true
+                // Tab ids in the order the user dragged them into; tabs not listed follow in their stock order
+                property list<string> tabOrder: []
                 property bool dashboardEntranceAnimations: false
                 property bool keepRightSidebarLoaded: true
                 property JsonObject translator: JsonObject {
