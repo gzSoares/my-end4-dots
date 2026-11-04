@@ -82,10 +82,10 @@ end
 -- runtime (a runtime unload leaves a dangling mouse-move hook that crashes
 -- the compositor). The Title Bars toggle flips plugin:hyprbars:enabled from
 -- the titlebars.enabled flag read below, applied on hyprctl reload.
-local hyprbarsSo = HOME .. "/.local/share/hyprland/plugins/hyprbars.so"
-if plugin_matches_hyprland(hyprbarsSo) then
-    hl.plugin.load(hyprbarsSo)
-end
+-- Title bars were removed from this setup: hyprbars is no longer loaded, so
+-- hyprbarsActive() stays false and every hyprbars block below does nothing.
+-- To bring them back, load the plugin again:
+--   hl.plugin.load(HOME .. "/.local/share/hyprland/plugins/hyprbars.so")
 
 -- Plugin config — applied DEFERRED via timer (not at parse time).
 --
