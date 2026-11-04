@@ -340,6 +340,13 @@ Singleton {
                 // Keep phone notifications in the desktop list/popups too, not only the Phone tab
                 property bool mirrorNotificationsToDesktop: true
                 property bool showPeripheralCards: true
+                // What the sidebar's notification list does with the phone's notifications
+                property JsonObject notifications: JsonObject {
+                    // Phone apps (by the name Android gives them) that never reach the desktop list
+                    property list<string> mutedApps: []
+                    // Phone notifications older than this many hours leave the list by themselves; 0 keeps them
+                    property int autoClearHours: 12
+                }
                 property JsonObject contacts: JsonObject {
                     property bool enabled: true
                     property list<string> favoriteIds: []

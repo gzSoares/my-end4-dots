@@ -26,6 +26,10 @@ Singleton {
         })) ?? []
         property bool popup: false
         property bool isTransient: notification?.hints.transient ?? false
+        // Reposted from the phone by KdeConnectService, which tags it with these hints.
+        property bool isPhone: !!(notification && notification.hints && notification.hints["x-ii-source"] === "phone")
+        property string phoneId: (notification && notification.hints && notification.hints["x-ii-phone-id"]) ? String(notification.hints["x-ii-phone-id"]) : ""
+        property string phoneDevice: (notification && notification.hints && notification.hints["x-ii-phone-device"]) ? String(notification.hints["x-ii-phone-device"]) : ""
         property string appIcon: notification?.appIcon ?? ""
         property string appName: notification?.appName ?? ""
         property string body: notification?.body ?? ""
@@ -53,6 +57,9 @@ Singleton {
             "summary": notif.summary,
             "time": notif.time,
             "urgency": notif.urgency,
+            "isPhone": notif.isPhone,
+            "phoneId": notif.phoneId,
+            "phoneDevice": notif.phoneDevice,
         }
     }
     function notifToString(notif) {
@@ -96,39 +103,62 @@ Singleton {
     onListChanged: {
         // Update latest time for each app
         root.list.forEach((notif) => {
-            if (!root.latestTimeForApp[notif.appName] || notif.time > root.latestTimeForApp[notif.appName]) {
-                root.latestTimeForApp[notif.appName] = Math.max(root.latestTimeForApp[notif.appName] || 0, notif.time);
+            const key = root.groupKey(notif);
+            if (!root.latestTimeForApp[key] || notif.time > root.latestTimeForApp[key]) {
+                root.latestTimeForApp[key] = Math.max(root.latestTimeForApp[key] || 0, notif.time);
             }
         });
         // Remove apps that no longer have notifications
-        Object.keys(root.latestTimeForApp).forEach((appName) => {
-            if (!root.list.some((notif) => notif.appName === appName)) {
-                delete root.latestTimeForApp[appName];
+        Object.keys(root.latestTimeForApp).forEach((key) => {
+            if (!root.list.some((notif) => root.groupKey(notif) === key)) {
+                delete root.latestTimeForApp[key];
             }
         });
     }
 
-    function appNameListForGroups(groups) {
+    // A phone's "WhatsApp" and the computer's are different groups.
+    function groupKey(notif) {
+        return (notif.isPhone ? "phone\u0001" : "") + notif.appName;
+    }
+
+    // This computer's groups first, then the phone's, each newest first
+    function sortedGroupKeys(groups) {
         return Object.keys(groups).sort((a, b) => {
-            // Sort by time, descending
+            if (groups[a].isPhone !== groups[b].isPhone) return groups[a].isPhone ? 1 : -1;
             return groups[b].time - groups[a].time;
         });
+    }
+
+    function appNameListForGroups(groups) {
+        return sortedGroupKeys(groups);
     }
 
     function groupsForList(list) {
         const groups = {};
         list.forEach((notif) => {
-            if (!groups[notif.appName]) {
-                groups[notif.appName] = {
+            const key = groupKey(notif);
+            if (!groups[key]) {
+                groups[key] = {
                     appName: notif.appName,
                     appIcon: notif.appIcon,
+                    isPhone: notif.isPhone,
                     notifications: [],
                     time: 0
                 };
             }
-            groups[notif.appName].notifications.push(notif);
+            groups[key].notifications.push(notif);
             // Always set to the latest time in the group
-            groups[notif.appName].time = latestTimeForApp[notif.appName] || notif.time;
+            groups[key].time = latestTimeForApp[key] || notif.time;
+        });
+        // The list shows a heading where the computer's groups end and the phone's begin.
+        // The computer's only gets one when there is a phone section to tell it from.
+        const keys = sortedGroupKeys(groups);
+        const hasPhone = keys.some((k) => groups[k].isPhone);
+        keys.forEach((k, i) => {
+            const g = groups[k];
+            const starts = i === 0 || groups[keys[i - 1]].isPhone !== g.isPhone;
+            g.showHeader = starts && (g.isPhone || hasPhone);
+            g.sectionTitle = g.isPhone ? Translation.tr("Phone") : Translation.tr("This computer");
         });
         return groups;
     }
@@ -160,7 +190,22 @@ Singleton {
         persistenceSupported: true
 
         onNotification: (notification) => {
+            // KDE Connect's own desktop copy of a phone notification (and its other chatter)
+            // is not shown: the phone's notifications arrive reposted, grouped by their app
+            // and with Open/Reply buttons. The outgoing-transfer result is the one thing
+            // handed back, as a notification of the shell's own.
+            if (/kde\s*connect/i.test(notification.appName || "")) {
+                KdeConnectService.considerTransferNotification(notification);
+                return;
+            }
             notification.tracked = true
+            // A conversation that got a new message replaces its older entry instead of piling up
+            if (notification.hints && notification.hints["x-ii-source"] === "phone" && notification.hints["x-ii-phone-id"]) {
+                const pid = String(notification.hints["x-ii-phone-id"]);
+                const dev = String(notification.hints["x-ii-phone-device"] || "");
+                root.list.filter((n) => n.isPhone && n.phoneId === pid && n.phoneDevice === dev)
+                    .forEach((n) => root.discardNotification(n.notificationId));
+            }
             const newNotifObject = notifComponent.createObject(root, {
                 "notificationId": notification.id + root.idOffset,
                 "notification": notification,
@@ -256,6 +301,42 @@ Singleton {
         root.list = root.list.slice(0)
     }
 
+    // Removes the phone's notifications (all of them, or only one app's) in a single pass
+    function discardPhoneNotifications(appName) {
+        const gone = root.list.filter((n) => n.isPhone && (appName === undefined || n.appName === appName));
+        if (gone.length === 0) return;
+        const goneIds = new Set(gone.map((n) => n.notificationId));
+        root.list = root.list.filter((n) => !goneIds.has(n.notificationId));
+        notifFileView.setText(stringifyList(root.list));
+        notifServer.trackedNotifications.values.forEach((sn) => {
+            if (goneIds.has(sn.id + root.idOffset)) sn.dismiss();
+        });
+        gone.forEach((n) => root.discard(n.notificationId));
+    }
+
+    // Phone notifications older than the configured number of hours leave on their own
+    function expirePhoneNotifications() {
+        const hours = Config.options.phone?.notifications?.autoClearHours ?? 0;
+        if (!(hours > 0)) return;
+        const cutoff = Date.now() - hours * 3600 * 1000;
+        const stale = root.list.filter((n) => n.isPhone && n.time < cutoff);
+        if (stale.length === 0) return;
+        const staleIds = new Set(stale.map((n) => n.notificationId));
+        root.list = root.list.filter((n) => !staleIds.has(n.notificationId));
+        notifFileView.setText(stringifyList(root.list));
+        notifServer.trackedNotifications.values.forEach((sn) => {
+            if (staleIds.has(sn.id + root.idOffset)) sn.dismiss();
+        });
+        stale.forEach((n) => root.discard(n.notificationId));
+    }
+
+    Timer {
+        interval: 10 * 60 * 1000
+        repeat: true
+        running: true
+        onTriggered: root.expirePhoneNotifications()
+    }
+
     function refresh() {
         notifFileView.reload()
     }
@@ -280,8 +361,13 @@ Singleton {
                     "summary": notif.summary,
                     "time": notif.time,
                     "urgency": notif.urgency,
+                    "isPhone": notif.isPhone === true,
+                    "phoneId": notif.phoneId || "",
+                    "phoneDevice": notif.phoneDevice || "",
                 });
             });
+            // KDE Connect's own copies, kept by earlier versions, are no longer shown
+            root.list = root.list.filter((notif) => !/kde\s*connect/i.test(notif.appName || ""));
             // Find largest notificationId
             let maxId = 0
             root.list.forEach((notif) => {
@@ -291,6 +377,7 @@ Singleton {
             console.log("[Notifications] File loaded")
             root.idOffset = maxId
             root.initDone()
+            root.expirePhoneNotifications()
         }
         onLoadFailed: (error) => {
             if(error == FileViewError.FileNotFound) {

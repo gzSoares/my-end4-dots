@@ -106,6 +106,9 @@ Scope { // Scope
     function togglePin() {
         if (root.detach)
             return;
+        // Whatever the sidebar is left as is how it opens next time: this is
+        // the same option as "Pinned by default" in the settings.
+        Config.options.sidebar.pinnedOnStartup = !root.pin;
         if (!root.pin) pinWithFunnyHyprlandWorkaroundProc.doIt()
         else root.pin = !root.pin;
     }

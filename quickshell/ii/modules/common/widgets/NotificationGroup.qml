@@ -19,7 +19,10 @@ MouseArea { // Notification group area
     property bool expanded: false
     property bool popup: false
     property real padding: 10
-    implicitHeight: background.implicitHeight
+    // Heading over the first group of a section (computer / phone) in the sidebar's list
+    readonly property bool showSectionHeader: !popup && (notificationGroup?.showHeader ?? false)
+    readonly property real headerHeight: showSectionHeader ? 30 : 0
+    implicitHeight: headerHeight + background.implicitHeight
 
     property real dragConfirmThreshold: 70 // Drag further to discard notification
     property real dismissOvershoot: 20 // Account for gaps and bouncy animations
@@ -48,6 +51,7 @@ MouseArea { // Notification group area
     }
 
     hoverEnabled: true
+    HoverHandler { id: groupHover }
     onContainsMouseChanged: {
         if (!root.popup) return;
         if (root.containsMouse) root.notifications.forEach(notif => {
@@ -132,6 +136,54 @@ MouseArea { // Notification group area
         }
     }
 
+    Item { // Section heading: "Phone" gets a button that clears just its notifications
+        id: sectionHeader
+        visible: root.showSectionHeader
+        anchors.top: parent.top
+        anchors.left: parent.left
+        anchors.right: parent.right
+        height: root.headerHeight
+
+        RowLayout {
+            anchors.fill: parent
+            anchors.leftMargin: 6
+            anchors.rightMargin: 2
+            anchors.bottomMargin: 2
+            spacing: 6
+            MaterialSymbol {
+                text: root.notificationGroup?.isPhone ? "smartphone" : "computer"
+                iconSize: Appearance.font.pixelSize.normal
+                color: Appearance.colors.colSubtext
+            }
+            StyledText {
+                Layout.fillWidth: true
+                text: root.notificationGroup?.sectionTitle ?? ""
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                font.weight: Font.DemiBold
+                color: Appearance.colors.colSubtext
+            }
+            RippleButton {
+                visible: root.notificationGroup?.isPhone ?? false
+                implicitWidth: 28
+                implicitHeight: 24
+                buttonRadius: Appearance.rounding.full
+                colBackground: "transparent"
+                colBackgroundHover: Appearance.colors.colLayer2Hover
+                onClicked: Notifications.discardPhoneNotifications()
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    text: "delete_sweep"
+                    iconSize: Appearance.font.pixelSize.normal
+                    color: Appearance.colors.colSubtext
+                }
+                StyledToolTip {
+                    text: Translation.tr("Clear the phone's notifications")
+                }
+            }
+        }
+    }
+
     // The fade goes on the card and its shadow rather than on root, whose
     // opacity the list's own transitions write.
     StyledRectangularShadow {
@@ -141,6 +193,7 @@ MouseArea { // Notification group area
     }
     Rectangle { // Background of the notification
         id: background
+        anchors.top: sectionHeader.bottom
         anchors.left: parent.left
         width: parent.width
         color: popup ? Appearance.colors.colBackgroundSurfaceContainer : Appearance.colors.colLayer2
@@ -233,6 +286,30 @@ MouseArea { // Notification group area
                             text: NotificationUtils.getFriendlyNotifTimeString(notificationGroup?.time)
                             font.pixelSize: topRow.fontSize
                             color: Appearance.colors.colSubtext
+                        }
+                        RippleButton { // Mute this phone app: shows on hover
+                            visible: root.notificationGroup?.isPhone ?? false
+                            opacity: groupHover.hovered ? 1 : 0
+                            implicitWidth: 22
+                            implicitHeight: 22
+                            Layout.rightMargin: 2
+                            buttonRadius: Appearance.rounding.full
+                            colBackground: "transparent"
+                            colBackgroundHover: Appearance.colors.colLayer2Hover
+                            onClicked: KdeConnectService.muteApp(root.notificationGroup.appName)
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                horizontalAlignment: Text.AlignHCenter
+                                text: "notifications_off"
+                                iconSize: 14
+                                color: Appearance.colors.colSubtext
+                            }
+                            StyledToolTip {
+                                text: Translation.tr("Mute %1").arg(root.notificationGroup?.appName ?? "")
+                            }
+                            Behavior on opacity {
+                                animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+                            }
                         }
                     }
                     NotificationGroupExpandButton {

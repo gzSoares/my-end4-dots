@@ -62,6 +62,7 @@ Singleton {
     property bool dockPinned: false
     // Written by the left sidebar; pinned, it reserves an exclusive zone.
     property bool sidebarLeftPinned: false
+    // Asks the left sidebar to pin or unpin itself, the same as Ctrl+P inside it
     // Written by the left sidebar: it is a window of its own rather than a panel.
     property bool sidebarLeftDetached: false
     // Written by the left sidebar: how far it reaches in from its edge while

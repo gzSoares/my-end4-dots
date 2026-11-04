@@ -585,6 +585,7 @@ Singleton {
             if (ev.id === root.activeDeviceId) {
                 root.notifications = root._normaliseNotifications(ev.notifications ?? [])
                 root._mirrorNewNotifications(ev.id, root.notifications)
+                root._pruneDismissedOnPhone(ev.id, root.notifications)
             }
             break
         case "notif_cleared":
@@ -807,8 +808,8 @@ Singleton {
         return list.filter(n => !root.isIgnoredNotification(n)).map(n => {
             const ticker = n.ticker ?? ""
             const appName = n.appName ?? ""
-            const title = n.summary ?? n.title ?? ""
-            const body = n.body ?? n.text ?? ""
+            const title = root._cleanText(n.summary ?? n.title ?? "")
+            const body = root._cleanText(n.body ?? n.text ?? "")
             const publicId = n.publicId ?? n.key ?? ""
 
             let time
@@ -933,8 +934,57 @@ Singleton {
             seen[sig] = true
             // Ongoing ones (a playing track, a running timer) cannot be cleared.
             if (!baselined || !enabled || n.dismissable === false) continue
+            if (root.isAppMuted(n.appName)) continue
             root._postMirrored(devId, n)
         }
+    }
+
+    /** Android sends light HTML (<br>, <b>...): line breaks become real ones, the rest is dropped. */
+    function _cleanText(t) {
+        return String(t ?? "")
+            .replace(/<br\s*\/?>/gi, "\n")
+            .replace(/<\/?[a-z][^>]*>/gi, "")
+            .replace(/\n{3,}/g, "\n\n")
+            .trim()
+    }
+
+    // ─── Muted apps and clean-up of the shell's copies ───────────────
+    function isAppMuted(appName) {
+        const muted = Config.options.phone.notifications.mutedApps
+        return Array.from(muted ?? []).indexOf(String(appName)) >= 0
+    }
+
+    function muteApp(appName) {
+        if (!appName) return
+        const list = Array.from(Config.options.phone.notifications.mutedApps ?? [])
+        if (list.indexOf(appName) < 0) list.push(appName)
+        Config.options.phone.notifications.mutedApps = list
+        Notifications.discardPhoneNotifications(appName)
+        root.actionFeedback(Translation.tr("%1 muted").arg(appName), true)
+    }
+
+    function unmuteApp(appName) {
+        const list = Array.from(Config.options.phone.notifications.mutedApps ?? []).filter(a => a !== appName)
+        Config.options.phone.notifications.mutedApps = list
+    }
+
+    property int _emptySyncs: 0
+
+    /** A notification dismissed on the phone leaves the shell's list too. An empty
+     *  answer has to come twice in a row before it counts, so a hiccup while the
+     *  phone reconnects does not wipe the list. */
+    function _pruneDismissedOnPhone(devId, current) {
+        if (!root.activeReachable) return
+        if (current.length === 0) {
+            root._emptySyncs++
+            if (root._emptySyncs < 2) return
+        } else {
+            root._emptySyncs = 0
+        }
+        const alive = new Set(current.map(n => n.publicId))
+        Notifications.list
+            .filter(n => n.isPhone && n.phoneDevice === devId && n.phoneId !== "" && !alive.has(n.phoneId))
+            .forEach(n => Notifications.discardNotification(n.notificationId))
     }
 
     function _escapeMarkup(t) {
@@ -946,6 +996,10 @@ Singleton {
                       "-i", n.iconPath || "smartphone",
                       "-A", "open=" + Translation.tr("Open")]
         if (n.replyId) args.push("-A", "reply=" + Translation.tr("Reply"))
+        // The tags let the shell's notification list tell these from the computer's own
+        args.push("-h", "string:x-ii-source:phone",
+                  "-h", "string:x-ii-phone-id:" + n.publicId,
+                  "-h", "string:x-ii-phone-device:" + devId)
         args.push("--", root._escapeMarkup(n.summary), root._escapeMarkup(n.body))
         const proc = mirrorProcComp.createObject(root, {
             "command": args,
@@ -1970,7 +2024,7 @@ Singleton {
         const device = root._findDevice(transfer.devId);
         const deviceName = device?.name ?? Translation.tr("your device");
         root._notify({
-            appName: "KDE Connect",
+            appName: "Phone", // not "KDE Connect": the shell hides what comes under that name
             appIcon: "phonelink",
             summary: failed
                 ? Translation.tr("File transfer failed")

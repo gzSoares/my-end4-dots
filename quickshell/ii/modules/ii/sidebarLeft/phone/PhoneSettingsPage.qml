@@ -127,6 +127,44 @@ Item {
                 }
             }
 
+            // ── Notifications ──
+            Section {
+                title: Translation.tr("Phone notifications")
+                symbol: "notifications_active"
+
+                StepperRow {
+                    symbol: "auto_delete"
+                    title: Translation.tr("Clear old phone notifications after (hours)")
+                    help: Translation.tr("Phone notifications older than this leave the sidebar list by themselves. 0 keeps them until you clear them. The Phone tab is not affected.")
+                    enabled: Config.options.phone.mirrorNotificationsToDesktop
+                    value: Config.options.phone.notifications.autoClearHours
+                    from: 0; to: 168; stepSize: 1
+                    format: v => v === 0 ? Translation.tr("Off") : String(v)
+                    onMoved: v => Config.options.phone.notifications.autoClearHours = v
+                }
+                SettingRow {
+                    symbol: "notifications_off"
+                    title: Translation.tr("Muted apps")
+                    description: Config.options.phone.notifications.mutedApps.length === 0
+                        ? Translation.tr("None. Hover a phone notification and press the bell to mute its app.")
+                        : Translation.tr("Click an app to hear from it again.")
+                    below: Flow {
+                        Layout.fillWidth: true
+                        spacing: 6
+                        Repeater {
+                            model: Config.options.phone.notifications.mutedApps
+                            delegate: RippleButtonWithIcon {
+                                required property string modelData
+                                materialIcon: "close"
+                                mainText: modelData
+                                colBackground: Appearance.colors.colLayer2
+                                onClicked: KdeConnectService.unmuteApp(modelData)
+                            }
+                        }
+                    }
+                }
+            }
+
             // ── Contacts ──
             Section {
                 title: Translation.tr("Contacts")

@@ -41,7 +41,9 @@ def notify(message, quiet):
     if quiet:
         return
     try:
-        subprocess.run(["notify-send", "-t", "1500", "-a", "Luz", "Luz", message], check=False)
+        # transient: a brief toast, never kept in the notification list
+        subprocess.run(["notify-send", "-t", "1500", "-h", "boolean:transient:true", "-a", "Luz", "Luz", message],
+                       check=False)
     except FileNotFoundError:
         pass
 

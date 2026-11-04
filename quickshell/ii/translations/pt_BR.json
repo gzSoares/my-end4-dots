@@ -3157,5 +3157,17 @@
   "App and mirror windows open at 373x808 px; on a small monitor, such as the laptop's 1080p screen, they are shrunk to the percentage below.": "As janelas de app e espelho abrem em 373x808 px; em um monitor pequeno, como a tela 1080p do notebook, ficam reduzidas à porcentagem abaixo.",
   "Window size on small monitors (%)": "Tamanho da janela em monitores pequenos (%)",
   "Open Phone window": "Abrir janela do celular",
-  "Focus Phone window": "Focar janela do celular"
+  "Focus Phone window": "Focar janela do celular",
+  "This computer": "Este computador",
+  "Clear the phone's notifications": "Limpar as notificações do celular",
+  "Mute %1": "Silenciar %1",
+  "%1 muted": "%1 silenciado",
+  "Phone notifications": "Notificações do celular",
+  "Clear old phone notifications after (hours)": "Limpar notificações antigas do celular após (horas)",
+  "Phone notifications older than this leave the sidebar list by themselves. 0 keeps them until you clear them. The Phone tab is not affected.": "As notificações do celular mais antigas que isso saem da lista da barra lateral sozinhas. 0 as mantém até você limpar. A aba Phone não é afetada.",
+  "Muted apps": "Apps silenciados",
+  "None. Hover a phone notification and press the bell to mute its app.": "Nenhum. Passe o mouse sobre uma notificação do celular e clique no sino para silenciar o app.",
+  "Click an app to hear from it again.": "Clique em um app para voltar a receber as notificações dele.",
+  "Pin the sidebar (Ctrl+P)": "Fixar a barra lateral (Ctrl+P)",
+  "Unpin the sidebar (Ctrl+P)": "Desafixar a barra lateral (Ctrl+P)"
 }

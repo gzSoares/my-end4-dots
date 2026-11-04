@@ -218,17 +218,65 @@ Item {
         }
         spacing: sidebarPadding
 
-        Toolbar {
-            id: tabToolbar
-            visible: tabButtonList.length > 0
-            Layout.alignment: Qt.AlignHCenter
-            enableShadow: false
-            ToolbarTabBar {
-                id: tabBar
-                Layout.alignment: Qt.AlignHCenter
-                tabButtonList: root.tabButtonList
-                availableWidth: contentColumn.width - tabToolbar.padding * 2
-                onCurrentIndexChanged: if (!root.syncing) root.showPage(tabBar.currentIndex)
+        RowLayout {
+            id: topRow
+            Layout.fillWidth: true
+            spacing: sidebarPadding
+
+            // Pins and unpins the sidebar, same as Ctrl+P and the setting
+            // "Pinned by default". Nothing to pin while it is a window.
+            RippleButton {
+                id: pinButton
+                visible: !GlobalStates.sidebarLeftDetached
+                Layout.alignment: Qt.AlignVCenter
+                implicitWidth: 40
+                implicitHeight: 40
+                buttonRadius: Appearance.rounding.full
+                colBackground: Appearance.m3colors.m3surfaceContainer
+                colBackgroundHover: Appearance.colors.colLayer1Hover
+                colRipple: Appearance.colors.colLayer1Active
+                colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                colRippleToggled: Appearance.colors.colSecondaryContainerActive
+                toggled: GlobalStates.sidebarLeftPinned
+                onClicked: root.scopeRoot.togglePin()
+
+                contentItem: MaterialSymbol {
+                    anchors.centerIn: parent
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                    text: "keep"
+                    fill: GlobalStates.sidebarLeftPinned ? 1 : 0
+                    iconSize: Appearance.font.pixelSize.larger
+                    color: GlobalStates.sidebarLeftPinned
+                        ? Appearance.colors.colOnSecondaryContainer
+                        : Appearance.colors.colOnLayer1
+                }
+
+                StyledToolTip {
+                    text: GlobalStates.sidebarLeftPinned
+                        ? Translation.tr("Unpin the sidebar (Ctrl+P)")
+                        : Translation.tr("Pin the sidebar (Ctrl+P)")
+                }
+            }
+
+            Item {
+                Layout.fillWidth: true
+                implicitHeight: tabToolbar.implicitHeight
+
+                Toolbar {
+                    id: tabToolbar
+                    visible: tabButtonList.length > 0
+                    anchors.horizontalCenter: parent.horizontalCenter
+                    enableShadow: false
+                    ToolbarTabBar {
+                        id: tabBar
+                        Layout.alignment: Qt.AlignHCenter
+                        tabButtonList: root.tabButtonList
+                        availableWidth: topRow.width - (pinButton.visible ? pinButton.width + topRow.spacing : 0) - tabToolbar.padding * 2
+                        onCurrentIndexChanged: if (!root.syncing) root.showPage(tabBar.currentIndex)
+                    }
+                }
             }
         }
 
