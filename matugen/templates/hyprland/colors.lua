@@ -14,3 +14,12 @@ hl.window_rule({
     match        = { pin = 1 },
     border_color = "rgba({{colors.primary.default.hex_stripped}}AA) rgba({{colors.primary.default.hex_stripped}}77)",
 })
+
+hl.config({
+    decoration = {
+        shadow = {
+            color          = "rgba({{colors.primary.default.hex_stripped}}99)",
+            color_inactive = "rgba({{colors.primary.default.hex_stripped}}33)",
+        },
+    },
+})

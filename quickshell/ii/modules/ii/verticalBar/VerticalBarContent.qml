@@ -554,6 +554,7 @@ Item { // Bar content region
             z: -1
             target: modelData
             color: Appearance.colors.colBarShadow
+            blurScale: Config.options?.bar.shadowSize ?? 1
         }
     }
 
@@ -572,6 +573,7 @@ Item { // Bar content region
             anchors.fill: undefined // The loader's anchors act on this, and this should not have any anchor
             target: barBackground
             color: Appearance.colors.colBarShadow
+            blurScale: Config.options?.bar.shadowSize ?? 1
         }
     }
     // Background. The group reaches the whole window so the curves past the

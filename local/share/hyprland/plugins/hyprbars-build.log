@@ -1,0 +1,52 @@
+=== hyprbars build @ 2026-10-04 20:06:40 ===
+Hyprland:      (hyprctl unavailable)
+pkg-config:    hyprland 0.56.2
+Plugin commit: d527a0e
+---
+rm ./hyprbars.so
+g++ -O2 -shared -fPIC -std=c++2b -Wno-c++11-narrowing  --no-gnu-unique `pkg-config --cflags pixman-1 libdrm hyprland libinput libudev wayland-server xkbcommon` main.cpp barDeco.cpp BarPassElement.cpp  -o hyprbars.so 
+main.cpp: In function ‘PLUGIN_DESCRIPTION_INFO pluginInit(void*)’:
+main.cpp:295:38: warning: ‘bool HyprlandAPI::addConfigKeyword(void*, const std::string&, Hyprlang::PCONFIGHANDLERFUNC, Hyprlang::SHandlerOptions)’ is deprecated [-Wdeprecated-declarations]
+  295 |         HyprlandAPI::addConfigKeyword(PHANDLE, "plugin:hyprbars:hyprbars-button", onNewButton, Hyprlang::SHandlerOptions{});
+      |         ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+In file included from globals.hpp:3,
+                 from barDeco.hpp:14,
+                 from main.cpp:22:
+/usr/include/hyprland/src/plugins/PluginAPI.hpp:151:33: note: declared here
+  151 |     APICALL [[deprecated]] bool addConfigKeyword(HANDLE handle, const std::string& name, Hyprlang::PCONFIGHANDLERFUNC fn, Hyprlang::SHandlerOptions opts);
+      |                                 ^~~~~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-c++11-narrowing’ may have been intended to silence earlier diagnostics
+barDeco.cpp: In member function ‘virtual SDecorationPositioningInfo CHyprBar::getPositioningInfo()’:
+barDeco.cpp:144:53: warning: narrowing conversion of ‘((((CHyprBar*)this)->CHyprBar::m_hidden || (!(bool)ENABLED)) ? 0 : ((long int)HEIGHT))’ from ‘long int’ to ‘int’ [-Wnarrowing]
+  144 |     info.desiredExtents = {{0, m_hidden || !ENABLED ? 0 : HEIGHT}, {0, 0}};
+      |                                ~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~
+barDeco.cpp: In member function ‘bool CHyprBar::doButtonPress(Config::INTEGER, Config::INTEGER, Config::INTEGER, Hyprutils::Math::Vector2D, bool)’:
+barDeco.cpp:574:70: warning: narrowing conversion of ‘barHeight’ from ‘Config::INTEGER’ {aka ‘long int’} to ‘int’ [-Wnarrowing]
+  574 |         const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, barHeight};
+      |                                                                      ^~~~~~~~~
+barDeco.cpp: In member function ‘void CHyprBar::renderBarButtonsText(Hyprutils::Math::CBox*, float, float)’:
+barDeco.cpp:715:70: warning: narrowing conversion of ‘(long int)HEIGHT’ from ‘long int’ to ‘int’ [-Wnarrowing]
+  715 |         const auto BARBUF     = Vector2D{(int)assignedBoxGlobal().w, HEIGHT};
+      |                                                                      ^~~~~~
+barDeco.cpp: In member function ‘void CHyprBar::renderPass(PHLMONITOR, const float&)’:
+barDeco.cpp:814:24: warning: narrowing conversion of ‘(long int)HEIGHT’ from ‘long int’ to ‘int’ [-Wnarrowing]
+  814 |     m_seExtents = {{0, HEIGHT}, {}};
+      |                        ^~~~~~
+barDeco.cpp:852:80: warning: narrowing conversion of ‘(float)scaledRounding’ from ‘float’ to ‘int’ [-Wnarrowing]
+  852 |         g_pHyprOpenGL->renderRect(windowBox, CHyprColor(0, 0, 0, 0), {.round = scaledRounding, .roundingPower = m_pWindow->roundingPower()});
+      |                                                                                ^~~~~~~~~~~~~~
+barDeco.cpp:860:65: warning: narrowing conversion of ‘(float)scaledRounding’ from ‘float’ to ‘int’ [-Wnarrowing]
+  860 |         g_pHyprOpenGL->renderRect(titleBarBox, color, {.round = scaledRounding, .roundingPower = m_pWindow->roundingPower(), .blur = true, .blurA = a});
+      |                                                                 ^~~~~~~~~~~~~~
+barDeco.cpp:862:65: warning: narrowing conversion of ‘(float)scaledRounding’ from ‘float’ to ‘int’ [-Wnarrowing]
+  862 |         g_pHyprOpenGL->renderRect(titleBarBox, color, {.round = scaledRounding, .roundingPower = m_pWindow->roundingPower()});
+      |                                                                 ^~~~~~~~~~~~~~
+barDeco.cpp:882:51: warning: narrowing conversion of ‘(int)(double)BARBUF.Hyprutils::Math::Vector2D::x’ from ‘int’ to ‘double’ [-Wnarrowing]
+  882 |     CBox textBox = {titleBarBox.x, titleBarBox.y, (int)BARBUF.x, (int)BARBUF.y};
+      |                                                   ^~~~~~~~~~~~~
+barDeco.cpp:882:66: warning: narrowing conversion of ‘(int)(double)BARBUF.Hyprutils::Math::Vector2D::y’ from ‘int’ to ‘double’ [-Wnarrowing]
+  882 |     CBox textBox = {titleBarBox.x, titleBarBox.y, (int)BARBUF.x, (int)BARBUF.y};
+      |                                                                  ^~~~~~~~~~~~~
+At global scope:
+cc1plus: note: unrecognized command-line option ‘-Wno-c++11-narrowing’ may have been intended to silence earlier diagnostics

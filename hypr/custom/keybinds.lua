@@ -24,7 +24,7 @@ end)
 hl.bind("SUPER + CTRL + t", hl.dsp.global("quickshell:wallpaperSelectorToggle"))
 
 hl.bind("SUPER + V", hl.dsp.exec_cmd("qs -c ii ipc call spotlightMode openMode clipboard"))
-hl.bind("SUPER + SUPER_L", hl.dsp.exec_cmd("qs -c ii ipc call spotlightMode openMode apps"))
+hl.bind("SUPER + Z", hl.dsp.exec_cmd("qs -c ii ipc call spotlightMode openMode apps"))
 
 -- qs_keybind_capture — capture submap used by the settings keybinds editor; do not remove
 hl.define_submap("qs_keybind_capture", function()

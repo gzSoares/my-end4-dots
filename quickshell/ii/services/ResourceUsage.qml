@@ -26,6 +26,10 @@ Singleton {
 
     property var previousCpuStats
     property double cpuTemperature: 0
+    // The bar and its popup read these two names; the values above keep the
+    // spelling the overlay uses.
+    property double cpuTemp: cpuTemperature
+    property double cpuFrequency: cpuFreqency
 
     property string maxAvailableMemoryString: kbToGbString(ResourceUsage.memoryTotal)
     property string maxAvailableSwapString: kbToGbString(ResourceUsage.swapTotal)
@@ -201,7 +205,9 @@ Singleton {
       command: ["bash", "-c", "cat /tmp/quickshell/coretemp"]
       stdout: StdioCollector {
         onStreamFinished: {
-                cpuTemperature = Number(this.text) / 1000;
+                // An empty read (no sensor found yet) must not turn into 0 °C.
+                if (this.text.trim() !== "")
+                    cpuTemperature = Number(this.text) / 1000;
 
             }
         }

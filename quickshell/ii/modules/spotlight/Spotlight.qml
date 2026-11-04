@@ -1490,6 +1490,7 @@ PanelWindow {
         "menu": "M8 6h13 M8 12h13 M8 18h13 M3 6h.01 M3 12h.01 M3 18h.01",
         "camera": "M23 19a2 2 0 0 1 -2 2H3a2 2 0 0 1 -2 -2V8a2 2 0 0 1 2 -2h4l2 -3h6l2 3h4a2 2 0 0 1 2 2z M17 13a5 5 0 1 1 -10 0a5 5 0 1 1 10 0",
         "mic": "M12 2a3 3 0 0 0 -3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0 -3 -3z M19 10v2a7 7 0 0 1 -14 0v-2 M12 19v3 M8 22h8",
+        "bulb": "M9 18h6 M10 22h4 M12 2a7 7 0 0 0 -4 12.7V17h8v-2.3A7 7 0 0 0 12 2z",
         "trash": "M3 6h18 M19 6v14a2 2 0 0 1 -2 2H7a2 2 0 0 1 -2 -2V6 M8 6V4a2 2 0 0 1 2 -2h4a2 2 0 0 1 2 2v2 M10 11v6 M14 11v6",
         "edit": "M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5 -5.5L17 3z",
         "external": "M18 13v6a2 2 0 0 1 -2 2H5a2 2 0 0 1 -2 -2V8a2 2 0 0 1 2 -2h6 M15 3h6v6 M10 14L21 3",
@@ -1856,6 +1857,17 @@ else:
     property bool micDragging: false
     property double _micHold: 0
     readonly property bool micCardShown: root.results.some(r => r.kind === "mic")
+
+    // -- Bedroom light card ("luz"): scripts/lamp/lamp.py talks to the bulb over the local network
+    property real lampLevel: 0.5
+    property bool lampOn: false
+    property bool lampDragging: false
+    property bool lampKnown: false          // true once the bulb has answered
+    property string lampError: ""
+    property double _lampHold: 0            // ignore polled values until this time (ms), so the bar does not jump back
+    property int _lampTarget: 50
+    readonly property bool lampCardShown: root.results.some(r => r.kind === "lamp")
+    readonly property string lampScript: Quickshell.shellPath("scripts/lamp/lamp.py").toString().replace(/^file:\/\//, "")
 
     // -- Night light card ("noite"): shell's Hyprsunset service, temperature kept in the shell config
     readonly property bool nightActive: Hyprsunset.temperatureActive
@@ -2536,6 +2548,40 @@ else:
                 "elif command -v swaync-client >/dev/null; then swaync-client -d; " +
                 "elif command -v dunstctl >/dev/null; then dunstctl set-paused toggle; " +
                 "fi");
+        } else if ((m = ql.match(/^(?:luz|l[a\u00e2]mpada|lampada|lamp)(?:\s+(.*))?$/))) {
+            // Bedroom bulb, over the local network (scripts/lamp/lamp.py, needs tinytuya
+            // and ~/.config/ii-lamp/devices.json). "luz" alone offers the usual choices.
+            const arg = (m[1] || "").trim();
+            const script = Quickshell.shellPath("scripts/lamp/lamp.py").toString().replace(/^file:\/\//, "");
+            const lamp = (name, args) => add(name, "python3 \"" + script + "\" " + args);
+            const colors = { vermelha: "vermelha", vermelho: "vermelha", red: "red", verde: "verde", green: "green",
+                azul: "azul", blue: "blue", amarela: "amarela", amarelo: "amarela", yellow: "yellow",
+                laranja: "laranja", orange: "orange", roxa: "roxa", roxo: "roxa", purple: "purple",
+                rosa: "rosa", pink: "pink", ciano: "ciano", cyan: "cyan" };
+            const temps = { quente: "quente", warm: "warm", neutra: "neutra", neutro: "neutra", neutral: "neutral",
+                fria: "fria", frio: "fria", cool: "cool" };
+            let n;
+            if (arg === "") {
+                lamp("Alternar luz do quarto", "toggle");
+                lamp("Acender luz", "on");
+                lamp("Apagar luz", "off");
+                lamp("Luz com brilho 50%", "brightness 50");
+            } else if (/^(on|ligar|liga|acender|acende)$/.test(arg)) {
+                lamp("Acender luz", "on");
+            } else if (/^(off|desligar|desliga|apagar|apaga)$/.test(arg)) {
+                lamp("Apagar luz", "off");
+            } else if (/^(toggle|alternar|inverter)$/.test(arg)) {
+                lamp("Alternar luz do quarto", "toggle");
+            } else if ((n = arg.match(/^(\d{1,3})\s*%?$/))) {
+                const pct = clamp(parseInt(n[1]), 1, 100);
+                lamp("Luz com brilho " + pct + "%", "brightness " + pct);
+            } else if (temps[arg]) {
+                lamp("Luz branca " + arg, "temp " + temps[arg]);
+            } else if (colors[arg]) {
+                lamp("Luz " + arg, "color " + colors[arg]);
+            } else if (/^#[0-9a-f]{6}$/.test(arg)) {
+                lamp("Luz na cor " + arg, "color " + arg);
+            }
         }
         return out;
     }
@@ -3767,7 +3813,7 @@ else:
         for (const r of root.results) {
             if (r.isHeader) { h += root.headerH; continue; }
             if (r.kind === "weather") { h += root.weatherH; continue; }
-            if (r.kind === "volume" || r.kind === "brightness" || r.kind === "mic" || r.kind === "night") { h += root.volumeH; continue; }
+            if (r.kind === "volume" || r.kind === "brightness" || r.kind === "mic" || r.kind === "night" || r.kind === "lamp") { h += root.volumeH; continue; }
             if (r.kind === "power") { h += root.powerH; continue; }
             if (r.kind === "qr") { h += root.qrH; continue; }
             if (rowsShown >= root.maxVisibleRows) break;
@@ -3989,6 +4035,21 @@ else:
         root.micMuted = m;
         root._micHold = Date.now() + 600;
         spotlightController.run("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ " + (m ? "1" : "0"));
+    }
+
+    // ---- bedroom light
+    function lampSet(v) {
+        root.lampLevel = Math.max(0.01, Math.min(1, v));
+        root._lampTarget = Math.max(1, Math.round(root.lampLevel * 100));
+        root.lampOn = true;
+        root._lampHold = Date.now() + 4000;
+        _lampApply.restart();
+    }
+
+    function lampToggle() {
+        root.lampOn = !root.lampOn;
+        root._lampHold = Date.now() + 4000;
+        spotlightController.run("python3 \"" + root.lampScript + "\" " + (root.lampOn ? "on" : "off") + " --quiet");
     }
 
     // ---- night light
@@ -5047,6 +5108,9 @@ else:
         safe("night", () => {
             if (/^(noi|noit|noite|nig|nigh|night)$/.test(ql)) root._pinCard(disp, "night");
         });
+        safe("lamp", () => {
+            if (/^(luz|l[a\u00e2]mpada|lampada|lamp)$/.test(ql)) root._pinCard(disp, "lamp");
+        });
         safe("power", () => {
             if (/^(ener|energ|energi|energia|power)$/.test(ql)) root._pinCard(disp, "power");
         });
@@ -5208,6 +5272,7 @@ else:
             const fine = (event.modifiers & Qt.ShiftModifier) ? 0.01 : 0.05;
             if (root.micCardShown) { root.micSet(root.micLevel + dir * fine); return true; }
             if (root.nightCardShown) { root.nightSet(root.nightLevel + dir * fine); return true; }
+            if (root.lampCardShown) { root.lampSet(root.lampLevel + dir * fine); return true; }
             if (root.powerCardShown) { root.ppCycle(dir); return true; }
         }
         if (event.key === Qt.Key_Backspace && root.query === "" && root.mode === "menu") {
@@ -6193,12 +6258,13 @@ else:
                             readonly property bool isBrightness: modelData.kind === "brightness"
                             readonly property bool isMic: modelData.kind === "mic"
                             readonly property bool isNight: modelData.kind === "night"
+                            readonly property bool isLamp: modelData.kind === "lamp"
                             readonly property bool isPower: modelData.kind === "power"
                             readonly property bool isQr: modelData.kind === "qr"
-                            readonly property bool isCard: isWeather || isVolume || isBrightness || isMic || isNight || isPower || isQr
+                            readonly property bool isCard: isWeather || isVolume || isBrightness || isMic || isNight || isLamp || isPower || isQr
                             readonly property bool isClipImage: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
                             width: resultList.width
-                            height: isHeader ? root.headerH : (isWeather ? root.weatherH : (isPower ? root.powerH : (isQr ? root.qrH : ((isVolume || isBrightness || isMic || isNight) ? root.volumeH : root.rowH))))
+                            height: isHeader ? root.headerH : (isWeather ? root.weatherH : (isPower ? root.powerH : (isQr ? root.qrH : ((isVolume || isBrightness || isMic || isNight || isLamp) ? root.volumeH : root.rowH))))
                             Text {
                                 visible: isHeader
                                 anchors.left: parent.left; anchors.leftMargin: 16; anchors.bottom: parent.bottom; anchors.bottomMargin: 2
@@ -6533,6 +6599,29 @@ else:
                                 hint: "Night light  \u00B7  \u2190 \u2192 cooler / warmer  \u00B7  click the moon to turn on or off"
                                 onLevelChosen: (value) => root.nightSet(value)
                                 onMuteToggled: root.nightToggle()
+                            }
+                            SpotlightVolumeCard {
+                                visible: isLamp
+                                anchors.fill: parent
+                                anchors.leftMargin: 6; anchors.rightMargin: 6
+                                anchors.topMargin: 2; anchors.bottomMargin: 6
+                                level: root.lampLevel
+                                isMuted: !root.lampOn
+                                dimmed: root.lampError !== "" && !root.lampKnown
+                                valueText: root.lampOn ? (Math.round(root.lampLevel * 100) + "%") : "Off"
+                                fontFamily: root.fontDisplay
+                                fg: root.sFg
+                                dim: root.sFgDim
+                                accent: "#FFD60A"
+                                panel: root.white06
+                                panelBorder: root.white10
+                                speakerPath: root.cmdGlyphPaths["bulb"]
+                                hint: root.lampError !== "" && !root.lampKnown
+                                      ? ("Luz sem resposta  \u00B7  " + root.lampError)
+                                      : "Luz do quarto  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps  \u00B7  click the bulb to turn on or off"
+                                onLevelChosen: (value) => root.lampSet(value)
+                                onMuteToggled: root.lampToggle()
+                                onDraggingChanged: root.lampDragging = dragging
                             }
                             SpotlightPowerCard {
                                 visible: isPower
@@ -7736,6 +7825,43 @@ else:
         id: _micApply
         interval: 60; repeat: false
         onTriggered: spotlightController.run("wpctl set-mute @DEFAULT_AUDIO_SOURCE@ 0; wpctl set-volume @DEFAULT_AUDIO_SOURCE@ " + Math.round(root.micLevel * 100) + "%")
+    }
+
+    // ---- Bedroom light: read the state while the card is up, write the brightness debounced
+    Process {
+        id: _lampGet; running: false
+        command: ["python3", root.lampScript, "state", "--quiet"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const st = JSON.parse(text.trim().split("\n").pop());
+                    root.lampKnown = true;
+                    root.lampError = "";
+                    if (root.lampDragging || Date.now() < root._lampHold) return;
+                    root.lampOn = !!st.on;
+                    root.lampLevel = Math.max(0.01, Math.min(1, st.brightness / 100));
+                } catch (e) {
+                    root.lampKnown = false;
+                }
+            }
+        }
+        stderr: StdioCollector {
+            onStreamFinished: {
+                const t = text.trim().split("\n").pop();
+                if (t) root.lampError = t.length > 70 ? t.slice(0, 70) + "\u2026" : t;
+            }
+        }
+    }
+    Timer {
+        id: _lampPoll
+        interval: 6000; repeat: true; triggeredOnStart: true
+        running: root._shown && root.lampCardShown
+        onTriggered: { if (!_lampGet.running) _lampGet.running = true; }
+    }
+    Timer {
+        id: _lampApply
+        interval: 300; repeat: false
+        onTriggered: spotlightController.run("python3 \"" + root.lampScript + "\" brightness " + root._lampTarget + " --quiet")
     }
 
     // ---- Night light: state comes from the Hyprsunset service, the temperature goes into the shell config

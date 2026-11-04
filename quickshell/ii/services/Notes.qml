@@ -69,6 +69,7 @@ Singleton {
                 root.list = []
                 notesFileView.setText(JSON.stringify(root.list))
             }
+            console.log("[Notes] File loaded")
         }
         onLoadFailed: (error) => {
             if (error == FileViewError.FileNotFound) {

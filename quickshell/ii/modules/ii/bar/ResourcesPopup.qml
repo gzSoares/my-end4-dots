@@ -91,7 +91,7 @@ StyledPopup {
                 StyledPopupValueRow {
                     icon: "bolt"
                     label: Translation.tr("Load:")
-                    value: ` (${Math.round(ResourceUsage.cpuUsage * 100)}%`
+                    value: ` ${Math.round(ResourceUsage.cpuUsage * 100)}%`
                 }
 
                 StyledPopupValueRow {

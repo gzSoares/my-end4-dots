@@ -7,6 +7,8 @@ ColumnLayout {
     id: root
     property string title: ""
     property string tooltip: ""
+    // A small symbol before the title, when one is given.
+    property string icon: ""
     default property alias contentData: sectionContent.data
 
     Layout.fillWidth: true
@@ -14,6 +16,13 @@ ColumnLayout {
     spacing: 2
 
     RowLayout {
+        spacing: 6
+        MaterialSymbol {
+            visible: root.icon !== ""
+            text: root.icon
+            iconSize: Appearance.font.pixelSize.large
+            color: Appearance.colors.colSubtext
+        }
         ContentSubsectionLabel {
             visible: root.title && root.title.length > 0
             text: root.title

@@ -189,11 +189,11 @@ hl.config({
 
         blur = {
             enabled = true,
-            xray = true,
+            xray = false,
             special = false,
             new_optimizations = true,
-            size = 10,
-            passes = 3,
+            size = 3,
+            passes = 1,
             noise = 0,
             contrast = 0.89,
             vibrancy = 0.5,
@@ -205,14 +205,14 @@ hl.config({
         },
         shadow = {
             enabled = true,
-            range = 20,
-            offset = {0, 2},
-            render_power = 4,
-            color = "rgba(00000020)"
+            range = 6,
+            offset = {0, 0},
+            render_power = 3,
+            color = "rgba(00000021)"
         },
         -- Dim
         dim_inactive = true,
-        dim_strength = 0.05,
+        dim_strength = 0.16,
         dim_special = 0.2,
         inactive_opacity = 1,
         active_opacity = 1

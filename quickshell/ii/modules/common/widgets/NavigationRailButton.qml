@@ -14,6 +14,14 @@ TabButton {
     property string buttonText
     property bool expanded: false
     property bool showToggledHighlight: true
+    // Colours a host can pick; the defaults are the ones this button always had.
+    property color colBackgroundHover: Appearance.colors.colLayer1Hover
+    property color colBackgroundActive: Appearance.colors.colLayer1Active
+    property color colBackgroundToggledActive: Appearance.colors.colSecondaryContainerActive
+    // This button draws no ripple; accepted so a host written for one that does still loads.
+    property color colRipple: Appearance.colors.colLayer1Active
+    property color colRippleToggled: Appearance.colors.colSecondaryContainerActive
+    property color colText: Appearance.colors.colOnLayer1
     readonly property real visualWidth: root.expanded ? root.baseSize + 20 + itemText.implicitWidth : root.baseSize
 
     property real baseSize: 56
@@ -52,9 +60,9 @@ TabButton {
             radius: Appearance.rounding.full
             color: toggled ? 
                 root.showToggledHighlight ?
-                    (root.down ? Appearance.colors.colSecondaryContainerActive : root.hovered ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colSecondaryContainer)
+                    (root.down ? root.colBackgroundToggledActive : root.hovered ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colSecondaryContainer)
                     : ColorUtils.transparentize(Appearance.colors.colSecondaryContainer) :
-                (root.down ? Appearance.colors.colLayer1Active : root.hovered ? Appearance.colors.colLayer1Hover : ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1))
+                (root.down ? root.colBackgroundActive : root.hovered ? root.colBackgroundHover : ColorUtils.transparentize(root.colBackgroundHover, 1))
 
             states: State {
                 name: "expanded"
@@ -106,7 +114,7 @@ TabButton {
                 fill: toggled ? 1 : 0
                 font.weight: (toggled || root.hovered) ? Font.DemiBold : Font.Normal
                 text: buttonIcon
-                color: toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer1
+                color: toggled ? Appearance.m3colors.m3onSecondaryContainer : root.colText
 
                 Behavior on color {
                     animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -143,7 +151,7 @@ TabButton {
             }
             text: buttonText
             font.pixelSize: 14
-            color: Appearance.colors.colOnLayer1
+            color: root.colText
         }
     }
 

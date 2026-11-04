@@ -13,6 +13,19 @@ Item {
     implicitHeight: Appearance.sizes.baseBarHeight
 
     readonly property Item popupAnchorItem: root
+    readonly property real clockSize: {
+        const s = Config.options.bar.clock.fontSize
+        return s >= 0 ? s : Appearance.font.pixelSize.large
+    }
+    readonly property bool clockBold: Config.options.bar.clock.bold
+    readonly property string separatorText: {
+        switch (Config.options.bar.clock.separator) {
+        case "bar": return "|"
+        case "dash": return "–"
+        case "none": return ""
+        default: return "•"
+        }
+    }
 
     RowLayout {
         id: rowLayout
@@ -20,17 +33,18 @@ Item {
         spacing: 4
 
         StyledText {
-            font.pixelSize: Appearance.font.pixelSize.large
+            font.pixelSize: root.clockSize
+            font.weight: root.clockBold ? Font.DemiBold : Font.Normal
             font.features: { "tnum": 1 }
             color: Appearance.colors.colOnLayer1
             text: DateTime.time
         }
 
         StyledText {
-            visible: root.showDate
+            visible: root.showDate && root.separatorText !== ""
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colOnLayer1
-            text: "•"
+            text: root.separatorText
         }
 
         StyledText {

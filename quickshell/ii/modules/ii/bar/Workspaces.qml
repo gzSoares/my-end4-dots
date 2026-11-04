@@ -25,7 +25,14 @@ ButtonMouseArea {
     property bool vertical: Config.options.bar.vertical
     property bool superPressAndHeld: false // Relevant modifications at bottom of file
 
-    property real workspaceButtonWidth: 26
+    property real workspaceButtonWidth: {
+        const s = Config.options.bar.workspaces.buttonSize
+        return s >= 16 ? s : 26
+    }
+    // "pill" fills the active button; the other two mark it from below and leave the
+    // number or icon in its own colour.
+    readonly property string indicatorStyle: Config.options.bar.workspaces.indicatorStyle
+    readonly property bool slimIndicator: indicatorStyle === "underline" || indicatorStyle === "dot"
     property real activeWorkspaceMargin: 2
     property real activeWorkspaceSize: workspaceButtonWidth - activeWorkspaceMargin * 2
     property real workspaceIconSize: workspaceButtonWidth * (Config.options.bar.workspaces.circleAppIcons ? 0.69 : 0.57)
@@ -231,6 +238,7 @@ ButtonMouseArea {
         TrailingIndicator {
             id: interactionIndicator
             z: 3
+            forcePill: true
             index: root.containsMouse ? root.hoverIndex : root.workspaceIndexInGroup
             color: "transparent"
             StateOverlay {
@@ -258,6 +266,7 @@ ButtonMouseArea {
         Colorizer {
             z: 5
             anchors.fill: numbersGrid
+            visible: !root.slimIndicator
             colorizationColor: Appearance.colors.colOnPrimary
             sourceColor: Appearance.colors.colOnSecondaryContainer
 
@@ -506,6 +515,9 @@ ButtonMouseArea {
         id: trailingIndicator
         anchors.fill: parent
         required property int index
+        // The hover highlight stays a button-sized pill whatever the active marker is.
+        property bool forcePill: false
+        readonly property bool slim: root.slimIndicator && !forcePill
         property alias indicatorRectangle: indicatorRect
         property alias color: indicatorRect.color
 
@@ -520,11 +532,21 @@ ButtonMouseArea {
             anchors {
                 verticalCenter: root.vertical ? undefined : parent.verticalCenter
                 horizontalCenter: root.vertical ? parent.horizontalCenter : undefined
+                // The slim markers sit on the lower edge of the button (the inner
+                // edge, on a vertical bar).
+                verticalCenterOffset: (!root.vertical && trailingIndicator.slim) ? (root.activeWorkspaceSize - indicatorThickness) / 2 : 0
+                horizontalCenterOffset: (root.vertical && trailingIndicator.slim) ? (root.activeWorkspaceSize - indicatorThickness) / 2 : 0
             }
 
-            property real indicatorPosition: Math.min(idxPair.idx1, idxPair.idx2) * root.workspaceButtonWidth + root.activeWorkspaceMargin
-            property real indicatorLength: Math.abs(idxPair.idx1 - idxPair.idx2) * root.workspaceButtonWidth + root.activeWorkspaceSize
-            property real indicatorThickness: root.activeWorkspaceSize
+            // Along the bar: a dot is as long as it is thick; an underline spans the
+            // button less a margin. Either way it still stretches across the
+            // workspaces it travels between.
+            readonly property real slimLength: root.indicatorStyle === "dot" ? indicatorThickness : root.workspaceButtonWidth - 10
+            property real indicatorPosition: Math.min(idxPair.idx1, idxPair.idx2) * root.workspaceButtonWidth
+                + (trailingIndicator.slim ? (root.workspaceButtonWidth - slimLength) / 2 : root.activeWorkspaceMargin)
+            property real indicatorLength: Math.abs(idxPair.idx1 - idxPair.idx2) * root.workspaceButtonWidth
+                + (trailingIndicator.slim ? slimLength : root.activeWorkspaceSize)
+            property real indicatorThickness: trailingIndicator.slim ? (root.indicatorStyle === "dot" ? 6 : 3) : root.activeWorkspaceSize
 
             contentLayer: StyledRectangle.ContentLayer.Group
             radius: indicatorThickness / 2

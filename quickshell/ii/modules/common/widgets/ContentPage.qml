@@ -8,6 +8,9 @@ StyledFlickable {
     property real baseWidth: 600
     property bool forceWidth: false
     property real bottomContentPadding: 100
+    // The gap between the sections of the page. Bare sections want room around
+    // them; a page of cards can ask for less.
+    property real sectionSpacing: 30
 
     default property alias contentData: contentColumn.data
 
@@ -38,7 +41,7 @@ StyledFlickable {
             horizontalCenter: parent.horizontalCenter
             margins: 20
         }
-        spacing: 30
+        spacing: root.sectionSpacing
     }
 
 }

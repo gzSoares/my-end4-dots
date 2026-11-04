@@ -176,6 +176,7 @@ Item {
             name: "tool",
             description: Translation.tr("Set the tool to use for the model."),
             execute: args => {
+                // console.log(args)
                 if (args.length == 0 || args[0] == "get") {
                     Ai.addMessage(Translation.tr("Usage: %1tool TOOL_NAME").arg(root.commandPrefix), Ai.interfaceRole);
                 } else {
@@ -297,6 +298,7 @@ Item {
             name: "temp",
             description: Translation.tr("Set sampling temperature (0-1). Note: Gemini 3 series and CLI models use default sampling; adjust thinking level with /think instead."),
             execute: args => {
+                // console.log(args)
                 if (args.length == 0 || args[0] == "get") {
                     Ai.printTemperature();
                 } else {

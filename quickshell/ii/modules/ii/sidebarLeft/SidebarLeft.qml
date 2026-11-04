@@ -184,9 +184,38 @@ Scope { // Scope
                 bottom: true
             }
 
+            // The embedded phone mirror's cut-out: a real scrcpy window sits
+            // exactly here with the panel painting its picture on top, so a
+            // click has to fall through to it rather than stop at this
+            // surface. Empty unless that page is open and settled.
+            Region {
+                id: pointerHoleRegion
+                intersection: Intersection.Subtract
+                x: GlobalStates.sidebarLeftPointerHole.x
+                y: GlobalStates.sidebarLeftPointerHole.y
+                width: GlobalStates.sidebarLeftPointerHole.width
+                height: GlobalStates.sidebarLeftPointerHole.height
+            }
+
             mask: Region {
                 item: sidebarLeftBackground
+                regions: GlobalStates.sidebarLeftPointerHoleActive ? [pointerHoleRegion] : []
             }
+
+            // Published so the phone mirror can put its scrcpy window exactly
+            // under the cut-out: the layer surface's own position accounts
+            // for the bar's exclusive zone, which nothing in QML does.
+            function publishSurface() {
+                const live = panelWindow.visible;
+                GlobalStates.sidebarLeftSurfaceNamespace = live ? panelWindow.WlrLayershell.namespace : "";
+                GlobalStates.sidebarLeftSurfaceScreen = live ? (panelWindow.screen?.name ?? "") : "";
+            }
+            Component.onCompleted: panelWindow.publishSurface()
+            Component.onDestruction: {
+                GlobalStates.sidebarLeftSurfaceNamespace = "";
+                GlobalStates.sidebarLeftSurfaceScreen = "";
+            }
+            onScreenChanged: panelWindow.publishSurface()
 
             // Pinned, the sidebar stays up while the desktop is used: it
             // leaves the shared focus grab, so a click on a window goes to that
@@ -194,12 +223,16 @@ Scope { // Scope
             // the click there and back. Unpinned, it closes on a click outside
             // again. Super+A and Escape still close it either way.
             function syncFocusGrab() {
-                if (panelWindow.visible && !root.pin)
+                // A focus grab keeps every pointer event on its own surfaces,
+                // so with the phone cut-out open it is left off: the pointer
+                // could not reach the phone underneath it at all.
+                if (panelWindow.visible && !root.pin && !GlobalStates.sidebarLeftPointerHoleActive)
                     GlobalFocusGrab.addDismissable(panelWindow);
                 else
                     GlobalFocusGrab.removeDismissable(panelWindow);
             }
             onVisibleChanged: {
+                panelWindow.publishSurface();
                 panelWindow.syncFocusGrab();
                 if (root.pin) HyprlandData.refreshSoon();
             }
@@ -212,8 +245,20 @@ Scope { // Scope
             Connections {
                 target: GlobalFocusGrab
                 function onDismissed() {
-                    if (!root.pin)
+                    // Something the sidebar opened has the focus; it is
+                    // taken back below once that is done with.
+                    if (!root.pin && GlobalStates.sidebarLeftHoldOpen <= 0)
                         panelWindow.hide();
+                }
+            }
+            Connections {
+                target: GlobalStates
+                function onSidebarLeftPointerHoleActiveChanged() {
+                    panelWindow.syncFocusGrab();
+                }
+                function onSidebarLeftHoldOpenChanged() {
+                    if (GlobalStates.sidebarLeftHoldOpen <= 0)
+                        panelWindow.syncFocusGrab();
                 }
             }
 

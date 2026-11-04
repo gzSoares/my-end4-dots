@@ -14,3 +14,5 @@
 -- BEGIN keyboard-layouts (managed by Settings)
 hl.config({ input = { kb_layout = "br", kb_variant = "" } })
 -- END keyboard-layouts
+
+hl.config({ decoration = { blur = { size = 14, passes = 3 } } })

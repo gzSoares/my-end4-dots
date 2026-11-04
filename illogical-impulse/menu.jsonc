@@ -1,0 +1,59 @@
+[
+  {
+    "label": "Power",
+    "icon": "power_settings_new",
+    "keywords": "session energy",
+    "children": [
+      { "label": "Lock", "icon": "lock", "command": "loginctl lock-session" },
+      { "label": "Suspend", "icon": "bedtime", "keywords": "sleep", "command": ["systemctl", "suspend"] },
+      { "label": "Log out", "icon": "logout", "keywords": "exit", "command": ["hyprctl", "dispatch", "exit"], "confirm": true },
+      { "label": "Restart", "icon": "restart_alt", "keywords": "reboot", "command": ["systemctl", "reboot"], "confirm": true },
+      { "label": "Shut down", "icon": "mode_off_on", "keywords": "poweroff", "command": ["systemctl", "poweroff"], "confirm": true }
+    ]
+  },
+  {
+    "label": "Capture",
+    "icon": "screenshot_region",
+    "keywords": "screenshot print",
+    "children": [
+      {
+        "label": "Region to clipboard",
+        "icon": "content_copy",
+        "command": "grim -g \"$(slurp)\" - | wl-copy"
+      },
+      {
+        "label": "Region to file",
+        "icon": "save",
+        "command": "mkdir -p ~/Pictures/Screenshots && grim -g \"$(slurp)\" ~/Pictures/Screenshots/$(date +%F_%H-%M-%S).png"
+      }
+    ]
+  },
+  {
+    "label": "Network",
+    "icon": "lan",
+    "children": [
+      { "label": "Wi-Fi on", "icon": "wifi", "command": ["nmcli", "radio", "wifi", "on"] },
+      { "label": "Wi-Fi off", "icon": "wifi_off", "command": ["nmcli", "radio", "wifi", "off"] },
+      { "label": "Bluetooth on", "icon": "bluetooth", "command": ["bluetoothctl", "power", "on"] },
+      { "label": "Bluetooth off", "icon": "bluetooth_disabled", "command": ["bluetoothctl", "power", "off"] },
+      { "label": "Connection editor", "icon": "settings_ethernet", "command": "nm-connection-editor" }
+    ]
+  },
+  {
+    "label": "Audio",
+    "icon": "volume_up",
+    "children": [
+      { "label": "Toggle mute", "icon": "volume_off", "command": ["wpctl", "set-mute", "@DEFAULT_AUDIO_SINK@", "toggle"] },
+      { "label": "Mixer", "icon": "tune", "command": "pavucontrol" }
+    ]
+  },
+  {
+    "label": "System",
+    "icon": "settings",
+    "children": [
+      { "label": "System monitor", "icon": "monitor_heart", "keywords": "btop task manager", "command": "kitty -e btop" },
+      { "label": "Reload Hyprland", "icon": "refresh", "command": ["hyprctl", "reload"] },
+      { "label": "File manager", "icon": "folder_open", "keywords": "dolphin files", "command": "dolphin" }
+    ]
+  }
+]

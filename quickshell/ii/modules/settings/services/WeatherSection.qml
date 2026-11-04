@@ -12,7 +12,7 @@ import qs.modules.common.widgets
  * process, and touching one would have it look the machine's position up every
  * time the page is opened.
  */
-ContentSection {
+CardSection {
     id: root
     icon: "cloud"
     title: Translation.tr("Weather")

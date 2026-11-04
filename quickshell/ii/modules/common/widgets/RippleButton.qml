@@ -16,6 +16,70 @@ Button {
     property real buttonRadius: Appearance?.rounding?.small ?? 4
     property real buttonRadiusPressed: buttonRadius
     property real buttonEffectiveRadius: root.down ? root.buttonRadiusPressed : root.buttonRadius
+    readonly property bool isPressed: root.down
+
+    // Connected button groups (the phone's action row): each segment is round
+    // on the outside, tight where it joins its neighbour, and a pressed
+    // segment, with the joins facing it, swells to a pill. Off by default, in
+    // which case all four corners are just the button's own radius.
+    property bool useDynamicRadius: false
+    // Which way a group runs, when the parent's type cannot say.
+    property var groupHorizontal: undefined
+    // Filled in once per container by GroupLayout.js; see GroupPosition.qml.
+    property GroupPosition groupPosition: null
+    readonly property bool groupSettled: groupPosition?.settled ?? false
+    readonly property bool isFirst: useDynamicRadius ? (groupPosition?.isFirst ?? true) : false
+    readonly property bool isLast: useDynamicRadius ? (groupPosition?.isLast ?? true) : false
+    readonly property bool prevIsPressed: useDynamicRadius && (groupPosition?.previousPressed ?? false)
+    readonly property bool nextIsPressed: useDynamicRadius && (groupPosition?.nextPressed ?? false)
+
+    function ensureGroupPosition() {
+        if (root.useDynamicRadius && !root.groupPosition)
+            root.groupPosition = groupPositionComponent.createObject(root, { item: root });
+    }
+    onUseDynamicRadiusChanged: root.ensureGroupPosition()
+    Component.onCompleted: root.ensureGroupPosition()
+    Component {
+        id: groupPositionComponent
+        GroupPosition {
+            enabled: root.useDynamicRadius
+        }
+    }
+
+    readonly property bool isHorizontalLayout: {
+        if (root.groupHorizontal !== undefined)
+            return root.groupHorizontal === true;
+        var p = parent;
+        if (!p)
+            return false;
+        var pStr = p.toString();
+        return (pStr.indexOf("RowLayout") !== -1 || pStr.indexOf("Row") !== -1) && pStr.indexOf("Column") === -1;
+    }
+    readonly property real rFull: useDynamicRadius ? Math.min(height / 2, Appearance?.rounding?.large ?? 23) : buttonEffectiveRadius
+    readonly property real rOuter: Appearance?.rounding?.large ?? 23
+    readonly property real rInner: Appearance?.rounding?.verysmall ?? 4
+
+    property real topLeftRadius: useDynamicRadius ? ((isPressed || prevIsPressed) ? rFull : (isFirst ? rOuter : rInner)) : buttonEffectiveRadius
+    property real topRightRadius: useDynamicRadius ? ((isPressed || prevIsPressed) ? rFull : (isHorizontalLayout ? (isLast ? rOuter : rInner) : (isFirst ? rOuter : rInner))) : buttonEffectiveRadius
+    property real bottomLeftRadius: useDynamicRadius ? ((isPressed || nextIsPressed) ? rFull : (isHorizontalLayout ? (isFirst ? rOuter : rInner) : (isLast ? rOuter : rInner))) : buttonEffectiveRadius
+    property real bottomRightRadius: useDynamicRadius ? ((isPressed || nextIsPressed) ? rFull : (isLast ? rOuter : rInner)) : buttonEffectiveRadius
+
+    Behavior on topLeftRadius {
+        enabled: root.useDynamicRadius && root.groupSettled
+        animation: Appearance?.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+    Behavior on topRightRadius {
+        enabled: root.useDynamicRadius && root.groupSettled
+        animation: Appearance?.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+    Behavior on bottomLeftRadius {
+        enabled: root.useDynamicRadius && root.groupSettled
+        animation: Appearance?.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
+    Behavior on bottomRightRadius {
+        enabled: root.useDynamicRadius && root.groupSettled
+        animation: Appearance?.animation.elementMoveFast.numberAnimation.createObject(this)
+    }
     property int rippleDuration: 1200
     property bool rippleEnabled: true
     property var downAction // When left clicking (down)
@@ -27,6 +91,8 @@ Button {
     property color colBackgroundHover: Appearance?.colors.colLayer1Hover ?? "#E5DFED"
     property color colBackgroundToggled: Appearance?.colors.colPrimary ?? "#65558F"
     property color colBackgroundToggledHover: Appearance?.colors.colPrimaryHover ?? "#77699C"
+    // While held down. Follows the hover colour unless a button sets its own.
+    property color colBackgroundActive: colBackgroundHover
     property color colRipple: Appearance?.colors.colLayer1Active ?? "#D6CEE2"
     property color colRippleToggled: Appearance?.colors.colPrimaryActive ?? "#D6CEE2"
 
@@ -34,8 +100,9 @@ Button {
     property color buttonColor: ColorUtils.transparentize(root.toggled ? 
         (root.hovered ? colBackgroundToggledHover : 
             colBackgroundToggled) :
-        (root.hovered ? colBackgroundHover : 
-            colBackground), root.enabled ? 0 : 1)
+        (root.down ? colBackgroundActive :
+            (root.hovered ? colBackgroundHover : 
+                colBackground)), root.enabled ? 0 : 1)
     property color rippleColor: root.toggled ? colRippleToggled : colRipple
 
     function cancelRipple() { rippleFadeAnim.restart(); }
@@ -142,6 +209,10 @@ Button {
     background: Rectangle {
         id: buttonBackground
         radius: root.buttonEffectiveRadius
+        topLeftRadius: root.topLeftRadius
+        topRightRadius: root.topRightRadius
+        bottomLeftRadius: root.bottomLeftRadius
+        bottomRightRadius: root.bottomRightRadius
         implicitHeight: 30
 
         color: root.buttonColor
@@ -155,6 +226,10 @@ Button {
                 width: buttonBackground.width
                 height: buttonBackground.height
                 radius: root.buttonEffectiveRadius
+                topLeftRadius: root.topLeftRadius
+                topRightRadius: root.topRightRadius
+                bottomLeftRadius: root.bottomLeftRadius
+                bottomRightRadius: root.bottomRightRadius
             }
         }
 

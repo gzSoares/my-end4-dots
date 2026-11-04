@@ -70,6 +70,8 @@ Singleton {
     }
 
     function fetchKeyringData(afterUnlock = false) {
+        // console.log("[KeyringStorage] Fetching keyring data...");
+        // console.log("[KeyringStorage] getData command:'" + getData.command.join("' '") + "'");
         // A lookup asked for while one runs would run again after it, with a second
         // unlock prompt. Right after an unlock it runs again, since the keyring is open.
         if (getData.running && !afterUnlock) return;
@@ -98,6 +100,7 @@ Singleton {
         ]
         onRunningChanged: {
             if (saveData.running) {
+                // console.log("[KeyringStorage] Saving with command: '" + saveData.command.join("' '") + "'");
                 saveData.write(JSON.stringify(root.keyringData));
                 root.dataChanged()
                 stdinEnabled = false // End input stream
@@ -126,6 +129,7 @@ Singleton {
                 if (data.length === 0 || !data.startsWith("{")) return;
                 try {
                     root.keyringData = JSON.parse(data);
+                    // console.log("[KeyringStorage] Keyring data fetched:", JSON.stringify(root.keyringData));
                 } catch (e) {
                     console.error("[KeyringStorage] Failed to get keyring data, reinitializing.");
                     root.keyringData = {};
@@ -134,6 +138,7 @@ Singleton {
             }
         }
         onExited: (exitCode, exitStatus) => {
+            // console.log("[KeyringStorage] Keyring data fetch process exited with code:", exitCode);
             if (exitCode === 1) {
                 console.error("[KeyringStorage] Entry not found, initializing.");
                 root.keyringData = {};

@@ -13,6 +13,7 @@ RowLayout {
     property string text: ""
     property string buttonIcon: ""
     property alias value: slider.value
+    property alias stepSize: slider.stepSize
     property alias stopIndicatorValues: slider.stopIndicatorValues
     property bool usePercentTooltip: true
     property real from: slider.from
@@ -24,6 +25,9 @@ RowLayout {
     // whose label needs the room is better served by a shorter track than by a
     // label written over it.
     property real sliderWidth: 0
+    // What the track is currently set to, as the reader should see it ("10 px",
+    // "50%"). Empty draws nothing, so every row that doesn't ask looks as before.
+    property string valueText: ""
 
     // StyledToolTip reads `hovered` off its parent and counts a parent that has
     // no such property as hovered, so a row without this shows its tooltip for
@@ -67,5 +71,14 @@ RowLayout {
         onMoved: root.moved()
         Layout.fillWidth: root.sliderWidth <= 0
         Layout.preferredWidth: root.sliderWidth > 0 ? root.sliderWidth : -1
+    }
+
+    StyledText {
+        visible: root.valueText !== ""
+        Layout.preferredWidth: 48
+        horizontalAlignment: Text.AlignRight
+        text: root.valueText
+        font.pixelSize: Appearance.font.pixelSize.small
+        color: Appearance.colors.colSubtext
     }
 }

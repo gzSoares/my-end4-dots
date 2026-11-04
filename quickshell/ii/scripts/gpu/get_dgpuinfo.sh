@@ -5,6 +5,14 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# dGPU NVIDIA suspensa: não chamar nvidia-smi (acordaria a placa e impediria o
+# runtime PM). O script da NVIDIA devolve um JSON "ocioso" para o shell seguir
+# considerando a GPU disponível (devolver {} a esconderia até reiniciar o shell).
+source "$SCRIPT_DIR/nvidia_power.sh"
+if nvidia_all_suspended; then
+  exec "$SCRIPT_DIR/get_nvidia_dgpu.sh"
+fi
+
 # Check for NVIDIA dGPU (nvidia-smi is the easiest indicator)
 if command -v nvidia-smi &> /dev/null; then
   # Verify it actually has a GPU

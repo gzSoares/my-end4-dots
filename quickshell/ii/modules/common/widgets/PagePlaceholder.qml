@@ -7,6 +7,8 @@ Item {
     id: root
 
     property bool shown: true
+    // Accepted for callers written against a version that animated the icon in.
+    property bool animateIconOnShow: false
     property alias icon: shapeWidget.text
     property alias title: widgetNameText.text
     property alias description: widgetDescriptionText.text

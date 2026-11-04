@@ -944,7 +944,7 @@ Singleton {
         property color colBarBackgroundBorder: surfaceBorder(root.barStripContent.colOutlineVariant, colBarBackground)
         // The shadow the same way: a slab of shade around a strip that has
         // faded from sight reads as a decoration around nothing.
-        property color colBarShadow: ColorUtils.applyAlpha(colShadow, colShadow.a * colBarBackground.a)
+        property color colBarShadow: ColorUtils.applyAlpha(colShadow, colShadow.a * colBarBackground.a * (Config.options?.bar.shadowStrength ?? 1))
         // The blur floor these surfaces are given in hypr/hyprland/rules.lua.
         // Kept here so a transparency slider can tell where its surface stops
         // being frosted. The two have to be changed together.

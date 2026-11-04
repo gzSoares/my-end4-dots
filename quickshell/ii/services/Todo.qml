@@ -229,6 +229,7 @@ Singleton {
         onLoaded: {
             const fileContents = todoFileView.text()
             root.localList = JSON.parse(fileContents)
+            console.log("[To Do] File loaded")
         }
         onLoadFailed: (error) => {
             if(error == FileViewError.FileNotFound) {

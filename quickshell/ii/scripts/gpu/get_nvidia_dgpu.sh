@@ -10,17 +10,19 @@ if ! command -v nvidia-smi &> /dev/null; then
   exit 0
 fi
 
-# Check if GPU is suspended/powered off
-# Note: nvidia-smi will fail if GPU is in D3cold (and querying would wake a
-# runtime-suspended card), so check the NVIDIA card's power state first.
-for dev in /sys/class/drm/card[0-9]*/device; do
-  [[ "$(cat "$dev/vendor" 2>/dev/null)" == "0x10de" ]] || continue
-  state=$(cat "$dev/power_state" 2>/dev/null || echo "unknown")
-  if [[ "$state" == "d3cold" ]]; then
-    echo '{}'
-    exit 0
-  fi
-done
+# Se a GPU está suspensa (runtime PM), não consultar o nvidia-smi: isso a
+# acordaria. Devolve um JSON "ocioso" (e não {}) para o shell continuar
+# considerando a GPU disponível quando ela voltar a ser usada.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "$SCRIPT_DIR/nvidia_power.sh"
+NAME_CACHE="${XDG_RUNTIME_DIR:-/tmp}/qs-nvidia-gpu-name"
+if nvidia_all_suspended; then
+  idle_name="$(cat "$NAME_CACHE" 2>/dev/null || true)"
+  idle_name="${idle_name:-NVIDIA GPU}"
+  idle_name="${idle_name//\"/\\\"}"
+  printf '{"vendor": "nvidia", "name": "%s", "usagePercent": 0, "vramUsedGB": 0.0, "vramTotalGB": 0.0, "vramPercent": 0, "tempEdgeC": null, "tempJunctionC": null, "tempMemC": null, "fanRpm": null, "fanPercent": null, "powerW": null, "powerLimitW": null}\n' "$idle_name"
+  exit 0
+fi
 
 # Query all GPU info in one call. nvidia-smi prints its failure text to
 # stdout, so gate on the exit code rather than the output.
@@ -40,6 +42,7 @@ IFS=',' read -r gpu_name gpu_usage vram_used_mib vram_total_mib temperature powe
 # Fields report "[N/A]"/"[Not Supported]" on some cards — map non-numeric values
 num_or() { local v="${1//[[:space:]]/}"; [[ "$v" =~ ^[0-9.]+$ ]] && echo "$v" || echo "$2"; }
 gpu_name="${gpu_name:-NVIDIA GPU}"
+printf '%s' "$gpu_name" > "$NAME_CACHE" 2>/dev/null || true
 gpu_usage=$(num_or "${gpu_usage:-}" 0)
 vram_used_mib=$(num_or "${vram_used_mib:-}" 0)
 vram_total_mib=$(num_or "${vram_total_mib:-}" 0)

@@ -1,6 +1,11 @@
 [config]
 version_check = false
 
+# Hook to recolor Colloid folder icons after matugen generates colors
+hooks = [
+    "~/.local/bin/recolor-colloid-folders"
+]
+
 [templates.m3colors]
 input_path = '~/.config/matugen/templates/colors.json'
 output_path = '~/.local/state/quickshell/user/generated/colors.json'
@@ -32,3 +37,15 @@ output_path = '~/.local/state/quickshell/user/generated/color.txt'
 [templates.wallpaper]
 input_path = '~/.config/matugen/templates/wallpaper.txt'
 output_path = '~/.local/state/quickshell/user/generated/wallpaper/path.txt'
+
+[templates.agenda]
+input_path = '~/.config/matugen/templates/agenda.json'
+output_path = '~/.cache/matugen/agenda.json'
+
+
+# Tints the macOS folder icons in MacOS-Like-{Light,Dark} with the current palette.
+# The post-hook reads this template's own output, so the colour is always fresh.
+[templates.folder_icons]
+input_path = '~/.config/matugen/templates/folder-icons/tint.txt'
+output_path = '~/.local/state/folder-icons/tint.txt'
+post_hook = 'python3 ~/.config/matugen/post-hook-scripts/recolor_folders.py'

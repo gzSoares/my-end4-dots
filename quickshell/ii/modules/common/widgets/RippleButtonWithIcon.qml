@@ -18,7 +18,7 @@ RippleButton {
             visible: text !== ""
             text: buttonWithIconRoot.mainText
             font.pixelSize: Appearance.font.pixelSize.small
-            color: Appearance.colors.colOnSecondaryContainer
+            color: buttonWithIconRoot.colText
             elide: Text.ElideRight
         }
     }
@@ -26,6 +26,8 @@ RippleButton {
     // leaves a narrow one looking lopsided. Opting in per button keeps every
     // existing one exactly where it is.
     property bool centerContent: false
+    // The colour of the icon and label; the stock one unless a button picks.
+    property color colText: Appearance.colors.colOnSecondaryContainer
 
     implicitHeight: 35
     horizontalPadding: 10
@@ -63,7 +65,7 @@ RippleButton {
                     sourceComponent: MaterialSymbol {
                         text: buttonWithIconRoot.materialIcon
                         iconSize: Appearance.font.pixelSize.larger
-                        color: Appearance.colors.colOnSecondaryContainer
+                        color: buttonWithIconRoot.colText
                         fill: buttonWithIconRoot.materialIconFill ? 1 : 0
                     }
                 }
@@ -75,7 +77,7 @@ RippleButton {
                         text: buttonWithIconRoot.nerdIcon
                         font.pixelSize: Appearance.font.pixelSize.larger
                         font.family: Appearance.font.family.iconNerd
-                        color: Appearance.colors.colOnSecondaryContainer
+                        color: buttonWithIconRoot.colText
                     }
                 }
             }

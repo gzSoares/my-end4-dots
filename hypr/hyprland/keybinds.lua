@@ -247,6 +247,8 @@ hl.bind("SUPER + Space", hl.dsp.exec_cmd("qs -c ii ipc call spotlight toggle"))
 hl.bind("SUPER + O", function()
     if hl.plugin and hl.plugin.scrolloverview and hl.plugin.scrolloverview.overview then
         hl.plugin.scrolloverview.overview("toggle")
+    else
+        hl.exec_cmd("notify-send 'scrolloverview' 'Plugin nao carregado ou API mudou' -a Hyprland")
     end
 end, {description = "Toggle Scrolling overview"})
 

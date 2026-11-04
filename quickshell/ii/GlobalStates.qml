@@ -43,6 +43,8 @@ Singleton {
     property real barFloatMinPercent: 40
     property bool crosshairOpen: false
     property bool sidebarLeftOpen: false
+    // A tab of the left sidebar to switch to once it is shown, by page id (e.g. "phone"); the sidebar clears it.
+    property string sidebarLeftRequestPage: ""
     property bool sidebarRightOpen: false
     // Asks the right sidebar to open on its Wi-Fi list. A flag the sidebar
     // takes down rather than a signal: kept unloaded, its contents only exist
@@ -60,6 +62,8 @@ Singleton {
     property bool dockPinned: false
     // Written by the left sidebar; pinned, it reserves an exclusive zone.
     property bool sidebarLeftPinned: false
+    // Written by the left sidebar: it is a window of its own rather than a panel.
+    property bool sidebarLeftDetached: false
     // Written by the left sidebar: how far it reaches in from its edge while
     // open without reserving that room. Pinned, its exclusive zone moves
     // popups instead.
@@ -68,6 +72,25 @@ Singleton {
     // and the screen that strip is on.
     property real sidebarLeftZone: 0
     property string sidebarLeftScreen: ""
+
+    // Phone tab. Camera and microphone sessions are written by their services.
+    property bool phoneCameraRunning: false
+    property bool phoneMicRunning: false
+    // Held above zero while something the left sidebar itself started (a file
+    // dialog, say) has the focus, so losing it does not close the sidebar.
+    property int sidebarLeftHoldOpen: 0
+    // A rectangle the left sidebar cuts out of its own input region, in its
+    // surface's coordinates. The embedded phone mirror is the only user: a real
+    // scrcpy window sits exactly there under a picture the panel paints over
+    // it, and the cut-out lets a click reach the phone. Empty means none.
+    property rect sidebarLeftPointerHole: Qt.rect(0, 0, 0, 0)
+    readonly property bool sidebarLeftPointerHoleActive: sidebarLeftPointerHole.width > 0 && sidebarLeftPointerHole.height > 0
+    // The sidebar's live layer surface, for the mirror to resolve its position
+    // against. Empty while it is unmapped.
+    property string sidebarLeftSurfaceNamespace: ""
+    property string sidebarLeftSurfaceScreen: ""
+    // A sub-page for the Phone tab to open once it is shown; the tab clears it.
+    property url phoneRequestSubPage: ""
     property var mediaTransferUrls: []
     property bool mediaReceiveActive: false
     property bool osdBrightnessOpen: false

@@ -8,6 +8,8 @@ Canvas {
     property int dashLength: 6
     property int gapLength: 4
     property int borderWidth: 1
+    property real radius: 0
+    onRadiusChanged: requestPaint()
 
     onDashLengthChanged: requestPaint()
     onGapLengthChanged: requestPaint()
@@ -22,7 +24,15 @@ Canvas {
         if (root.gapLength > 0) {
             ctx.setLineDash([root.dashLength, root.gapLength]); // Set dash pattern
         }
-        ctx.strokeRect(root.borderWidth / 2, root.borderWidth / 2, width - root.borderWidth, height - root.borderWidth); // Draw it
+        const bw = root.borderWidth;
+        if (root.radius > 0) {
+            const r = Math.min(root.radius, (width - bw) / 2, (height - bw) / 2);
+            ctx.beginPath();
+            ctx.roundedRect(bw / 2, bw / 2, width - bw, height - bw, r, r);
+            ctx.stroke();
+        } else {
+            ctx.strokeRect(bw / 2, bw / 2, width - bw, height - bw); // Draw it
+        }
         ctx.restore();
     }
 }

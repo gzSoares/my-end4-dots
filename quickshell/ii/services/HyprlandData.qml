@@ -94,6 +94,7 @@ Singleton {
         target: Hyprland
 
         function onRawEvent(event) {
+            // console.log("Hyprland raw event:", event.name);
             //
             // Filter out screencopy session lifecycle events. They never
             // change the window list, but each one used to trigger

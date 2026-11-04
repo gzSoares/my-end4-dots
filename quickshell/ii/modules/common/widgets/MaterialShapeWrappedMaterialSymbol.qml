@@ -10,6 +10,8 @@ MaterialShape {
     property alias font: symbol.font
     property alias colSymbol: symbol.color
     property real padding: 6
+    // Accepted for callers written against a version that animated icon swaps.
+    property bool animateChange: false
 
     color: Appearance.colors.colSecondaryContainer
     colSymbol: Appearance.colors.colOnSecondaryContainer

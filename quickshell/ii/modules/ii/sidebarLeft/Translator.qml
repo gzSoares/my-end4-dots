@@ -51,6 +51,7 @@ Item {
         repeat: false
         onTriggered: () => {
             if (root.inputField.text.trim().length > 0) {
+                // console.log("Translating with command:", translateProc.command);
                 translateProc.running = false;
                 translateProc.buffer = ""; // Clear the buffer
                 translateProc.running = true; // Restart the process

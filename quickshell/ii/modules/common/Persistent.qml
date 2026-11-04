@@ -133,6 +133,21 @@ Singleton {
             }
 
             property JsonObject sidebar: JsonObject {
+                property JsonObject policies: JsonObject {
+                    property JsonObject phone: JsonObject {
+                        property string activeDeviceId: ""
+                        property list<string> recentDeviceIds: []
+                        property string cachedNotificationsJson: ""
+                        property JsonObject scrcpy: JsonObject {
+                            property list<string> recentPackages: []
+                        }
+                        // Mirror / Webcam / Microphone group at the bottom of the tab
+                        property JsonObject peripherals: JsonObject {
+                            property bool collapsed: false
+                            property int tab: 0
+                        }
+                    }
+                }
                 property JsonObject bottomGroup: JsonObject {
                     property bool collapsed: false
                     property int tab: 0

@@ -29,6 +29,7 @@ Item {
         { id: "timers",        name: Translation.tr("Timers"),            icon: "timer" },
         { id: "weather",       name: Translation.tr("Weather"),           icon: "cloud" },
         { id: "releaseUpdates", name: Translation.tr("Update available"), icon: "system_update_alt" },
+        { id: "phone",          name: Translation.tr("Phone (battery, signal, ring)"), icon: "smartphone" },
     ]
 
     readonly property real tokenHeight: 35
@@ -40,7 +41,7 @@ Item {
     // written back is normalized to id + enabled.
     readonly property var retiredModules: Config.retiredBarModules
     // Widgets with no vertical rendering — hidden from the editor while the bar is vertical.
-    readonly property var verticalUnsupported: ["activeWindow", "activeWindowPill", "utilButtons", "weather", "timers", "releaseUpdates"]
+    readonly property var verticalUnsupported: ["activeWindow", "activeWindowPill", "utilButtons", "weather", "timers", "releaseUpdates", "phone"]
 
     property var dragInfo: null   // { section, gi, wi, id }
     property var dragMeta: null

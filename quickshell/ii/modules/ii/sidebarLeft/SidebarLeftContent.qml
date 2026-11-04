@@ -9,6 +9,7 @@ import QtQuick.Controls
 import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Qt.labs.synchronizer
+import "phone"
 
 Item {
     id: root
@@ -90,7 +91,24 @@ Item {
         if (arriving && page.item) page.item.focus = true;
     }
 
-    Component.onCompleted: root.syncPages()
+    // A page asked for from outside (a phone notification's Reply button).
+    function showRequestedPage() {
+        const id = GlobalStates.sidebarLeftRequestPage;
+        if (!id) return;
+        for (let i = 0; i < swipeView.count; i++) {
+            if (swipeView.itemAt(i).pageId === id) {
+                root.showPage(i);
+                break;
+            }
+        }
+        GlobalStates.sidebarLeftRequestPage = "";
+    }
+    Connections {
+        target: GlobalStates
+        function onSidebarLeftRequestPageChanged() { Qt.callLater(root.showRequestedPage) }
+    }
+
+    Component.onCompleted: { root.syncPages(); root.showRequestedPage() }
     Connections {
         target: SidebarLeftTabs
         // Both change in one pass over the config; by the time the call
@@ -139,6 +157,10 @@ Item {
                 // The lock screen covers the sidebar without closing it.
                 shown: mediaPage.onScreen && !GlobalStates.screenLocked
             }
+        },
+        PageLoader {
+            pageId: "phone"
+            sourceComponent: Phone {}
         },
         PageLoader {
             pageId: "calendarTodo"

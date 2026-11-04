@@ -332,8 +332,137 @@ Singleton {
 
             property string panelFamily: "ii" // "ii", "waffle"
 
+            property JsonObject phone: JsonObject {
+                property bool kdeconnectEnabled: true
+                // Shell actions offered to the phone through KDE Connect's Run Command plugin
+                // (mirror, recording, media, lock...). Written into kdeconnect's own config.
+                property bool remoteCommands: true
+                // Keep phone notifications in the desktop list/popups too, not only the Phone tab
+                property bool mirrorNotificationsToDesktop: true
+                property bool showPeripheralCards: true
+                property JsonObject contacts: JsonObject {
+                    property bool enabled: true
+                    property list<string> favoriteIds: []
+                    property bool showAvatars: true
+                    property string sortBy: "first" // "first" | "last"
+                    // Android exports every raw contact from every sync adapter, so
+                    // spam lists and SIM imports show up as bare phone numbers
+                    property bool hideUnnamed: true
+                    // WhatsApp links need country and area code; numbers saved without them get these.
+                    property string whatsappCountryCode: "55"
+                    property string whatsappAreaCode: "19"
+                }
+                // Size of the phone's app and mirror windows. The Hyprland rules open them at
+                // 373x808; this sets the size again once the monitor they landed on is known.
+                property JsonObject windowSize: JsonObject {
+                    property bool adaptToMonitor: true
+                    property int width: 373
+                    property int height: 808
+                    // Monitors at most this tall (logical px) count as "small", e.g. the laptop's 1080p.
+                    property int smallMonitorMaxHeight: 1100
+                    property int smallMonitorPercent: 90
+                }
+                property JsonObject scrcpy: JsonObject {
+                    property bool stayAwake: false  // bare scrcpy default — don't add overhead
+                    property bool turnScreenOff: false  // turning screen off causes input delay on Samsung (touch sampling rate drops)
+                    property bool noPowerOn: false  // bare scrcpy default
+                    property bool noAudio: false
+                    property bool showTouches: false
+                    property bool fullscreen: false
+                    property bool alwaysOnTop: false
+                    property int maxFps: 0  // 0 = use device's native frame rate (matches bare `scrcpy`)
+                    property string bitRate: "8M"
+                    property int maxSize: 0
+                    property int videoBuffer: 0  // scrcpy 4.0 default is 0ms — 80ms adds visible latency
+                    property bool useWireless: false
+                    property bool autoWirelessIp: true  // resolve IP live from KDE Connect instead of the manual field
+                    // Android 11+ wireless debugging re-rolls its port whenever adbd restarts (a screen
+                    // unlock is enough), which kills any running scrcpy. `adb tcpip 5555` pins a classic
+                    // TCP port that survives those restarts, until the phone reboots. Off by default:
+                    // it reconfigures the phone's debugging daemon, which is the user's call to make.
+                    property bool pinAdbPort: false
+                    // adbd comes back a few seconds after each restart, but whatever was
+                    // mirroring died with it — reopen the same window once the phone answers.
+                    property bool autoResume: true
+                    property string wirelessIp: ""
+                    property string wirelessPort: "5555"
+                    property bool showTerminal: false
+                    // "uhid" makes the phone see a real hardware keyboard: accents, dead keys and the
+                    // PC's layout work, and shortcuts reach apps. "sdk" is scrcpy's old injected-text
+                    // mode, for the phones where UHID is refused.
+                    property string keyboardMode: "uhid"
+                    // Mirror card: false mirrors the phone's real screen. true opens a
+                    // virtual display instead, which on Samsung is the DeX desktop.
+                    property bool mirrorVirtualDisplay: false
+                    // Copy on either side, paste on the other, while a mirror is open.
+                    property bool clipboardSync: true
+                    // Phone screen recordings (scrcpy --record). Empty folder means ~/Videos.
+                    property JsonObject recording: JsonObject {
+                        property string folder: ""
+                        property bool withAudio: true
+                    }
+                    // The mirror the Phone sidebar draws inside itself.
+                    property JsonObject embed: JsonObject {
+                        // Off sends the Mirror card back to opening a separate
+                        // scrcpy window, which is what it did before the
+                        // sidebar could draw the phone itself.
+                        property bool enabled: true
+                        // The sidebar unloads its content soon after closing, which
+                        // took the mirror down with it and made every trip back pay
+                        // for a fresh connection. The session outlives the page by
+                        // this much; the phone is still encoding during it, so 0
+                        // turns the behaviour off entirely.
+                        property int keepWarmSeconds: 120
+                    }
+                    property JsonObject appMode: JsonObject {
+                        property bool enabled: true
+                        property bool showAppIcons: true // Pull each app's launcher icon off the phone over adb
+                        property string iconShape: "oneui" // Launcher-style mask for those icons, keys in AndroidIconMask.shapes
+                        property bool flexDisplay: true
+                        // What to do with the phone when a session ends: "home" leaves it on its
+                        // home screen and unlocked, "continue" moves the app back to the phone's
+                        // own screen instead of destroying it, "lock" puts the phone to sleep.
+                        property string onSessionEnd: "home"
+                        // Wake the phone and dismiss its lockscreen before launching. Only gets
+                        // through when the phone already trusts this situation (extended unlock);
+                        // a phone that wants its PIN is left alone and gets the unlock mirror.
+                        property bool autoUnlock: true
+                        property int displayWidth: 1280
+                        property int displayHeight: 960
+                        property int density: 160
+                        property bool keepActive: true
+                        property bool systemDecorations: false
+                        property list<string> favoritePackages: []
+                    }
+                }
+                property JsonObject webcam: JsonObject {
+                    property bool enabled: false
+                    property string cameraFacing: "front" // "front" | "back"
+                    property string resolution: "1280x720" // "640x480" | "1280x720" | "1920x1080"
+                    property int fps: 30
+                    property string bitrate: "4M"
+                    property bool mirrorHorizontally: false
+                    property int rotateDegrees: 0 // 0 | 90 | 180 | 270
+                    property string connection: "wifi" // "wifi" | "usb"
+                    property string wifiIp: ""
+                    property int port: 4747
+                }
+                property JsonObject microphone: JsonObject {
+                    property bool enabled: false
+                    property string connection: "wifi"
+                    property string wifiIp: ""
+                    property int port: 4748
+                    property bool noiseSuppression: false
+                    property bool echoCancellation: false
+                    property bool autoGainControl: false
+                    property int micGain: 100
+                    property bool setAsDefault: false
+                }
+            }
+
             property JsonObject policies: JsonObject {
                 property int ai: 0 // 0: No | 1: Yes | 2: Local
+                property int phone: 1 // 0: No | 1: Yes (Phone tab: KDE Connect and scrcpy)
                 property int weeb: 0 // 0: No | 1: Open | 2: Closet
             }
 
@@ -359,6 +488,8 @@ Singleton {
 
             property JsonObject appearance: JsonObject {
                 property bool extraBackgroundTint: true
+                property bool scrollAnimations: false
+                property bool settingsPerformanceMode: false
                 // Bar, dock and launcher content adapts to its surface: light or dark, and
                 // firmer where a color or transparency would lose it. Off keeps the palette's
                 // own tones. Nothing on screen sets it; it is for setups the judgment gets wrong.
@@ -659,6 +790,27 @@ Singleton {
                 property bool vertical: false
                 // Bar thickness; below zero the interface decides.
                 property real thickness: -1
+                // Inside each widget group: padding around the widgets, the gap
+                // between them, and the strip of bar left above and below the
+                // pill. Below zero the interface decides (5, 4 and 4 px).
+                property real groupPadding: -1
+                property real itemSpacing: -1
+                property real pillMargin: -1
+                // The ring around each pill and the line of light along its top
+                // edge. Highlight below zero is the stock 0.08; zero removes it.
+                property bool pillOutline: true
+                property real pillOutlineWidth: 1
+                property real pillHighlight: -1
+                // Multipliers on the shadow under the Float and Notch strips.
+                property real shadowStrength: 1
+                property real shadowSize: 1
+                property JsonObject clock: JsonObject {
+                    // Below zero the interface decides.
+                    property real fontSize: -1
+                    property bool bold: false
+                    // Between the time and the date: "dot", "bar", "dash" or "none".
+                    property string separator: "dot"
+                }
                 // Per section, ordered groups; each group is one pill holding ordered
                 // widgets ({ id, enabled }). The center's middle group stays screen-centered.
                 // Recognized ids: sidebarButton, activeWindow, activeWindowPill, resources,
@@ -673,6 +825,7 @@ Singleton {
                 property JsonObject resources: JsonObject {
                     property bool alwaysShowSwap: true
                     property bool alwaysShowCpu: false
+                    property bool alwaysShowCpuTemp: true
                     property bool alwaysShowGPU: false
                     property int gpuLayout : -1 // -1: Disable GPU Querries | 0: dGPU | 1: iGPU | 2: Hybrid
 
@@ -745,6 +898,10 @@ Singleton {
                     property bool showAppIcons: true
                     property bool circleAppIcons: false
                     property bool alwaysShowNumbers: false
+                    // Button size in px; below zero the interface decides (26).
+                    property real buttonSize: -1
+                    // "pill" fills the active button; "underline" and "dot" mark it from below.
+                    property string indicatorStyle: "pill"
                     property int showNumberDelay: 300 // milliseconds
                     property list<string> numberMap: ["1", "2"] // Characters to show instead of numbers on workspace indicator
                     property bool useNerdFont: false
@@ -1178,6 +1335,7 @@ Singleton {
 
             property JsonObject sidebar: JsonObject {
                 property bool pinnedOnStartup: true
+                property bool dashboardEntranceAnimations: false
                 property bool keepRightSidebarLoaded: true
                 property JsonObject translator: JsonObject {
                     property bool enable: false

@@ -11,6 +11,8 @@ import qs.modules.settings.windowrules
 ContentPage {
     id: root
     forceWidth: true
+    // Cards sit closer together than bare sections need to.
+    sectionSpacing: 14
 
     // Targets the Lua-config tree introduced in Hyprland 0.55.
     readonly property string generalConf: `${CF.FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprland/general.lua`
@@ -269,6 +271,79 @@ ContentPage {
         titleBarSection.resetAppearance();
         TitleBars.setScrollActions(true);
         swTitleBarScroll.checked = Qt.binding(() => TitleBars.scrollActions);
+        root.resetBorderGradients();
+    }
+
+    // ── Per-section reset ─────────────────────────────────────────────────────
+    // Each section's own button puts back only what that section holds, from
+    // the same defaults table the track marks and the full reset read.
+    function decoDiffers(key, current) {
+        const stock = root.decoDefaults[key]
+        if (stock === undefined) return false
+        return typeof stock === "number" ? Math.abs(stock - current) > 0.004 : stock !== current
+    }
+
+    function gradientDiffers(bg, strength) {
+        return bg.enable !== false || bg.custom !== false
+            || String(bg.customFrom).toLowerCase() !== "#8ab4f8"
+            || String(bg.customTo).toLowerCase() !== "#c58af9"
+            || bg.angle !== 90 || bg.opacity !== strength
+            || bg.from !== "primary" || bg.to !== "tertiary"
+    }
+
+    // The remembered value is compared, not the live one, so a section whose
+    // switch is off still says honestly whether its settings are stock.
+    readonly property bool shapeChanged: decoDiffers("rounding", roundingValue)
+        || decoDiffers("borderSize", borderSizeValue)
+        || decoDiffers("gapsIn", gapsInValue)
+        || decoDiffers("gapsOut", gapsOutValue)
+    readonly property bool transparencyChanged: decoDiffers("activeOpacity", activeOpacityValue)
+        || decoDiffers("inactiveOpacity", inactiveOpacityValue)
+    readonly property bool blurChanged: decoDiffers("blurSize", blurSizeValue)
+        || decoDiffers("blurPasses", blurPassesValue)
+        || decoDiffers("blurNoise", blurNoiseValue)
+        || decoDiffers("blurVibrancy", blurVibrancyValue)
+        || decoDiffers("blurXray", blurXrayEnabled)
+    readonly property bool dimChanged: decoDiffers("dimInactive", dimInactiveEnabled)
+        || decoDiffers("dimStrength", dimStrengthValue)
+    readonly property bool borderColorChanged: gradientDiffers(Config.options.appearance.borderGradient, 50)
+        || gradientDiffers(Config.options.appearance.borderGradientInactive, 15)
+
+    function resetDecoKeys(keys) {
+        const d = root.decoDefaults
+        const stock = ({})
+        for (const k of keys) {
+            if (d[k] === undefined) continue
+            // A slider moved a moment ago may still be waiting to be written;
+            // it must not land on top of the reset.
+            delete root._pending[k]
+            // A switch that is off stays off: writing a radius or a border
+            // width would turn it on. Only the value it comes back with resets.
+            if (k === "rounding" && !root.roundCornersEnabled) { root.roundingValue = d[k]; continue }
+            if (k === "borderSize" && !root.bordersEnabled) { root.borderSizeValue = d[k]; continue }
+            stock[k] = d[k]
+        }
+        const pairs = Object.keys(stock).map(k => `${k}=${stock[k]}`)
+        if (pairs.length === 0) return
+        root.setDecoration(pairs)
+        root.applyDecoValues(stock)
+    }
+
+    function resetShape() {
+        root.resetDecoKeys(["rounding", "borderSize", "gapsIn", "gapsOut"])
+    }
+    function resetTransparency() {
+        root.resetDecoKeys(["activeOpacity", "inactiveOpacity"])
+    }
+    function resetBlur() {
+        root.resetDecoKeys(["blurSize", "blurPasses", "blurNoise", "blurVibrancy", "blurXray"])
+        swBlurXray.checked = Qt.binding(() => root.blurXrayEnabled)
+    }
+    function resetDim() {
+        root.resetDecoKeys(["dimInactive", "dimStrength"])
+        swDimInactive.checked = Qt.binding(() => root.dimInactiveEnabled)
+    }
+    function resetBorderGradients() {
         activeBorderLane.rearm();
         inactiveBorderLane.rearm();
         const gradientStock = [
@@ -452,7 +527,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     // that is not on screen. TitleBars.enabled mirrors the same flag file the
     // toggle writes, so this follows it without the two pages having to agree
     // with each other.
-    ContentSection {
+    CardSection {
         icon: "auto_awesome"
         title: Translation.tr("Window decorations")
 
@@ -595,7 +670,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         }
     }
 
-    ContentSection {
+    CardSection {
         id: titleBarSection
         icon: "title"
         title: Translation.tr("Title bars")
@@ -904,12 +979,21 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Shape ─────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "rounded_corner"
         title: Translation.tr("Window shape")
 
+        headerExtra: [
+            SectionResetButton {
+                changed: root.shapeChanged
+                hint: Translation.tr("Corner roundness, border thickness and gaps go back to how a fresh install has them")
+                onClicked: root.resetShape()
+            }
+        ]
+
         ConfigSlider {
             text: Translation.tr("Corner roundness")
+            valueText: root.roundingValue + " px"
             stopIndicatorValues: root.defaultMark("rounding")
             buttonIcon: "rounded_corner"
             usePercentTooltip: false
@@ -928,6 +1012,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Border thickness")
+            valueText: root.borderSizeValue + " px"
             stopIndicatorValues: root.defaultMark("borderSize")
             buttonIcon: "border_style"
             usePercentTooltip: false
@@ -946,6 +1031,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Gap between windows")
+            valueText: root.gapsInValue + " px"
             stopIndicatorValues: root.defaultMark("gapsIn")
             buttonIcon: "width"
             usePercentTooltip: false
@@ -962,6 +1048,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Gap around the edge")
+            valueText: root.gapsOutValue + " px"
             stopIndicatorValues: root.defaultMark("gapsOut")
             buttonIcon: "fit_screen"
             usePercentTooltip: false
@@ -978,12 +1065,21 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Transparency ──────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "opacity"
         title: Translation.tr("Window transparency")
 
+        headerExtra: [
+            SectionResetButton {
+                changed: root.transparencyChanged
+                hint: Translation.tr("Window transparency goes back to how a fresh install has it")
+                onClicked: root.resetTransparency()
+            }
+        ]
+
         ConfigSlider {
             text: Translation.tr("Focused window")
+            valueText: Math.round(root.activeOpacityValue * 100) + "%"
             stopIndicatorValues: root.defaultMark("activeOpacity")
             buttonIcon: "filter_center_focus"
             from: 0.7
@@ -998,6 +1094,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Unfocused windows")
+            valueText: Math.round(root.inactiveOpacityValue * 100) + "%"
             stopIndicatorValues: root.defaultMark("inactiveOpacity")
             buttonIcon: "filter_none"
             from: 0.7
@@ -1012,14 +1109,23 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Blur depth ────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "blur_on"
         title: Translation.tr("Window blur")
+
+        headerExtra: [
+            SectionResetButton {
+                changed: root.blurChanged
+                hint: Translation.tr("Blur strength, noise, saturation and xray go back to how a fresh install has them")
+                onClicked: root.resetBlur()
+            }
+        ]
 
         // Greyed rather than hidden when blur is off, so the settings stay
         // where they were found rather than moving as things are toggled.
         ConfigSlider {
             text: Translation.tr("Strength")
+            valueText: root.blurStrengthOf(root.blurSizeValue, root.blurPassesValue) + "/" + root.blurLadder.length
             stopIndicatorValues: (root.decoDefaults.blurSize !== undefined && root.decoDefaults.blurPasses !== undefined)
                 ? [root.blurStrengthOf(root.decoDefaults.blurSize, root.decoDefaults.blurPasses)] : []
             buttonIcon: "lens_blur"
@@ -1043,6 +1149,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Noise")
+            valueText: root.blurNoiseValue.toFixed(2)
             stopIndicatorValues: root.defaultMark("blurNoise")
             buttonIcon: "grain"
             enabled: root.blurEnabled
@@ -1060,6 +1167,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Saturation")
+            valueText: Math.round(root.blurVibrancyValue * 100) + "%"
             stopIndicatorValues: root.defaultMark("blurVibrancy")
             buttonIcon: "palette"
             enabled: root.blurEnabled
@@ -1095,9 +1203,17 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Dim ───────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "brightness_medium"
         title: Translation.tr("Window dim")
+
+        headerExtra: [
+            SectionResetButton {
+                changed: root.dimChanged
+                hint: Translation.tr("Window dim goes back to how a fresh install has it")
+                onClicked: root.resetDim()
+            }
+        ]
 
         ConfigSwitch {
             id: swDimInactive
@@ -1114,6 +1230,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
         ConfigSlider {
             text: Translation.tr("Amount")
+            valueText: Math.round(root.dimStrengthValue * 100) + "%"
             stopIndicatorValues: root.defaultMark("dimStrength")
             buttonIcon: "gradient"
             enabled: root.dimInactiveEnabled
@@ -1126,6 +1243,46 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
                 root.dimStrengthValue = value;
                 root.queueDecoration("dimStrength", value.toFixed(2));
             }
+        }
+    }
+
+    // The reset a section carries in its header. It keeps its place when there
+    // is nothing to put back and fades out instead of leaving, so the title row
+    // does not change height as sliders are moved; a control that cannot do
+    // anything is not left lit.
+    component SectionResetButton: RippleButton {
+        id: resetButton
+        property bool changed: false
+        property string hint: ""
+        implicitWidth: resetRow.implicitWidth + 24
+        implicitHeight: 32
+        buttonRadius: Appearance.rounding.full
+        colBackground: Appearance.colors.colLayer2
+        colBackgroundHover: Appearance.colors.colLayer2Hover
+        enabled: changed
+        opacity: changed ? 1 : 0
+        Behavior on opacity {
+            animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
+        }
+
+        contentItem: RowLayout {
+            id: resetRow
+            anchors.centerIn: parent
+            spacing: 4
+            MaterialSymbol {
+                text: "restart_alt"
+                iconSize: 16
+                color: Appearance.colors.colOnLayer2
+            }
+            StyledText {
+                text: Translation.tr("Reset")
+                font.pixelSize: Appearance.font.pixelSize.small
+                color: Appearance.colors.colOnLayer2
+            }
+        }
+        StyledToolTip {
+            extraVisibleCondition: resetButton.changed
+            text: resetButton.hint
         }
     }
 
@@ -1217,6 +1374,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
                 ConfigSlider {
                     text: Translation.tr("Angle")
+                    valueText: bgSection.gradientOpts.angle + "°"
                     stopIndicatorValues: [90]
                     buttonIcon: "rotate_right"
                     usePercentTooltip: false
@@ -1232,6 +1390,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
                 ConfigSlider {
                     text: Translation.tr("Strength")
+                    valueText: bgSection.gradientOpts.opacity + "%"
                     stopIndicatorValues: [bgSection.defaultStrength]
                     buttonIcon: "opacity"
                     from: 10
@@ -1249,9 +1408,17 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Border color ─────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "gradient"
         title: Translation.tr("Window border color")
+
+        headerExtra: [
+            SectionResetButton {
+                changed: root.borderColorChanged
+                hint: Translation.tr("Both border colors, angles and strengths go back to how a fresh install has them")
+                onClicked: root.resetBorderGradients()
+            }
+        ]
 
         BorderGradientLane {
             id: activeBorderLane
@@ -1270,7 +1437,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Shadow ────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "ev_shadow"
         title: Translation.tr("Window shadow")
 
@@ -1378,7 +1545,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Animations ────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "animation"
         title: Translation.tr("Window animations")
 
@@ -1418,7 +1585,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Reset ─────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "settings_backup_restore"
         title: Translation.tr("Reset")
 
@@ -1437,7 +1604,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── System look (app / icon / cursor themes) ──────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "palette"
         title: Translation.tr("System look")
         Layout.fillWidth: true
@@ -1528,7 +1695,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Cursor ────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "highlight_mouse_cursor"
         title: Translation.tr("Cursor")
 
@@ -1583,7 +1750,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
     }
 
     // ── Fonts ─────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "text_format"
         title: Translation.tr("Fonts")
 

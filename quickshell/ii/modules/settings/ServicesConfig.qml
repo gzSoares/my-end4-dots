@@ -10,6 +10,7 @@ import qs.modules.settings.services
 
 ContentPage {
     forceWidth: true
+    sectionSpacing: 14
 
     Process {
         id: translationProc
@@ -17,8 +18,10 @@ ContentPage {
         command: [Directories.aiTranslationScriptPath, translationProc.locale]
     }
 
+    SettingsGroupHeader { text: Translation.tr("General") }
+
     // ── Language ──────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "language"
         title: Translation.tr("Language")
 
@@ -80,7 +83,178 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
+        icon: "file_open"
+        title: Translation.tr("Save paths")
+
+        MaterialTextArea {
+            Layout.fillWidth: true
+            placeholderText: Translation.tr("Video Recording Path")
+            text: Config.options.screenRecord.savePath
+            wrapMode: TextEdit.Wrap
+            onTextChanged: {
+                Config.options.screenRecord.savePath = text;
+            }
+        }
+        
+        MaterialTextArea {
+            Layout.fillWidth: true
+            placeholderText: Translation.tr("Screenshot Path (default: ~/Pictures/Screenshots)")
+            text: Config.options.screenSnip.savePath
+            wrapMode: TextEdit.Wrap
+            onTextChanged: {
+                Config.options.screenSnip.savePath = text;
+            }
+        }
+    }
+
+    CardSection {
+        // Only worth a row when there is a real choice to make. A machine
+        // with one backlight, or none at all, has nothing this can pick
+        // between: Automatic already resolves to the only one there is. The
+        // case it exists for is a laptop that reports a second, dead
+        // backlight alongside the panel.
+        visible: Brightness.availableDevices.length > 1
+        icon: "brightness_medium"
+        title: Translation.tr("Brightness")
+
+        ContentSubsection {
+            title: Translation.tr("Device")
+            tooltip: Translation.tr("Which backlight to drive.\nAutomatic lets brightnessctl choose, which is usually right.\nLaptops with hybrid graphics can expose a second, non-functional backlight: if the brightness keys do nothing, pick the panel explicitly.\nMonitors controlled over DDC are unaffected.")
+
+            ConfigSelectionArray {
+                currentValue: Config.options.brightness.device
+                onSelected: newValue => {
+                    Config.options.brightness.device = newValue;
+                }
+                options: [
+                    {
+                        displayName: Translation.tr("Automatic"),
+                        icon: "auto_mode",
+                        value: ""
+                    },
+                    ...Brightness.availableDevices.map(device => ({
+                                displayName: device,
+                                icon: "light_mode",
+                                value: device
+                            }))
+                ]
+            }
+        }
+    }
+
+
+    SettingsGroupHeader { text: Translation.tr("Network and data") }
+
+    CardSection {
+        icon: "cell_tower"
+        title: Translation.tr("Networking")
+
+        MaterialTextArea {
+            Layout.fillWidth: true
+            placeholderText: Translation.tr("User agent (for services that require it)")
+            text: Config.options.networking.userAgent
+            wrapMode: TextEdit.Wrap
+            onTextChanged: {
+                Config.options.networking.userAgent = text;
+            }
+        }
+
+        IpAddressField {
+            label: Translation.tr("Primary DNS (e.g. 1.1.1.1)")
+            value: Config.options.networking.dnsPrimary
+            onEdited: v => Config.options.networking.dnsPrimary = v
+        }
+
+        IpAddressField {
+            label: Translation.tr("Secondary DNS (e.g. 9.9.9.9)")
+            value: Config.options.networking.dnsSecondary
+            onEdited: v => Config.options.networking.dnsSecondary = v
+        }
+
+        // What the last press of the button did, so a press that changed
+        // nothing says why instead of looking like a button that is broken.
+        property string dnsStatus: ""
+        property bool dnsStatusIsError: false
+
+        function isIpv4(text) {
+            const m = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.exec(text);
+            return m !== null && m.slice(1).every(o => Number(o) <= 255);
+        }
+
+        // Applies to the Wi-Fi and Ethernet connections that are up now, plus
+        // the two profiles this page has always named (their DNS is saved, and
+        // they are only reconnected if they are up). The addresses arrive as an
+        // argument, never spliced into the script.
+        Process {
+            id: dnsApply
+            stdout: StdioCollector {
+                onStreamFinished: {
+                    const line = text.trim();
+                    if (line.startsWith("ok|")) {
+                        dnsStatusIsError = false;
+                        dnsStatus = Translation.tr("DNS applied to: %1").arg(line.slice(3));
+                    } else {
+                        dnsStatusIsError = true;
+                        dnsStatus = Translation.tr("Could not apply DNS: no Wi-Fi or Ethernet connection was found");
+                    }
+                }
+            }
+        }
+
+        RippleButtonWithIcon {
+            Layout.fillWidth: true
+            buttonRadius: Appearance.rounding.small
+            materialIcon: "dns"
+            mainText: Translation.tr("Apply DNS to system")
+            onClicked: {
+                const primary = Config.options.networking.dnsPrimary.trim();
+                const secondary = Config.options.networking.dnsSecondary.trim();
+                const given = [primary, secondary].filter(x => x);
+                if (given.length === 0 || !given.every(isIpv4)) {
+                    dnsStatusIsError = true;
+                    dnsStatus = Translation.tr("Enter at least one complete DNS address (four numbers from 0 to 255)");
+                    return;
+                }
+                dnsStatus = "";
+                dnsApply.command = ["bash", "-c", `
+dns="$1"; n=0; names=""
+active=$(nmcli -t -f UUID,TYPE con show --active | awk -F: '$2=="802-3-ethernet"||$2=="802-11-wireless"{print $1}')
+named=""
+for c in "Wired connection 1" "Advanced_5G"; do
+    u=$(nmcli -g connection.uuid con show id "$c" 2>/dev/null | head -1)
+    [ -n "$u" ] && named="$named $u"
+done
+for u in $(printf '%s\\n' $active $named | sort -u); do
+    nmcli con mod uuid "$u" ipv4.dns "$dns" ipv4.ignore-auto-dns yes >/dev/null 2>&1 || continue
+    if printf '%s\\n' $active | grep -qx "$u"; then nmcli con up uuid "$u" >/dev/null 2>&1 || continue; fi
+    name=$(nmcli -g connection.id con show uuid "$u" 2>/dev/null | head -1)
+    n=$((n+1)); names="$names\${names:+, }$name"
+done
+if [ "$n" -gt 0 ]; then echo "ok|$names"; else echo none; fi
+`, "_", given.join(" ")];
+                dnsApply.running = true;
+            }
+        }
+
+        StyledText {
+            Layout.fillWidth: true
+            visible: dnsStatus !== ""
+            text: dnsStatus
+            wrapMode: Text.Wrap
+            font.pixelSize: Appearance.font.pixelSize.small
+            color: dnsStatusIsError ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
+        }
+    }
+
+    WeatherSection {
+        icon: "weather_mix"
+    }
+
+
+    SettingsGroupHeader { text: Translation.tr("Tools") }
+
+    CardSection {
         visible: Config.options.policies.ai !== 0
         icon: "neurology"
         title: Translation.tr("AI Assistant")
@@ -103,7 +277,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "music_cast"
         title: Translation.tr("Music Recognition")
 
@@ -131,108 +305,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
-        icon: "cell_tower"
-        title: Translation.tr("Networking")
-
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("User agent (for services that require it)")
-            text: Config.options.networking.userAgent
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.networking.userAgent = text;
-            }
-        }
-
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("Primary DNS (e.g. 1.1.1.1)")
-            text: Config.options.networking.dnsPrimary
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.networking.dnsPrimary = text;
-            }
-        }
-
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("Secondary DNS (e.g. 9.9.9.9)")
-            text: Config.options.networking.dnsSecondary
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.networking.dnsSecondary = text;
-            }
-        }
-
-        RippleButtonWithIcon {
-            Layout.fillWidth: true
-            buttonRadius: Appearance.rounding.small
-            materialIcon: "dns"
-            mainText: Translation.tr("Apply DNS to system")
-            onClicked: {
-                const primary = Config.options.networking.dnsPrimary.trim();
-                const secondary = Config.options.networking.dnsSecondary.trim();
-                const dns = [primary, secondary].filter(x => x).join(" ");
-                if (!dns) {
-                    return;
-                }
-                const connections = [
-                    "Wired connection 1",
-                    "Advanced_5G"
-                ];
-                for (const name of connections) {
-                    const cmd = `nmcli con mod "${name}" ipv4.dns "${dns}" && nmcli con mod "${name}" ipv4.ignore-auto-dns yes && nmcli con up "${name}"`;
-                    Quickshell.execDetached(["bash", "-c", cmd]);
-                }
-            }
-        }
-    }
-    /*
-    ContentSection {
-        icon: "memory"
-        title: Translation.tr("Resources")
-
-        ConfigSpinBox {
-            icon: "av_timer"
-            text: Translation.tr("Polling interval (ms)")
-            value: Config.options.resources.updateInterval
-            from: 100
-            to: 10000
-            stepSize: 100
-            onValueChanged: {
-                Config.options.resources.updateInterval = value;
-            }
-        }
-    }
-    */
-
-    ContentSection {
-        icon: "file_open"
-        title: Translation.tr("Save paths")
-
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("Video Recording Path")
-            text: Config.options.screenRecord.savePath
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.screenRecord.savePath = text;
-            }
-        }
-        
-        MaterialTextArea {
-            Layout.fillWidth: true
-            placeholderText: Translation.tr("Screenshot Path (default: ~/Pictures/Screenshots)")
-            text: Config.options.screenSnip.savePath
-            wrapMode: TextEdit.Wrap
-            onTextChanged: {
-                Config.options.screenSnip.savePath = text;
-            }
-        }
-    }
-
-    ContentSection {
+    CardSection {
         icon: "search"
         title: Translation.tr("Search")
         ConfigSwitch {
@@ -335,11 +408,27 @@ ContentPage {
         }
     }
 
+    /*
+    ContentSection {
+        icon: "memory"
+        title: Translation.tr("Resources")
+        ConfigSpinBox {
+            icon: "av_timer"
+            text: Translation.tr("Polling interval (ms)")
+            value: Config.options.resources.updateInterval
+            from: 100
+            to: 10000
+            stepSize: 100
+            onValueChanged: {
+                Config.options.resources.updateInterval = value;
+            }
+        }
+    }
+    */
     // There's no update indicator in ii for now so we shouldn't show this yet
     // ContentSection {
     //     icon: "deployed_code_update"
     //     title: Translation.tr("System updates (Arch only)")
-
     //     ConfigSwitch {
     //         text: Translation.tr("Enable update checks")
     //         checked: Config.options.updates.enableCheck
@@ -347,7 +436,6 @@ ContentPage {
     //             Config.options.updates.enableCheck = checked;
     //         }
     //     }
-
     //     ConfigSpinBox {
     //         icon: "av_timer"
     //         text: Translation.tr("Check interval (mins)")
@@ -360,43 +448,4 @@ ContentPage {
     //         }
     //     }
     // }
-
-    WeatherSection {
-        icon: "weather_mix"
-    }
-
-    ContentSection {
-        // Only worth a row when there is a real choice to make. A machine
-        // with one backlight, or none at all, has nothing this can pick
-        // between: Automatic already resolves to the only one there is. The
-        // case it exists for is a laptop that reports a second, dead
-        // backlight alongside the panel.
-        visible: Brightness.availableDevices.length > 1
-        icon: "brightness_medium"
-        title: Translation.tr("Brightness")
-
-        ContentSubsection {
-            title: Translation.tr("Device")
-            tooltip: Translation.tr("Which backlight to drive.\nAutomatic lets brightnessctl choose, which is usually right.\nLaptops with hybrid graphics can expose a second, non-functional backlight: if the brightness keys do nothing, pick the panel explicitly.\nMonitors controlled over DDC are unaffected.")
-
-            ConfigSelectionArray {
-                currentValue: Config.options.brightness.device
-                onSelected: newValue => {
-                    Config.options.brightness.device = newValue;
-                }
-                options: [
-                    {
-                        displayName: Translation.tr("Automatic"),
-                        icon: "auto_mode",
-                        value: ""
-                    },
-                    ...Brightness.availableDevices.map(device => ({
-                                displayName: device,
-                                icon: "light_mode",
-                                value: device
-                            }))
-                ]
-            }
-        }
-    }
 }

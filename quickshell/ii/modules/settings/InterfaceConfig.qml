@@ -10,6 +10,7 @@ import qs.modules.common.widgets
 ContentPage {
     id: root
     forceWidth: true
+    sectionSpacing: 14
 
     readonly property string customDir: `${CF.FileUtils.trimFileProtocol(Directories.config)}/hypr/custom`
     readonly property string customGeneralConf: `${root.customDir}/general.lua`
@@ -283,8 +284,10 @@ ContentPage {
         ])
     }
 
+    SettingsGroupHeader { text: Translation.tr("Navigation") }
+
     // ── Left Hot Corner ──────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "ads_click"
         title: Translation.tr("Left Hot Corner")
 
@@ -584,7 +587,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "overview_key"
         title: Translation.tr("Launcher Overview")
 
@@ -656,8 +659,11 @@ ContentPage {
         }
     }
 
+
+    SettingsGroupHeader { text: Translation.tr("Sidebars") }
+
     // ── Left Sidebar ──────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         objectName: "leftSidebarSection"
         icon: "side_navigation"
         mirrorIcon: true
@@ -744,6 +750,22 @@ ContentPage {
                     ]
                 }
             }
+            ColumnLayout {
+                Layout.alignment: Qt.AlignTop
+                ContentSubsectionLabel {
+                    text: Translation.tr("Phone")
+                }
+                ConfigSelectionArray {
+                    currentValue: Config.options.policies.phone
+                    onSelected: newValue => {
+                        Config.options.policies.phone = newValue;
+                    }
+                    options: [
+                        { displayName: Translation.tr("No"),  icon: "close", value: 0 },
+                        { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
+                    ]
+                }
+            }
         }
 
         ContentSubsection {
@@ -783,7 +805,7 @@ ContentPage {
     }
 
     // ── Right Sidebar ─────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "side_navigation"
         title: Translation.tr("Right Sidebar")
         ContentSubsection {
@@ -936,8 +958,11 @@ ContentPage {
         }
     }
 
+
+    SettingsGroupHeader { text: Translation.tr("Screen and pop-ups") }
+
     // ── Lock screen ───────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "lock"
         title: Translation.tr("Lock screen")
         ConfigSwitch {
@@ -1042,7 +1067,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         id: notificationsSection
         objectName: "notificationsSection"
         icon: "notifications"
@@ -1105,7 +1130,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "voting_chip"
         title: Translation.tr("On-screen display")
 
@@ -1122,7 +1147,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "wallpaper_slideshow"
         title: Translation.tr("Wallpaper selector")
 

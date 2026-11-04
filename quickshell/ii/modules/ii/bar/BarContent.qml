@@ -36,7 +36,8 @@ Item { // Bar content region
                Battery.available + "|" +
                (MprisController.trackedPlayer?.isPlaying === true) + "|" +
                ReleaseUpdates.updateAvailable + "|" +
-               ReleaseUpdates.wantTray;
+               ReleaseUpdates.wantTray + "|" +
+               KdeConnectService.activeDeviceId;
     }
 
     function _refreshModuleCache() {
@@ -44,7 +45,7 @@ Item { // Bar content region
         if (deps === _lastVisibilityDeps) return;
         _lastVisibilityDeps = deps;
 
-        const names = ["sidebarButton", "activeWindow", "activeWindowPill", "resources", "media", "workspaces", "clock", "utilButtons", "battery", "indicators", "volume", "tray", "timers", "weather", "releaseUpdates"];
+        const names = ["sidebarButton", "activeWindow", "activeWindowPill", "resources", "media", "workspaces", "clock", "utilButtons", "battery", "indicators", "volume", "tray", "timers", "weather", "releaseUpdates", "phone"];
         const activeCache = {};
         const visibleCache = {};
 
@@ -70,6 +71,7 @@ Item { // Bar content region
         case "weather": return root.useShortenedForm === 0;
         case "tray": return root.useShortenedForm === 0;
         case "releaseUpdates": return ReleaseUpdates.updateAvailable && ReleaseUpdates.wantTray;
+        case "phone": return root.useShortenedForm < 2 && KdeConnectService.activeDeviceId !== "";
         default: return true;
         }
     }
@@ -91,6 +93,7 @@ Item { // Bar content region
         case "timers": return comp_timers;
         case "weather": return comp_weather;
         case "releaseUpdates": return comp_releaseUpdates;
+        case "phone": return comp_phone;
         default: return null;
         }
     }
@@ -469,6 +472,13 @@ Item { // Bar content region
     }
 
     Component {
+        id: comp_phone
+        PhoneBarIndicator {
+            Layout.alignment: Qt.AlignVCenter
+        }
+    }
+
+    Component {
         id: comp_releaseUpdates
         ReleaseUpdatesIndicator {}
     }
@@ -626,6 +636,7 @@ Item { // Bar content region
             anchors.fill: undefined // The loader's anchors act on this, and this should not have any anchor
             target: barBackground
             color: Appearance.colors.colBarShadow
+            blurScale: Config.options?.bar.shadowSize ?? 1
         }
     }
     // How far in from the screen the floating strip starts on either side.
@@ -875,6 +886,7 @@ Item { // Bar content region
             z: -1
             target: modelData
             color: Appearance.colors.colBarShadow
+            blurScale: Config.options?.bar.shadowSize ?? 1
         }
     }
 

@@ -12,6 +12,7 @@ import Qt.labs.folderlistmodel
 
 ContentPage {
     forceWidth: true
+    sectionSpacing: 14
     /*
     ContentSection {
         icon: "notifications"
@@ -27,144 +28,9 @@ ContentPage {
     }
     */
 
-    // ── Widget layout ─────────────────────────────────────────────────────────
-    ContentSection {
-        icon: "reorder"
-        title: Translation.tr("Widget layout")
+    SettingsGroupHeader { text: Translation.tr("Layout") }
 
-        BarLayoutEditor {}
-    }
-
-    // ── Sidebar button icon ──────────────────────────────────────────────────
-    ContentSection {
-        icon: "image"
-        title: Translation.tr("Sidebar button icon")
-
-        StyledText {
-            Layout.fillWidth: true
-            text: Translation.tr("Choose the icon shown on the sidebar button.")
-            color: Appearance.colors.colSubtext
-            font.pixelSize: Appearance.font.pixelSize.small
-            wrapMode: Text.WordWrap
-        }
-
-        Flow {
-            Layout.fillWidth: true
-            spacing: 6
-
-            RippleButton {
-                id: distroTile
-                buttonRadius: Appearance.rounding.normal
-                implicitWidth: 40
-                implicitHeight: 40
-                colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
-                toggled: Config.options.bar.topLeftIcon === "distro"
-                onClicked: Config.options.bar.topLeftIcon = "distro"
-
-                CustomIcon {
-                    anchors.centerIn: parent
-                    width: 20
-                    height: 20
-                    source: SystemInfo.distroIcon
-                    colorize: true
-                    color: distroTile.toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
-                }
-            }
-
-            Repeater {
-                model: FolderListModel {
-                    folder: Qt.resolvedUrl(Quickshell.shellPath("assets/icons"))
-                    nameFilters: ["*-symbolic.svg"]
-                    showDirs: false
-                    sortField: FolderListModel.Name
-                }
-
-                delegate: RippleButton {
-                    id: iconTile
-                    required property string fileBaseName
-                    readonly property string iconValue: fileBaseName.replace(/-symbolic$/, "")
-
-                    buttonRadius: Appearance.rounding.normal
-                    implicitWidth: 40
-                    implicitHeight: 40
-                    colBackgroundToggled: Appearance.colors.colSecondaryContainer
-                    colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
-                    toggled: Config.options.bar.topLeftIcon === iconTile.iconValue
-                    onClicked: Config.options.bar.topLeftIcon = iconTile.iconValue
-
-                    CustomIcon {
-                        anchors.centerIn: parent
-                        width: 20
-                        height: 20
-                        source: iconTile.fileBaseName
-                        colorize: true
-                        color: iconTile.toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
-                    }
-                }
-            }
-        }
-    }
-
-    // ── Time & Date ───────────────────────────────────────────────────────────
-    ContentSection {
-        icon: "nest_clock_farsight_analog"
-        title: Translation.tr("Time & Date")
-
-        ConfigRow {
-            ContentSubsection {
-                title: Translation.tr("Time Format")
-
-                ConfigSelectionArray {
-                    currentValue: Config.options.time.format
-                    onSelected: newValue => {
-                        if (newValue === "hh:mm") {
-                            Quickshell.execDetached(["bash", "-c", `sed -i 's/\\TIME12\\b/TIME/' '${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprlock.conf'`]);
-                        } else {
-                            Quickshell.execDetached(["bash", "-c", `sed -i 's/\\TIME\\b/TIME12/' '${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprlock.conf'`]);
-                        }
-                        // Sync to pixie-sddm if installed (helper upserts a single
-                        // key without clobbering other state). Silently no-ops on
-                        // boxes that don't have the helper on $PATH.
-                        Quickshell.execDetached(["bash", "-c", `command -v pixie-sddm-set-state >/dev/null 2>&1 && pixie-sddm-set-state clockFormat ${JSON.stringify(newValue)} || true`]);
-                        Config.options.time.format = newValue;
-                    }
-                    options: [
-                        { displayName: Translation.tr("24h"),       value: "hh:mm"   },
-                        { displayName: Translation.tr("12h am/pm"), value: "h:mm ap" },
-                        { displayName: Translation.tr("12h AM/PM"), value: "h:mm AP" },
-                    ]
-                }
-            }
-
-            ContentSubsection {
-                title: Translation.tr("Date Format")
-
-                ConfigSelectionArray {
-                    currentValue: Config.options.time.dateFormat
-                    onSelected: newValue => {
-                        Config.options.time.dateFormat = newValue;
-                        // Sync related date formats to match the selected order
-                        if (newValue === "ddd, dd/MM") {
-                            Config.options.time.shortDateFormat = "dd/MM";
-                            Config.options.time.dateWithYearFormat = "dd/MM/yyyy";
-                        } else {
-                            Config.options.time.shortDateFormat = "MM/dd";
-                            Config.options.time.dateWithYearFormat = "MM/dd/yyyy";
-                        }
-                        // Sync to pixie-sddm if installed.
-                        Quickshell.execDetached(["bash", "-c", `command -v pixie-sddm-set-state >/dev/null 2>&1 && pixie-sddm-set-state dateFormat ${JSON.stringify(newValue)} || true`]);
-                    }
-                    options: [
-                        { displayName: Translation.tr("Date First dd/MM"),  value: "ddd, dd/MM" },
-                        { displayName: Translation.tr("Month First MM/dd"), value: "ddd, MM/dd" },
-                    ]
-                }
-            }
-        }
-    }
-
-    ContentSection {
+    CardSection {
         icon: "spoke"
         title: Translation.tr("Positioning")
 
@@ -301,10 +167,21 @@ ContentPage {
         }
     }
 
+    // ── Widget layout ─────────────────────────────────────────────────────────
+    CardSection {
+        icon: "reorder"
+        title: Translation.tr("Widget layout")
+
+        BarLayoutEditor {}
+    }
+
+
+    SettingsGroupHeader { text: Translation.tr("Appearance") }
+
     // Each radius appears only while the style that gives it a corner to
     // round is the one on screen — a slider for an edge the bar isn't drawing
     // would move nothing.
-    ContentSection {
+    CardSection {
         icon: "rounded_corner"
         title: Translation.tr("Shape")
         // A header over an empty room: with no style that shapes a surface
@@ -401,7 +278,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "opacity"
         title: Translation.tr("Transparency")
 
@@ -477,7 +354,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "palette"
         title: Translation.tr("Colors")
 
@@ -538,7 +415,273 @@ ContentPage {
         }
     }
 
-    ContentSection {
+
+    // ── Spacing ───────────────────────────────────────────────────────────────
+    CardSection {
+        icon: "space_dashboard"
+        title: Translation.tr("Spacing")
+
+        ConfigSlider {
+            text: Translation.tr("Group padding")
+            buttonIcon: "padding"
+            stopIndicatorValues: [5]
+            from: 0
+            to: 14
+            valueText: Math.round(value) + " px"
+            value: Config.options.bar.groupPadding >= 0 ? Config.options.bar.groupPadding : 5
+            onMoved: {
+                const stepped = Math.round(value);
+                if (stepped === Config.options.bar.groupPadding)
+                    return;
+                Config.options.bar.groupPadding = stepped;
+            }
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Space between widgets")
+            buttonIcon: "format_line_spacing"
+            stopIndicatorValues: [4]
+            from: 0
+            to: 16
+            valueText: Math.round(value) + " px"
+            value: Config.options.bar.itemSpacing >= 0 ? Config.options.bar.itemSpacing : 4
+            onMoved: {
+                const stepped = Math.round(value);
+                if (stepped === Config.options.bar.itemSpacing)
+                    return;
+                Config.options.bar.itemSpacing = stepped;
+            }
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Pill margin")
+            buttonIcon: "expand"
+            stopIndicatorValues: [4]
+            from: 0
+            to: 12
+            valueText: Math.round(value) + " px"
+            value: Config.options.bar.pillMargin >= 0 ? Config.options.bar.pillMargin : 4
+            onMoved: {
+                const stepped = Math.round(value);
+                if (stepped === Config.options.bar.pillMargin)
+                    return;
+                Config.options.bar.pillMargin = stepped;
+            }
+        }
+
+        // Handing the three back as "the interface decides", rather than
+        // writing today's numbers, so a reset bar follows the stock later.
+        ConfigResetButton {
+            visible: Config.options.bar.groupPadding >= 0
+                || Config.options.bar.itemSpacing >= 0
+                || Config.options.bar.pillMargin >= 0
+            Layout.leftMargin: 8
+            Layout.topMargin: 2
+            buttonText: Translation.tr("Reset to default spacing")
+            onClicked: {
+                Config.options.bar.groupPadding = -1
+                Config.options.bar.itemSpacing = -1
+                Config.options.bar.pillMargin = -1
+            }
+        }
+    }
+
+    // ── Outline and light ─────────────────────────────────────────────────────
+    // Line-separated groups draw no pill, so there is no ring or edge to tune.
+    CardSection {
+        icon: "border_style"
+        title: Translation.tr("Outline and light")
+        visible: !Config.options.bar.borderless
+
+        ConfigSwitch {
+            buttonIcon: "border_outer"
+            text: Translation.tr("Outline around pills")
+            checked: Config.options.bar.pillOutline
+            onCheckedChanged: Config.options.bar.pillOutline = checked
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Outline thickness")
+            visible: Config.options.bar.pillOutline
+            buttonIcon: "line_weight"
+            stopIndicatorValues: [1]
+            from: 0.5
+            to: 3
+            valueText: value.toFixed(1) + " px"
+            value: Config.options.bar.pillOutlineWidth
+            onMoved: {
+                const stepped = Math.round(value * 2) / 2;
+                if (stepped === Config.options.bar.pillOutlineWidth)
+                    return;
+                Config.options.bar.pillOutlineWidth = stepped;
+            }
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Top edge light")
+            buttonIcon: "light_mode"
+            stopIndicatorValues: [0.08]
+            from: 0
+            to: 0.4
+            valueText: Math.round(value * 100) + "%"
+            value: Config.options.bar.pillHighlight >= 0 ? Config.options.bar.pillHighlight : 0.08
+            onMoved: {
+                const stepped = Math.round(value * 100) / 100;
+                if (stepped === Config.options.bar.pillHighlight)
+                    return;
+                Config.options.bar.pillHighlight = stepped;
+            }
+        }
+
+        ConfigResetButton {
+            visible: !Config.options.bar.pillOutline
+                || Config.options.bar.pillOutlineWidth !== 1
+                || Config.options.bar.pillHighlight >= 0
+            Layout.leftMargin: 8
+            Layout.topMargin: 2
+            buttonText: Translation.tr("Reset to default outline")
+            onClicked: {
+                Config.options.bar.pillOutline = true
+                Config.options.bar.pillOutlineWidth = 1
+                Config.options.bar.pillHighlight = -1
+            }
+        }
+    }
+
+    // ── Shadow ────────────────────────────────────────────────────────────────
+    // Only the Float and Notch strips cast one, and only with a background.
+    CardSection {
+        icon: "shadow"
+        title: Translation.tr("Shadow")
+        visible: Appearance.sizes.barFloats
+
+        ConfigSwitch {
+            buttonIcon: "shadow"
+            text: Translation.tr("Show shadow")
+            checked: Config.options.bar.floatStyleShadow
+            onCheckedChanged: Config.options.bar.floatStyleShadow = checked
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Strength")
+            visible: Config.options.bar.floatStyleShadow
+            buttonIcon: "contrast"
+            stopIndicatorValues: [1]
+            from: 0
+            to: 2
+            valueText: Math.round(value * 100) + "%"
+            value: Config.options.bar.shadowStrength
+            onMoved: {
+                const stepped = Math.round(value * 20) / 20;
+                if (stepped === Config.options.bar.shadowStrength)
+                    return;
+                Config.options.bar.shadowStrength = stepped;
+            }
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Softness")
+            visible: Config.options.bar.floatStyleShadow
+            buttonIcon: "blur_on"
+            stopIndicatorValues: [1]
+            from: 0.4
+            to: 2.5
+            valueText: Math.round(value * 100) + "%"
+            value: Config.options.bar.shadowSize
+            onMoved: {
+                const stepped = Math.round(value * 20) / 20;
+                if (stepped === Config.options.bar.shadowSize)
+                    return;
+                Config.options.bar.shadowSize = stepped;
+            }
+        }
+
+        ConfigResetButton {
+            visible: Config.options.bar.shadowStrength !== 1 || Config.options.bar.shadowSize !== 1
+            Layout.leftMargin: 8
+            Layout.topMargin: 2
+            buttonText: Translation.tr("Reset to default shadow")
+            onClicked: {
+                Config.options.bar.shadowStrength = 1
+                Config.options.bar.shadowSize = 1
+            }
+        }
+    }
+
+    SettingsGroupHeader { text: Translation.tr("Widgets") }
+
+    // ── Sidebar button icon ──────────────────────────────────────────────────
+    CardSection {
+        icon: "image"
+        title: Translation.tr("Sidebar button icon")
+
+        StyledText {
+            Layout.fillWidth: true
+            text: Translation.tr("Choose the icon shown on the sidebar button.")
+            color: Appearance.colors.colSubtext
+            font.pixelSize: Appearance.font.pixelSize.small
+            wrapMode: Text.WordWrap
+        }
+
+        Flow {
+            Layout.fillWidth: true
+            spacing: 6
+
+            RippleButton {
+                id: distroTile
+                buttonRadius: Appearance.rounding.normal
+                implicitWidth: 40
+                implicitHeight: 40
+                colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                toggled: Config.options.bar.topLeftIcon === "distro"
+                onClicked: Config.options.bar.topLeftIcon = "distro"
+
+                CustomIcon {
+                    anchors.centerIn: parent
+                    width: 20
+                    height: 20
+                    source: SystemInfo.distroIcon
+                    colorize: true
+                    color: distroTile.toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
+                }
+            }
+
+            Repeater {
+                model: FolderListModel {
+                    folder: Qt.resolvedUrl(Quickshell.shellPath("assets/icons"))
+                    nameFilters: ["*-symbolic.svg"]
+                    showDirs: false
+                    sortField: FolderListModel.Name
+                }
+
+                delegate: RippleButton {
+                    id: iconTile
+                    required property string fileBaseName
+                    readonly property string iconValue: fileBaseName.replace(/-symbolic$/, "")
+
+                    buttonRadius: Appearance.rounding.normal
+                    implicitWidth: 40
+                    implicitHeight: 40
+                    colBackgroundToggled: Appearance.colors.colSecondaryContainer
+                    colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
+                    toggled: Config.options.bar.topLeftIcon === iconTile.iconValue
+                    onClicked: Config.options.bar.topLeftIcon = iconTile.iconValue
+
+                    CustomIcon {
+                        anchors.centerIn: parent
+                        width: 20
+                        height: 20
+                        source: iconTile.fileBaseName
+                        colorize: true
+                        color: iconTile.toggled ? Appearance.colors.colOnSecondaryContainer : Appearance.colors.colOnLayer1
+                    }
+                }
+            }
+        }
+    }
+
+    CardSection {
         icon: "workspaces"
         title: Translation.tr("Workspaces")
 
@@ -575,6 +718,56 @@ ContentPage {
             checked: Config.options.bar.workspaces.circleAppIcons
             onCheckedChanged: {
                 Config.options.bar.workspaces.circleAppIcons = checked;
+            }
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Button size")
+            buttonIcon: "format_size"
+            stopIndicatorValues: [26]
+            from: 18
+            to: 36
+            valueText: Math.round(value) + " px"
+            value: Config.options.bar.workspaces.buttonSize >= 16 ? Config.options.bar.workspaces.buttonSize : 26
+            onMoved: {
+                const stepped = Math.round(value);
+                if (stepped === Config.options.bar.workspaces.buttonSize)
+                    return;
+                Config.options.bar.workspaces.buttonSize = stepped;
+            }
+        }
+
+        ConfigResetButton {
+            visible: Config.options.bar.workspaces.buttonSize >= 0
+            Layout.leftMargin: 8
+            Layout.topMargin: 2
+            buttonText: Translation.tr("Reset to default button size")
+            onClicked: Config.options.bar.workspaces.buttonSize = -1
+        }
+
+        ContentSubsection {
+            title: Translation.tr("Active marker")
+
+            ConfigSelectionArray {
+                currentValue: Config.options.bar.workspaces.indicatorStyle
+                onSelected: newValue => Config.options.bar.workspaces.indicatorStyle = newValue
+                options: [
+                    {
+                        displayName: Translation.tr("Pill"),
+                        icon: "pill",
+                        value: "pill"
+                    },
+                    {
+                        displayName: Translation.tr("Underline"),
+                        icon: "format_underlined",
+                        value: "underline"
+                    },
+                    {
+                        displayName: Translation.tr("Dot"),
+                        icon: "fiber_manual_record",
+                        value: "dot"
+                    }
+                ]
             }
         }
 
@@ -632,7 +825,124 @@ ContentPage {
         */
     }
 
-    ContentSection {
+    // ── Time & Date ───────────────────────────────────────────────────────────
+    CardSection {
+        icon: "nest_clock_farsight_analog"
+        title: Translation.tr("Time & Date")
+
+        ConfigRow {
+            ContentSubsection {
+                title: Translation.tr("Time Format")
+
+                ConfigSelectionArray {
+                    currentValue: Config.options.time.format
+                    onSelected: newValue => {
+                        if (newValue === "hh:mm") {
+                            Quickshell.execDetached(["bash", "-c", `sed -i 's/\\TIME12\\b/TIME/' '${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprlock.conf'`]);
+                        } else {
+                            Quickshell.execDetached(["bash", "-c", `sed -i 's/\\TIME\\b/TIME12/' '${FileUtils.trimFileProtocol(Directories.config)}/hypr/hyprlock.conf'`]);
+                        }
+                        // Sync to pixie-sddm if installed (helper upserts a single
+                        // key without clobbering other state). Silently no-ops on
+                        // boxes that don't have the helper on $PATH.
+                        Quickshell.execDetached(["bash", "-c", `command -v pixie-sddm-set-state >/dev/null 2>&1 && pixie-sddm-set-state clockFormat ${JSON.stringify(newValue)} || true`]);
+                        Config.options.time.format = newValue;
+                    }
+                    options: [
+                        { displayName: Translation.tr("24h"),       value: "hh:mm"   },
+                        { displayName: Translation.tr("12h am/pm"), value: "h:mm ap" },
+                        { displayName: Translation.tr("12h AM/PM"), value: "h:mm AP" },
+                    ]
+                }
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Date Format")
+
+                ConfigSelectionArray {
+                    currentValue: Config.options.time.dateFormat
+                    onSelected: newValue => {
+                        Config.options.time.dateFormat = newValue;
+                        // Sync related date formats to match the selected order
+                        if (newValue === "ddd, dd/MM") {
+                            Config.options.time.shortDateFormat = "dd/MM";
+                            Config.options.time.dateWithYearFormat = "dd/MM/yyyy";
+                        } else {
+                            Config.options.time.shortDateFormat = "MM/dd";
+                            Config.options.time.dateWithYearFormat = "MM/dd/yyyy";
+                        }
+                        // Sync to pixie-sddm if installed.
+                        Quickshell.execDetached(["bash", "-c", `command -v pixie-sddm-set-state >/dev/null 2>&1 && pixie-sddm-set-state dateFormat ${JSON.stringify(newValue)} || true`]);
+                    }
+                    options: [
+                        { displayName: Translation.tr("Date First dd/MM"),  value: "ddd, dd/MM" },
+                        { displayName: Translation.tr("Month First MM/dd"), value: "ddd, MM/dd" },
+                    ]
+                }
+            }
+        }
+
+        // How the clock in the bar is drawn. The date and time formats above
+        // are what it says; these are how it looks.
+        ContentSubsection {
+            title: Translation.tr("Clock look")
+
+            ConfigSlider {
+                text: Translation.tr("Font size")
+                buttonIcon: "format_size"
+                stopIndicatorValues: [Appearance.font.pixelSize.large]
+                from: 11
+                to: 26
+                valueText: Math.round(value) + " px"
+                value: Config.options.bar.clock.fontSize >= 0
+                    ? Config.options.bar.clock.fontSize : Appearance.font.pixelSize.large
+                onMoved: {
+                    const stepped = Math.round(value);
+                    if (stepped === Config.options.bar.clock.fontSize)
+                        return;
+                    Config.options.bar.clock.fontSize = stepped;
+                }
+            }
+
+            ConfigSwitch {
+                buttonIcon: "format_bold"
+                text: Translation.tr("Bold time")
+                checked: Config.options.bar.clock.bold
+                onCheckedChanged: Config.options.bar.clock.bold = checked
+            }
+
+            ContentSubsection {
+                title: Translation.tr("Separator between time and date")
+
+                ConfigSelectionArray {
+                    currentValue: Config.options.bar.clock.separator
+                    onSelected: newValue => Config.options.bar.clock.separator = newValue
+                    options: [
+                        { displayName: "•", value: "dot" },
+                        { displayName: "|", value: "bar" },
+                        { displayName: "–", value: "dash" },
+                        { displayName: Translation.tr("None"), value: "none" },
+                    ]
+                }
+            }
+
+            ConfigResetButton {
+                visible: Config.options.bar.clock.fontSize >= 0
+                    || Config.options.bar.clock.bold
+                    || Config.options.bar.clock.separator !== "dot"
+                Layout.leftMargin: 8
+                Layout.topMargin: 2
+                buttonText: Translation.tr("Reset to default clock look")
+                onClicked: {
+                    Config.options.bar.clock.fontSize = -1
+                    Config.options.bar.clock.bold = false
+                    Config.options.bar.clock.separator = "dot"
+                }
+            }
+        }
+    }
+
+    CardSection {
         icon: "widgets"
         title: Translation.tr("Utility buttons")
 
@@ -706,9 +1016,7 @@ ContentPage {
         }
     }
 
-    WeatherSection {}
-
-    ContentSection {
+    CardSection {
         icon: "shelf_auto_hide"
         title: Translation.tr("Tray")
 
@@ -730,6 +1038,8 @@ ContentPage {
             }
         }
     }
+
+    WeatherSection {}
 
     /*
     ContentSection {
