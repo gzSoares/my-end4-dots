@@ -24,7 +24,13 @@ Scope {
     // binding re-evaluates on every bump.
     readonly property var meaningfulPlayers: {
         const order = MprisController.recentPlayerNames;
-        return filterDuplicatePlayers(MprisController.orderByRecency(realPlayers)).slice(0, Config.options.media.maxShownPlayers);
+        const ordered = filterDuplicatePlayers(MprisController.orderByRecency(realPlayers));
+        // A player with no track and nothing playing is an empty shell (a
+        // phone's player mirrored by KDE Connect, a browser with no media
+        // open): it has nothing to show, only "Untitled" and 0:00. It comes
+        // back as soon as it has a track or plays.
+        const withMedia = ordered.filter(p => (p.trackTitle ?? "").length > 0 || p.playbackState === MprisPlaybackState.Playing);
+        return (withMedia.length > 0 ? withMedia : ordered.slice(0, 1)).slice(0, Config.options.media.maxShownPlayers);
     }
     readonly property real osdWidth: Appearance.sizes.osdWidth
     readonly property real widgetWidth: Appearance.sizes.mediaControlsWidth
