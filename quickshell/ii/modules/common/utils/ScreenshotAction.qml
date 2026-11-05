@@ -40,6 +40,15 @@ Singleton {
         const uploadAndGetUrl = (filePath) => {
             return `curl -sF files[]=@'${StringUtils.shellSingleQuoteEscape(filePath)}' ${root.fileUploadApiEndpoint} | jq -r '.files[0].url'`
         }
+        // The shell's own editor (screenshot-editor.qml): the crop goes to a temp
+        // file, copied to the clipboard right away so nothing is lost if the
+        // window is closed, and the editor opens on it.
+        const editorPath = StringUtils.shellSingleQuoteEscape(Quickshell.shellPath("screenshot-editor.qml"))
+        const openInEditor = `mkdir -p /tmp/quickshell/media && f=$(mktemp /tmp/quickshell/media/snip-XXXXXX.png) && `
+            + `${cropToStdout} > "$f" && ${cleanup} && `
+            + `{ wl-copy --type image/png < "$f" || true; `
+            + `SCREENSHOT_EDIT_FILE="$f" setsid qs -p '${editorPath}' >/dev/null 2>&1 & }`
+        const useBuiltinEditor = Config.options.regionSelector.annotation.builtin ?? true
         const annotationCommand = `${Config.options.regionSelector.annotation.useSatty ? "satty" : "swappy"} -f -`;
         switch (action) {
             case ScreenshotAction.Action.Copy:
@@ -59,6 +68,7 @@ Singleton {
 
                 break;
             case ScreenshotAction.Action.Edit:
+                if (useBuiltinEditor) return ["bash", "-c", openInEditor]
                 return ["bash", "-c", `${cropToStdout} | ${annotationCommand} && ${cleanup}`]
                 break;
             case ScreenshotAction.Action.Search:

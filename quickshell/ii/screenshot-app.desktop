@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot
+Name[pt_BR]=Captura de tela
+Comment=Pick an area and edit the screenshot
+Comment[pt_BR]=Selecione uma área e edite a captura
+Exec=bash -c "qs -p ~/.config/quickshell/ii/screenshot-app.qml --no-duplicate"
+Icon=applets-screenshooter
+Terminal=false
+Categories=Utility;Graphics;
+Keywords=screenshot;print;captura;screen;
+Actions=window;
+
+[Desktop Action window]
+Name=Open the screenshot window
+Name[pt_BR]=Abrir a janela de captura
+Exec=env SCREENSHOT_APP_WINDOW=1 bash -c "qs -p ~/.config/quickshell/ii/screenshot-app.qml --no-duplicate"

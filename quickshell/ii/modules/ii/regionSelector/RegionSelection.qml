@@ -351,8 +351,14 @@ PanelWindow {
         //   plain drag     → Copy        (image to clipboard)
         //   right-button   → Edit        (image opened in editor)
         //   Shift + drag   → OCR / text  (recognised text to clipboard)
-        // Other invocations (Search / Record / explicit OCR keybind) skip
-        // this morphing — only Copy/Edit can be upgraded mid-drag.
+        // Other invocations (Search / explicit OCR keybind) skip this morphing
+        // — only Copy/Edit can be upgraded mid-drag. A recording started
+        // plainly (regionRecord, Super+Shift+R) takes the same two buttons:
+        //   plain drag     → record without sound
+        //   right-button   → record with the system sound
+        if (root.action === RegionSelection.SnipAction.Record && root.mouseButton === Qt.RightButton) {
+            root.action = RegionSelection.SnipAction.RecordWithSound;
+        }
         if (root.action === RegionSelection.SnipAction.Copy || root.action === RegionSelection.SnipAction.Edit) {
             if (root._shiftHeld) {
                 root.action = RegionSelection.SnipAction.CharRecognition;

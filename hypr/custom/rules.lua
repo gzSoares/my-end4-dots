@@ -82,3 +82,8 @@ hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_i
 hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_anim = true})
 hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_blur = true})
 hl.window_rule({match = {title = "^(ii-phone-embed-)(.*)$" },               no_shadow = true})
+
+-- The screenshot editor is a translucent window: let the compositor blur behind it like the shell's panels (the rule above turns blur off for every window)
+hl.window_rule({match = {class = "^(org.quickshell)$", title = "^(Screenshot editor)$" },  no_blur = false})
+hl.window_rule({match = {class = "^(org.quickshell)$", title = "^(Screen recorder)$" },    no_blur = false})
+hl.window_rule({match = {class = "^(org.quickshell)$", title = "^(Video editor)$" },       no_blur = false})

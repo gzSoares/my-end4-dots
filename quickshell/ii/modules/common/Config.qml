@@ -1295,6 +1295,8 @@ Singleton {
                 }
                 property JsonObject annotation: JsonObject {
                     property bool useSatty: false
+                    // Marks up the shot in the shell's own editor (screenshot-editor.qml) instead of satty/swappy
+                    property bool builtin: true
                 }
             }
 
@@ -1408,6 +1410,8 @@ Singleton {
 
             property JsonObject screenRecord: JsonObject {
                 property string savePath: Directories.videos.replace("file://","") // strip "file://"
+                // When a recording stops, open it in the video editor (video-editor.qml)
+                property bool openEditor: true
             }
 
             property JsonObject screenSnip: JsonObject {

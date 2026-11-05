@@ -299,7 +299,8 @@ hl.bind("SUPER + V", hl.dsp.exec_cmd(
  qsIsAlive.." || pkill fuzzel || cliphist list | fuzzel --match-mode fzf --dmenu | cliphist decode | wl-copy") )
 hl.bind("SUPER + Period", hl.dsp.exec_cmd(
  qsIsAlive.." || pkill fuzzel || "..hyprScripts.."/fuzzel-emoji.sh copy") )
-hl.bind("SUPER + SHIFT + S", hl.dsp.global("quickshell:regionScreenshot"), {description = "Screen snip"} )
+--hl.bind("SUPER + SHIFT + S", hl.dsp.global("quickshell:regionScreenshot"), {description = "Screen snip"} )
+hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd("qs -p ~/.config/quickshell/ii/screenshot-app.qml --no-duplicate"), {description = "Screenshot app"} )
 hl.bind("SUPER + SHIFT + S", hl.dsp.exec_cmd(qsIsAlive.." || pidof slurp || hyprshot --freeze --clipboard-only --mode region --silent") )
 hl.bind("SUPER + SHIFT + A", hl.dsp.global("quickshell:regionSearch"), {description = "Google Lens"} )
 hl.bind("SUPER + SHIFT + A", hl.dsp.exec_cmd(qsIsAlive.." || pidof slurp || "..hyprScripts.."/snip_to_search.sh") )

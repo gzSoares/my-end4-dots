@@ -75,6 +75,13 @@ if pgrep wf-recorder > /dev/null; then
         action=$(notify-send "Recording saved" "${FILE##*/}" "${NOTIFY_ARGS[@]}")
         [[ "$action" == "open" ]] && xdg-open "$RECORDING_DIR"
     ) & disown
+    # Open the recording in the shell's video editor, unless turned off in the
+    # config (screenRecord.openEditor = false)
+    OPEN_EDITOR=$(jq -r 'if .screenRecord.openEditor == false then "false" else "true" end' "$CONFIG_FILE" 2>/dev/null)
+    EDITOR_QML="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../../video-editor.qml"
+    if [[ -n "$FILE" && "$OPEN_EDITOR" != "false" && -f "$EDITOR_QML" ]]; then
+        VIDEO_EDIT_FILE="$FILE" setsid qs -p "$EDITOR_QML" >/dev/null 2>&1 &
+    fi
 else
     if [[ $FULLSCREEN_FLAG -eq 1 ]]; then
         notify-send "Starting recording" 'recording_'"$(getdate)"'.mp4' -a 'Recorder' & disown

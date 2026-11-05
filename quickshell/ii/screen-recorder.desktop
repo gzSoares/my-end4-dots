@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Screen Recorder
+Name[pt_BR]=Gravador de tela
+Comment=Record the screen
+Comment[pt_BR]=Grave a tela
+Exec=bash -c "qs -p ~/.config/quickshell/ii/screen-recorder.qml --no-duplicate"
+Icon=media-record
+Terminal=false
+Categories=AudioVideo;Video;Utility;
+Keywords=record;recorder;screen;gravar;gravador;tela;video;
