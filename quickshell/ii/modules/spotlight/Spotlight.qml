@@ -1858,7 +1858,7 @@ else:
     property double _micHold: 0
     readonly property bool micCardShown: root.results.some(r => r.kind === "mic")
 
-    // -- Bedroom light card ("luz"): scripts/lamp/lamp.py talks to the bulb over the local network
+    // -- Bedroom light card ("luz" / "light"): scripts/lamp/lamp.py talks to the bulb over the local network
     property real lampLevel: 0.5
     property bool lampOn: false
     property bool lampDragging: false
@@ -2509,11 +2509,25 @@ else:
                  category: "Color \u2014 click to copy hex" };
     }
 
+    // What was asked of the bedroom light, in Portuguese or English: "" for the bare word
+    // ("luz", "light"), the action for "luz azul" / "light blue" / "acender a luz" /
+    // "turn on the light" / "turn the light off", and null when it is not a light command.
+    function _lampArg(ql) {
+        const s = ql.trim().replace(/\s+/g, " ");
+        const word = "(?:luz|luzes|l[aâ]mpada|l[aâ]mpadas|lamp|lamps|light|lights)";
+        let m = s.match(new RegExp("^(?:(?:a|as|o|os|the)\\s)?" + word + "(?:\\s(.*))?$"));
+        if (m) return m[1] || "";
+        m = s.match(new RegExp("^(ligar|liga|acender|acende|desligar|desliga|apagar|apaga|alternar|alterna|inverter|inverte|(?:turn|switch) on|(?:turn|switch) off|toggle)\\s(?:(?:a|as|o|os|the)\\s)?" + word + "$"));
+        if (m) return m[1];
+        m = s.match(new RegExp("^(turn|switch)\\s(?:the\\s)?" + word + "\\s(on|off)$"));
+        return m ? m[1] + " " + m[2] : null;
+    }
+
     function sysControlItems(ql) {
             const out = [];
             const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "System control", iconKey: "shortcut" });
             const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-            let m;
+            let m, lampArg;
         
             // Trigger OSD when typing "volume" alone
             // (typing "volume" alone now shows the volume card instead of the OSD row)
@@ -2548,39 +2562,40 @@ else:
                 "elif command -v swaync-client >/dev/null; then swaync-client -d; " +
                 "elif command -v dunstctl >/dev/null; then dunstctl set-paused toggle; " +
                 "fi");
-        } else if ((m = ql.match(/^(?:luz|l[a\u00e2]mpada|lampada|lamp)(?:\s+(.*))?$/))) {
+        } else if ((lampArg = root._lampArg(ql)) !== null) {
             // Bedroom bulb, over the local network (scripts/lamp/lamp.py, needs tinytuya
-            // and ~/.config/ii-lamp/devices.json). "luz" alone offers the usual choices.
-            const arg = (m[1] || "").trim();
+            // and ~/.config/ii-lamp/devices.json). "luz"/"light" alone offers the usual choices.
+            const arg = lampArg.replace(/^(?:brilho|brightness|bright|cor|color|colour)\s+/, "");
             const script = Quickshell.shellPath("scripts/lamp/lamp.py").toString().replace(/^file:\/\//, "");
             const lamp = (name, args) => add(name, "python3 \"" + script + "\" " + args);
-            const colors = { vermelha: "vermelha", vermelho: "vermelha", red: "red", verde: "verde", green: "green",
-                azul: "azul", blue: "blue", amarela: "amarela", amarelo: "amarela", yellow: "yellow",
-                laranja: "laranja", orange: "orange", roxa: "roxa", roxo: "roxa", purple: "purple",
-                rosa: "rosa", pink: "pink", ciano: "ciano", cyan: "cyan" };
-            const temps = { quente: "quente", warm: "warm", neutra: "neutra", neutro: "neutra", neutral: "neutral",
-                fria: "fria", frio: "fria", cool: "cool" };
+            const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+            const colors = { vermelha: "red", vermelho: "red", red: "red", verde: "green", green: "green",
+                azul: "blue", blue: "blue", amarela: "yellow", amarelo: "yellow", yellow: "yellow",
+                laranja: "orange", orange: "orange", roxa: "purple", roxo: "purple", purple: "purple",
+                rosa: "pink", pink: "pink", ciano: "cyan", cyan: "cyan" };
+            const temps = { quente: "warm", warm: "warm", neutra: "neutral", neutro: "neutral", neutral: "neutral",
+                fria: "cool", frio: "cool", cool: "cool", cold: "cool" };
             let n;
             if (arg === "") {
-                lamp("Alternar luz do quarto", "toggle");
-                lamp("Acender luz", "on");
-                lamp("Apagar luz", "off");
-                lamp("Luz com brilho 50%", "brightness 50");
-            } else if (/^(on|ligar|liga|acender|acende)$/.test(arg)) {
-                lamp("Acender luz", "on");
-            } else if (/^(off|desligar|desliga|apagar|apaga)$/.test(arg)) {
-                lamp("Apagar luz", "off");
-            } else if (/^(toggle|alternar|inverter)$/.test(arg)) {
-                lamp("Alternar luz do quarto", "toggle");
+                lamp("Toggle bedroom light", "toggle");
+                lamp("Turn light on", "on");
+                lamp("Turn light off", "off");
+                lamp("Set light to 50%", "brightness 50");
+            } else if (/^(on|ligar|liga|acender|acende|(?:turn|switch) on)$/.test(arg)) {
+                lamp("Turn light on", "on");
+            } else if (/^(off|desligar|desliga|apagar|apaga|(?:turn|switch) off)$/.test(arg)) {
+                lamp("Turn light off", "off");
+            } else if (/^(toggle|switch|alternar|alterna|inverter|inverte)$/.test(arg)) {
+                lamp("Toggle bedroom light", "toggle");
             } else if ((n = arg.match(/^(\d{1,3})\s*%?$/))) {
                 const pct = clamp(parseInt(n[1]), 1, 100);
-                lamp("Luz com brilho " + pct + "%", "brightness " + pct);
+                lamp("Set light to " + pct + "%", "brightness " + pct);
             } else if (temps[arg]) {
-                lamp("Luz branca " + arg, "temp " + temps[arg]);
+                lamp(cap(temps[arg]) + " white light", "temp " + temps[arg]);
             } else if (colors[arg]) {
-                lamp("Luz " + arg, "color " + colors[arg]);
+                lamp(cap(colors[arg]) + " light", "color " + colors[arg]);
             } else if (/^#[0-9a-f]{6}$/.test(arg)) {
-                lamp("Luz na cor " + arg, "color " + arg);
+                lamp("Light color " + arg, "color " + arg);
             }
         }
         return out;
@@ -5109,7 +5124,7 @@ else:
             if (/^(noi|noit|noite|nig|nigh|night)$/.test(ql)) root._pinCard(disp, "night");
         });
         safe("lamp", () => {
-            if (/^(luz|l[a\u00e2]mpada|lampada|lamp)$/.test(ql)) root._pinCard(disp, "lamp");
+            if (root._lampArg(ql) === "") root._pinCard(disp, "lamp");
         });
         safe("power", () => {
             if (/^(ener|energ|energi|energia|power)$/.test(ql)) root._pinCard(disp, "power");
@@ -6617,8 +6632,8 @@ else:
                                 panelBorder: root.white10
                                 speakerPath: root.cmdGlyphPaths["bulb"]
                                 hint: root.lampError !== "" && !root.lampKnown
-                                      ? ("Luz sem resposta  \u00B7  " + root.lampError)
-                                      : "Luz do quarto  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps  \u00B7  click the bulb to turn on or off"
+                                      ? ("Light not responding  \u00B7  " + root.lampError)
+                                      : "Bedroom light  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps  \u00B7  click the bulb to turn on or off"
                                 onLevelChosen: (value) => root.lampSet(value)
                                 onMuteToggled: root.lampToggle()
                                 onDraggingChanged: root.lampDragging = dragging
