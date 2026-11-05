@@ -60,8 +60,8 @@ RowLayout {
     }
     ToolbarTextField { // Search box
         id: searchInput
-        Layout.topMargin: 4
-        Layout.bottomMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
+        Layout.bottomMargin: Appearance.spacing.xs
         implicitHeight: 40
         focus: GlobalStates.overviewOpen
         font.pixelSize: Appearance.font.pixelSize.small
@@ -72,7 +72,7 @@ RowLayout {
             id: searchWidthBehavior
             enabled: root.animateWidth
             NumberAnimation {
-                duration: 300
+                duration: Appearance.motion.normal
                 easing.type: Appearance.animation.elementMove.type
                 easing.bezierCurve: Appearance.animation.elementMove.bezierCurve
             }
@@ -102,8 +102,8 @@ RowLayout {
     }
 
     IconToolbarButton {
-        Layout.topMargin: 4
-        Layout.bottomMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
+        Layout.bottomMargin: Appearance.spacing.xs
         onClicked: {
             GlobalStates.overviewOpen = false;
             lensDelayTimer.start();
@@ -123,8 +123,8 @@ RowLayout {
 
     IconToolbarButton {
         id: songRecButton
-        Layout.topMargin: 4
-        Layout.bottomMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
+        Layout.bottomMargin: Appearance.spacing.xs
         toggled: SongRec.running
         onClicked: SongRec.toggleRunning()
         text: "music_cast"
@@ -164,9 +164,9 @@ RowLayout {
     }
 
     IconToolbarButton {
-        Layout.topMargin: 4
-        Layout.bottomMargin: 4
-        Layout.rightMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
+        Layout.bottomMargin: Appearance.spacing.xs
+        Layout.rightMargin: Appearance.spacing.xs
         onClicked: {
             GlobalStates.overviewOpen = false;
             GlobalStates.sessionOpen = true;

@@ -164,7 +164,7 @@ OverlayBackground {
                 persistentSelection: true
                 textFormat: TextEdit.PlainText
                 background: null
-                padding: 24
+                padding: Appearance.spacing.xl
 
                 onTextChanged: {
                     if (textInput.activeFocus) {
@@ -237,7 +237,7 @@ OverlayBackground {
         StyledText {
             id: statusLabel
             Layout.fillWidth: true
-            Layout.margins: 16
+            Layout.margins: Appearance.spacing.lg
             horizontalAlignment: Text.AlignRight
             text: saveDebounce.running ? Translation.tr("Saving...") : Translation.tr("Saved    ")
             color: Appearance.colors.colSubtext

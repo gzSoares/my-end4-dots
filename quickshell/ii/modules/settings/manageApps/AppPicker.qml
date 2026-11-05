@@ -149,9 +149,9 @@ Item {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 12
+            anchors.leftMargin: Appearance.spacing.md
             anchors.rightMargin: 10
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             MaterialSymbol {
                 visible: picker.fieldIcon.length > 0
@@ -205,7 +205,7 @@ Item {
         width: Math.max(field.width, 300)
         x: field.width - width
         height: listHeight
-        padding: 8
+        padding: Appearance.spacing.sm
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: searchField.forceActiveFocus()
 

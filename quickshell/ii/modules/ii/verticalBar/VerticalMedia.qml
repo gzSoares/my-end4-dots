@@ -84,7 +84,7 @@ MouseArea {
 
         Column {
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             Bar.StyledPopupHeaderRow {
                 icon: "music_note"

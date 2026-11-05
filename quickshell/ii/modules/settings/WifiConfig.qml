@@ -183,16 +183,16 @@ Item {
 
     component WifiNotice: SubtleNoticeBox {
         Layout.fillWidth: true
-        Layout.leftMargin: 8
-        Layout.rightMargin: 8
-        Layout.topMargin: 4
-        Layout.bottomMargin: 4
+        Layout.leftMargin: Appearance.spacing.sm
+        Layout.rightMargin: Appearance.spacing.sm
+        Layout.topMargin: Appearance.spacing.xs
+        Layout.bottomMargin: Appearance.spacing.xs
     }
 
     component CountryNote: StyledText {
         Layout.fillWidth: true
-        Layout.leftMargin: 8
-        Layout.rightMargin: 8
+        Layout.leftMargin: Appearance.spacing.sm
+        Layout.rightMargin: Appearance.spacing.sm
         visible: text.length > 0
         wrapMode: Text.Wrap
         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -219,7 +219,7 @@ Item {
 
                     contentItem: RowLayout {
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             text: "refresh"
                             iconSize: 16
@@ -305,7 +305,7 @@ Item {
                 Layout.fillWidth: true
                 Layout.topMargin: 20
                 Layout.bottomMargin: 20
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter
@@ -417,8 +417,8 @@ Item {
             title: Translation.tr("Wi-Fi Country")
 
             ConfigRow {
-                Layout.leftMargin: 8
-                Layout.rightMargin: 8
+                Layout.leftMargin: Appearance.spacing.sm
+                Layout.rightMargin: Appearance.spacing.sm
                 OptionalMaterialSymbol {
                     icon: "flag"
                     Layout.alignment: Qt.AlignVCenter

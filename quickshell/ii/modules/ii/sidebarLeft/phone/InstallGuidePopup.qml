@@ -114,7 +114,7 @@ Item {
             ColumnLayout {
                 id: popupColumn
                 anchors.fill: parent
-                anchors.margins: 16
+                anchors.margins: Appearance.spacing.lg
                 spacing: 14
 
                 // ─── Header ───────────────────────────────────
@@ -222,14 +222,14 @@ Item {
                             anchors.left: parent.left
                             anchors.right: parent.right
                             anchors.verticalCenter: parent.verticalCenter
-                            anchors.leftMargin: 12
-                            anchors.rightMargin: 12
+                            anchors.leftMargin: Appearance.spacing.md
+                            anchors.rightMargin: Appearance.spacing.md
                             spacing: 6
 
                             // Dep name + description
                             RowLayout {
                                 Layout.fillWidth: true
-                                spacing: 8
+                                spacing: Appearance.spacing.sm
 
                                 MaterialSymbol {
                                     text: "error"
@@ -354,7 +354,7 @@ Item {
                 // ─── Footer hint + refresh button ─────────────
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     StyledText {
                         Layout.fillWidth: true
@@ -373,7 +373,7 @@ Item {
                         scale: down ? 0.96 : 1.0
                         Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutQuad } }
                         contentItem: RowLayout {
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             MaterialSymbol {
                                 Layout.alignment: Qt.AlignVCenter
                                 text: "refresh"
@@ -389,8 +389,8 @@ Item {
                                 color: Appearance.colors.colOnPrimaryContainer
                             }
                         }
-                        leftPadding: 12
-                        rightPadding: 12
+                        leftPadding: Appearance.spacing.md
+                        rightPadding: Appearance.spacing.md
                         onClicked: root.refreshRequested()
                     }
                 }

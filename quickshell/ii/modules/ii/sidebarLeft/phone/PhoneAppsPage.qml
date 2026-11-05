@@ -36,7 +36,7 @@ Rectangle {
                 property: "opacity"
                 from: 0
                 to: 1
-                duration: 280
+                duration: Appearance.motion.normal
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
@@ -44,7 +44,7 @@ Rectangle {
                 property: "y"
                 from: 16
                 to: 0
-                duration: 360
+                duration: Appearance.motion.slow
                 easing.type: Easing.OutBack
                 easing.overshoot: 1.3
             }
@@ -134,7 +134,7 @@ Rectangle {
         // ─── Header Bar ──────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             RippleButton {
                 id: backBtn
@@ -219,9 +219,9 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                spacing: 8
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.rightMargin: Appearance.spacing.md
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     text: "search"
@@ -335,7 +335,7 @@ Rectangle {
                             anchors.fill: parent
                             anchors.leftMargin: 10
                             anchors.rightMargin: 10
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
 
                             Rectangle {
                                 Layout.preferredWidth: 10
@@ -440,7 +440,7 @@ Rectangle {
 
                     Row {
                         id: favRow
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         Repeater {
                             id: favRepeater
@@ -458,9 +458,9 @@ Rectangle {
 
                                 contentItem: RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
-                                    spacing: 8
+                                    anchors.leftMargin: Appearance.spacing.sm
+                                    anchors.rightMargin: Appearance.spacing.sm
+                                    spacing: Appearance.spacing.sm
 
                                     AppIcon {
                                         Layout.alignment: Qt.AlignVCenter
@@ -607,7 +607,7 @@ Rectangle {
             // Empty State
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 12
+                spacing: Appearance.spacing.md
                 visible: !PhoneScrcpyService.appModeSupported || PhoneScrcpyService.filteredApps.length === 0
 
                 MaterialSymbol {

@@ -23,7 +23,7 @@ Item { // Tag suggestion description
 
         RowLayout {
             id: descriptionRow
-            spacing: 4
+            spacing: Appearance.spacing.xs
             anchors {
                 fill: parent
                 leftMargin: 10

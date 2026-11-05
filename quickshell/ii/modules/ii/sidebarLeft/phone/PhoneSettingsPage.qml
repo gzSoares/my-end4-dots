@@ -35,8 +35,8 @@ Item {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 12
-        spacing: 12
+        anchors.margins: Appearance.spacing.md
+        spacing: Appearance.spacing.md
 
         RippleButton {
             implicitWidth: 40
@@ -87,9 +87,9 @@ Item {
         anchors.right: parent.right
         anchors.top: header.bottom
         anchors.bottom: parent.bottom
-        anchors.topMargin: 12
-        anchors.leftMargin: 12
-        anchors.rightMargin: 12
+        anchors.topMargin: Appearance.spacing.md
+        anchors.leftMargin: Appearance.spacing.md
+        anchors.rightMargin: Appearance.spacing.md
         clip: true
         contentHeight: body.implicitHeight + 16
         boundsBehavior: Flickable.StopAtBounds
@@ -535,11 +535,11 @@ Item {
         default property alias rows: rowColumn.data
 
         Layout.fillWidth: true
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         RowLayout {
-            Layout.leftMargin: 8
-            spacing: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            spacing: Appearance.spacing.sm
             MaterialSymbol {
                 text: section.symbol
                 iconSize: Appearance.font.pixelSize.normal
@@ -613,12 +613,12 @@ Item {
             anchors.right: parent.right
             anchors.verticalCenter: parent.verticalCenter
             anchors.leftMargin: 14
-            anchors.rightMargin: 12
-            spacing: 8
+            anchors.rightMargin: Appearance.spacing.md
+            spacing: Appearance.spacing.sm
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 MaterialSymbol {
                     visible: row.symbol.length > 0
@@ -670,7 +670,7 @@ Item {
                 RowLayout {
                     id: controlHolder
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                 }
             }
 
@@ -835,7 +835,7 @@ Item {
                     RowLayout {
                         id: chipRow
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             visible: (chip.modelData.icon ?? "").length > 0
                             text: chip.modelData.icon ?? ""

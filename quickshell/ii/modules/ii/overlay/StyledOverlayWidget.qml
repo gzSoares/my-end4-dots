@@ -244,7 +244,7 @@ AbstractOverlayWidget {
                         Layout.leftMargin: 6
                         iconSize: 20
                         Layout.alignment: Qt.AlignVCenter
-                        Layout.rightMargin: 4
+                        Layout.rightMargin: Appearance.spacing.xs
                     }
                     
                     StyledText {

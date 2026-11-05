@@ -11,7 +11,7 @@ RowLayout {
         var fmt = Config.options?.time.dateWithYearFormat ?? "dd/MM/yyyy"
         return fmt.indexOf("MM") < fmt.indexOf("dd")
     }
-    spacing: 4
+    spacing: Appearance.spacing.xs
 
     // Track day/month/year as integers to avoid circular bindings
     property int _day: selectedDate.getDate()

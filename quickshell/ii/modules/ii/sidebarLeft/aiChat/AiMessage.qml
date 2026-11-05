@@ -158,9 +158,9 @@ Rectangle {
                 id: headerRowLayout
                 anchors {
                     fill: parent
-                    margins: 4
+                    margins: Appearance.spacing.xs
                 }
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Item { // Name
                     id: nameWrapper
@@ -175,7 +175,7 @@ Rectangle {
                         anchors.right: parent.right
                         anchors.leftMargin: 6
                         anchors.rightMargin: 6
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         Item {
                             Layout.alignment: Qt.AlignVCenter
@@ -430,8 +430,8 @@ Rectangle {
             // Streaming active indicator
             RowLayout {
                 visible: (root.role === 'assistant') && !(root.messageData?.done ?? true) && (root.blocks.length > 0)
-                Layout.topMargin: 4
-                Layout.bottomMargin: 4
+                Layout.topMargin: Appearance.spacing.xs
+                Layout.bottomMargin: Appearance.spacing.xs
                 Layout.leftMargin: 6
                 spacing: 6
 

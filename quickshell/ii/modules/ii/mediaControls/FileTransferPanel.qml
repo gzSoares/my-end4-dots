@@ -122,12 +122,12 @@ Item {
         ColumnLayout {
             id: col
             anchors.fill: parent
-            anchors.margins: 12
+            anchors.margins: Appearance.spacing.md
             spacing: 6
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     text: "send"
@@ -180,7 +180,7 @@ Item {
             Component {
                 id: idleComp
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     StyledText {
                         Layout.fillWidth: true
@@ -235,9 +235,9 @@ Item {
 
                                     contentItem: RowLayout {
                                         anchors.fill: parent
-                                        anchors.leftMargin: 8
-                                        anchors.rightMargin: 8
-                                        spacing: 8
+                                        anchors.leftMargin: Appearance.spacing.sm
+                                        anchors.rightMargin: Appearance.spacing.sm
+                                        spacing: Appearance.spacing.sm
 
                                         MaterialSymbol {
                                             text: {
@@ -334,7 +334,7 @@ Item {
             Component {
                 id: sendingComp
                 ColumnLayout {
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     Item { Layout.fillHeight: true }
                     StyledText {
                         Layout.fillWidth: true
@@ -365,7 +365,7 @@ Item {
                 Item {
                     RowLayout {
                         anchors.centerIn: parent
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "check_circle"
                             iconSize: Appearance.font.pixelSize.huge
@@ -384,10 +384,10 @@ Item {
             Component {
                 id: errorComp
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "error"
                             iconSize: Appearance.font.pixelSize.larger

@@ -31,8 +31,8 @@ Item {
         RowLayout {
             anchors.fill: parent
             anchors.leftMargin: 14
-            anchors.rightMargin: 12
-            spacing: 8
+            anchors.rightMargin: Appearance.spacing.md
+            spacing: Appearance.spacing.sm
             StyledText {
                 Layout.fillWidth: true
                 text: (root.value && root.value.length > 0) ? root.value : Translation.tr("Choose a font…")
@@ -81,7 +81,7 @@ Item {
         y: dropUp ? -(height + 4) : (field.height + 4)
         width: field.width
         height: availH
-        padding: 8
+        padding: Appearance.spacing.sm
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         onOpened: searchField.forceActiveFocus()
 
@@ -141,9 +141,9 @@ Item {
                         : "transparent"
                     RowLayout {
                         anchors.fill: parent
-                        anchors.leftMargin: 12
-                        anchors.rightMargin: 12
-                        spacing: 8
+                        anchors.leftMargin: Appearance.spacing.md
+                        anchors.rightMargin: Appearance.spacing.md
+                        spacing: Appearance.spacing.sm
                         StyledText {
                             Layout.fillWidth: true
                             text: item.modelData

@@ -932,7 +932,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         contentItem: RowLayout {
             id: resetRow
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             MaterialSymbol {
                 text: "restart_alt"
                 iconSize: 16
@@ -998,8 +998,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
 
             Rectangle {
                 Layout.fillHeight: true
-                Layout.topMargin: 4
-                Layout.bottomMargin: 4
+                Layout.topMargin: Appearance.spacing.xs
+                Layout.bottomMargin: Appearance.spacing.xs
                 implicitWidth: 2
                 radius: 1
                 color: CF.ColorUtils.transparentize(Appearance.m3colors.m3outline, 0.5)
@@ -1217,8 +1217,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         // tuned against each other, so they travel together rather than as
         // fourteen separate knobs.
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             enabled: root.animationsEnabled
             opacity: root.animationsEnabled ? 1 : 0.5
             OptionalMaterialSymbol {
@@ -1254,8 +1254,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         title: Translation.tr("Reset")
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             RippleButtonWithIcon {
                 materialIcon: "settings_backup_restore"
                 mainText: Translation.tr("Reset window settings")
@@ -1274,8 +1274,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         Layout.fillWidth: true
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "widgets"
                 Layout.alignment: Qt.AlignVCenter
@@ -1302,8 +1302,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         }
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "interests"
                 Layout.alignment: Qt.AlignVCenter
@@ -1330,8 +1330,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         }
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "mouse"
                 Layout.alignment: Qt.AlignVCenter
@@ -1364,8 +1364,8 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         title: Translation.tr("Cursor")
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "straighten"
                 Layout.alignment: Qt.AlignVCenter
@@ -1405,10 +1405,10 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         // the Themes page carries its notices, so the settings speak alike.
         SubtleNoticeBox {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
+            Layout.topMargin: Appearance.spacing.xs
+            Layout.bottomMargin: Appearance.spacing.xs
             text: Translation.tr("Not every cursor theme can be resized. One built at a single size stays that size whichever you pick here.")
         }
     }

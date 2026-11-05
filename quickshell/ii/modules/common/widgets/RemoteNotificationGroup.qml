@@ -243,7 +243,7 @@ Item {
         scale: dragManager.dragging ? 1.0 : (dragManager.pressed ? 0.993 : 1.0)
         Behavior on scale {
             NumberAnimation {
-                duration: 120
+                duration: Appearance.motion.instant
                 easing.type: Easing.OutQuad
             }
         }
@@ -289,7 +289,7 @@ Item {
             id: implicitHeightAnim
             enabled: true
             NumberAnimation {
-                duration: 380
+                duration: Appearance.motion.slow
                 easing.type: Easing.OutQuart
             }
         }
@@ -405,7 +405,7 @@ Item {
                                     anchors.centerIn: parent
                                     spacing: 3
                                     StyledText {
-                                        Layout.leftMargin: 4
+                                        Layout.leftMargin: Appearance.spacing.xs
                                         text: root.notificationCount
                                         font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: Appearance.colors.colOnLayer3

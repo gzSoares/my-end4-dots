@@ -66,13 +66,13 @@ Item {
 
     Behavior on opacity {
         NumberAnimation {
-            duration: 240
+            duration: Appearance.motion.normal
             easing.type: Easing.OutCubic
         }
     }
     Behavior on scale {
         NumberAnimation {
-            duration: 280
+            duration: Appearance.motion.normal
             easing.type: Easing.OutBack
             easing.overshoot: 1.35
         }
@@ -256,7 +256,7 @@ Item {
         scale: dragManager.dragging ? 1.0 : (dragManager.pressed ? 0.992 : 1.0)
         Behavior on scale {
             NumberAnimation {
-                duration: 120
+                duration: Appearance.motion.instant
                 easing.type: Easing.OutQuad
             }
         }
@@ -292,7 +292,7 @@ Item {
 
         Behavior on implicitHeight {
             NumberAnimation {
-                duration: 380
+                duration: Appearance.motion.slow
                 easing.type: Easing.OutQuart
             }
         }
@@ -307,7 +307,7 @@ Item {
 
             Behavior on anchors.margins {
                 NumberAnimation {
-                    duration: 380
+                    duration: Appearance.motion.slow
                     easing.type: Easing.OutQuart
                 }
             }
@@ -337,7 +337,7 @@ Item {
                     Layout.preferredHeight: summaryText.implicitHeight
                     Behavior on opacity {
                         NumberAnimation {
-                            duration: 250
+                            duration: Appearance.motion.normal
                             easing.type: Easing.OutCubic
                         }
                     }
@@ -359,7 +359,7 @@ Item {
 
                 Behavior on opacity {
                     NumberAnimation {
-                        duration: 300
+                        duration: Appearance.motion.normal
                         easing.type: Easing.OutCubic
                     }
                 }
@@ -368,7 +368,7 @@ Item {
                 ClippingRectangle {
                     id: widePreview
                     Layout.fillWidth: true
-                    Layout.topMargin: 4
+                    Layout.topMargin: Appearance.spacing.xs
                     Layout.bottomMargin: 2
                     Layout.preferredHeight: Math.round(width * 9 / 16)
                     visible: root.previewWide

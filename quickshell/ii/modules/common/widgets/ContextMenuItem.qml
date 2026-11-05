@@ -32,7 +32,7 @@ RippleButton {
             leftMargin: 10
             rightMargin: 14
         }
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         Loader {
             active: root.leading !== null

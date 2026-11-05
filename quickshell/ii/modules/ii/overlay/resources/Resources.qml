@@ -222,7 +222,7 @@ StyledOverlayWidget {
                 fill: parent
                 margins: parent.padding
             }
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             SecondaryTabBar {
                 id: tabBar
@@ -244,13 +244,13 @@ StyledOverlayWidget {
             }
 
             ResourceSummary {
-                Layout.margins: 8
+                Layout.margins: Appearance.spacing.sm
                 history: root.resources[tabBar.currentIndex]?.history ?? []
                 maxAvailableString: root.resources[tabBar.currentIndex]?.maxAvailableString ?? "--"
             }
 
             ExtraInfo {
-                Layout.margins: 8
+                Layout.margins: Appearance.spacing.sm
                 Layout.topMargin: 0
                 extraProperties: root.resources[tabBar.currentIndex]?.extraProperties ?? []
             }
@@ -264,7 +264,7 @@ StyledOverlayWidget {
 
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         ColumnLayout {
             spacing: 2
@@ -312,7 +312,7 @@ StyledOverlayWidget {
         id: extraInfo
         required property list<var> extraProperties
         visible: extraProperties.length > 0
-        spacing: 4
+        spacing: Appearance.spacing.xs
 
         Repeater {
             model: ScriptModel {
@@ -323,7 +323,7 @@ StyledOverlayWidget {
                 id: extraInfoRow
                 required property var modelData
 
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 MaterialSymbol {
                     text: extraInfoRow.modelData.icon
                     color: Appearance.colors.colOnSurfaceVariant

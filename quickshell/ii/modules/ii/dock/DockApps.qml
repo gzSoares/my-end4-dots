@@ -520,7 +520,7 @@ Item {
                         fill: parent
                         margins: parent.padding
                     }
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     // Folder header
                     property bool renaming: root.folderPopupStartRenaming
@@ -535,7 +535,7 @@ Item {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         MaterialSymbol {
                             text: "folder"
@@ -559,7 +559,7 @@ Item {
                             id: folderRenameField
                             Layout.fillWidth: true
                             visible: folderColumn.renaming
-                            padding: 4
+                            padding: Appearance.spacing.xs
                             font {
                                 family: Appearance.font.family.main
                                 pixelSize: Appearance.font.pixelSize.normal
@@ -670,7 +670,7 @@ Item {
                                 contentItem: ColumnLayout {
                                     anchors.fill: parent
                                     anchors.margins: 6
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
 
                                     IconImage {
                                         Layout.alignment: Qt.AlignHCenter

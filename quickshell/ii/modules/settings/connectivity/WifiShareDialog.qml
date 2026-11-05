@@ -31,7 +31,7 @@ Popup {
     modal: true
     dim: true
     closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
-    padding: 24
+    padding: Appearance.spacing.xl
 
     Overlay.modal: Rectangle { color: Appearance.colors.colScrim }
 

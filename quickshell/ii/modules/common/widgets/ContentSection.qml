@@ -45,21 +45,21 @@ ColumnLayout {
 
         RowLayout {
             id: titleExtraContainer
-            spacing: 8
+            spacing: Appearance.spacing.sm
         }
 
         Item { Layout.fillWidth: true }
         
         RowLayout {
             id: headerExtraContainer
-            spacing: 8
+            spacing: Appearance.spacing.sm
         }
     }
 
     ColumnLayout {
         id: sectionContent
         Layout.fillWidth: true
-        spacing: 4
+        spacing: Appearance.spacing.xs
 
     }
 }

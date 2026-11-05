@@ -245,10 +245,10 @@ Item {
         id: background
         anchors {
             fill: parent
-            leftMargin: 4
-            rightMargin: 4
+            leftMargin: Appearance.spacing.xs
+            rightMargin: Appearance.spacing.xs
             topMargin: -1
-            bottomMargin: 4
+            bottomMargin: Appearance.spacing.xs
         }
         color: ColorUtils.transparentize(root.artDominantColor, 0.9)
         radius: Appearance.rounding.normal
@@ -290,7 +290,7 @@ Item {
                 top: parent.top
                 bottom: parent.bottom
                 horizontalCenter: parent.horizontalCenter
-                margins: 8
+                margins: Appearance.spacing.sm
             }
             width: Math.min(parent.width - 32, content.widest)
             visible: root.hasPlayer
@@ -359,7 +359,7 @@ Item {
                 id: titleBlock
                 Layout.fillWidth: true
                 Layout.topMargin: content.gap
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 Item {
                     Layout.fillWidth: true
@@ -427,8 +427,24 @@ Item {
                 Layout.topMargin: content.gap
                 Layout.bottomMargin: content.gap
 
-                Lyrics {
+                // Behind the lines: the blurred art and the wallpaper through the
+                // sidebar can be as light as the text, so the lyrics get a calm
+                // surface in the art's own tint to be read against.
+                Rectangle {
                     anchors.fill: parent
+                    visible: lyricsView.visible && lyricsView.hasLyrics
+                    radius: Appearance.rounding.normal
+                    color: {
+                        const c = root.blendedColors.colLayer0;
+                        return Qt.rgba(c.r, c.g, c.b, 0.66);
+                    }
+                }
+
+                Lyrics {
+                    id: lyricsView
+                    anchors.fill: parent
+                    anchors.leftMargin: Appearance.spacing.sm
+                    anchors.rightMargin: Appearance.spacing.sm
                     visible: root.showLyrics && parent.height >= 24
                     active: root.shown
                     textAlignment: Text.AlignHCenter
@@ -450,26 +466,107 @@ Item {
             ColumnLayout {
                 id: controls
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
-                RowLayout {
+                // Where the track is, with the times under it
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 20
+                    spacing: Appearance.spacing.xs
+
+                    Item {
+                        Layout.fillWidth: true
+                        visible: root.hasLength
+                        implicitHeight: Math.max(seekLoader.implicitHeight, progressLoader.implicitHeight)
+
+                        Loader {
+                            id: seekLoader
+                            anchors.fill: parent
+                            active: root.hasLength && (root.player?.canSeek ?? false)
+                            sourceComponent: StyledSlider {
+                                configuration: StyledSlider.Configuration.Wavy
+                                animateWave: root.shown && root.isPlaying
+                                highlightColor: root.blendedColors.colPrimary
+                                trackColor: root.blendedColors.colSecondaryContainer
+                                handleColor: root.blendedColors.colPrimary
+                                usePercentTooltip: false
+                                tooltipContent: StringUtils.friendlyTimeForSeconds(value * root.trackLength)
+                                value: root.trackLength > 0 ? (root.player?.position ?? 0) / root.trackLength : 0
+                                onMoved: {
+                                    if (root.player && root.trackLength > 0)
+                                        root.player.position = value * root.trackLength;
+                                }
+                            }
+                        }
+
+                        Loader {
+                            id: progressLoader
+                            anchors {
+                                verticalCenter: parent.verticalCenter
+                                left: parent.left
+                                right: parent.right
+                            }
+                            active: root.hasLength && !(root.player?.canSeek ?? false)
+                            sourceComponent: StyledProgressBar {
+                                wavy: root.isPlaying
+                                animateWave: root.shown && root.isPlaying
+                                highlightColor: root.blendedColors.colPrimary
+                                trackColor: root.blendedColors.colSecondaryContainer
+                                value: root.trackLength > 0 ? (root.player?.position ?? 0) / root.trackLength : 0
+                            }
+                        }
+                    }
+
+                    RowLayout {
+                        Layout.fillWidth: true
+
+                        StyledText {
+                            visible: root.player?.positionSupported ?? false
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: root.blendedColors.colSubtext
+                            font.features: { "tnum": 1 }
+                            text: StringUtils.friendlyTimeForSeconds(root.player?.position ?? 0)
+                        }
+                        Item { Layout.fillWidth: true }
+                        StyledText {
+                            visible: root.hasLength
+                            font.pixelSize: Appearance.font.pixelSize.small
+                            color: root.blendedColors.colSubtext
+                            font.features: { "tnum": 1 }
+                            text: StringUtils.friendlyTimeForSeconds(root.trackLength)
+                        }
+                    }
+                }
+
+                // Previous, play and next together, in the middle
+                RowLayout {
+                    Layout.alignment: Qt.AlignHCenter
+                    spacing: Appearance.spacing.lg
+
+                    SkipButton {
+                        iconName: "skip_previous"
+                        enabled: MprisController.canGoPrevious
+                        downAction: () => MprisController.previous()
+                        StyledToolTip {
+                            text: Translation.tr("Previous track")
+                        }
+                    }
 
                     RippleButton {
                         id: playButton
-                        Layout.fillWidth: true
+                        implicitWidth: Math.round(root.playSize * 1.7)
                         implicitHeight: root.playSize
                         enabled: MprisController.canTogglePlaying
-                        buttonRadius: root.isPlaying ? Appearance.rounding.verylarge : root.playSize / 2
+                        // Rounded square while playing, a pill at rest
+                        buttonRadius: root.isPlaying ? Appearance.rounding.large : root.playSize / 2
                         colBackground: root.isPlaying ? root.blendedColors.colPrimary : root.blendedColors.colSecondaryContainer
                         colBackgroundHover: root.isPlaying ? root.blendedColors.colPrimaryHover : root.blendedColors.colSecondaryContainerHover
                         colRipple: root.isPlaying ? root.blendedColors.colPrimaryActive : root.blendedColors.colSecondaryContainerActive
                         downAction: () => MprisController.togglePlaying()
                         contentItem: MaterialSymbol {
-                            iconSize: Math.round(root.playSize * 0.62)
+                            iconSize: Math.round(root.playSize * 0.56)
                             fill: 1
                             horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
                             color: root.isPlaying ? root.blendedColors.colOnPrimary : root.blendedColors.colOnSecondaryContainer
                             text: root.isPlaying ? "pause" : "play_arrow"
                             Behavior on color {
@@ -490,88 +587,6 @@ Item {
                         }
                     }
                 }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 20
-
-                    SkipButton {
-                        iconName: "skip_previous"
-                        enabled: MprisController.canGoPrevious
-                        downAction: () => MprisController.previous()
-                        StyledToolTip {
-                            text: Translation.tr("Previous track")
-                        }
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Item {
-                            Layout.fillWidth: true
-                            visible: root.hasLength
-                            implicitHeight: Math.max(seekLoader.implicitHeight, progressLoader.implicitHeight)
-
-                            Loader {
-                                id: seekLoader
-                                anchors.fill: parent
-                                active: root.hasLength && (root.player?.canSeek ?? false)
-                                sourceComponent: StyledSlider {
-                                    configuration: StyledSlider.Configuration.Wavy
-                                    animateWave: root.shown && root.isPlaying
-                                    highlightColor: root.blendedColors.colPrimary
-                                    trackColor: root.blendedColors.colSecondaryContainer
-                                    handleColor: root.blendedColors.colPrimary
-                                    usePercentTooltip: false
-                                    tooltipContent: StringUtils.friendlyTimeForSeconds(value * root.trackLength)
-                                    value: root.trackLength > 0 ? (root.player?.position ?? 0) / root.trackLength : 0
-                                    onMoved: {
-                                        if (root.player && root.trackLength > 0)
-                                            root.player.position = value * root.trackLength;
-                                    }
-                                }
-                            }
-
-                            Loader {
-                                id: progressLoader
-                                anchors {
-                                    verticalCenter: parent.verticalCenter
-                                    left: parent.left
-                                    right: parent.right
-                                }
-                                active: root.hasLength && !(root.player?.canSeek ?? false)
-                                sourceComponent: StyledProgressBar {
-                                    wavy: root.isPlaying
-                                    animateWave: root.shown && root.isPlaying
-                                    highlightColor: root.blendedColors.colPrimary
-                                    trackColor: root.blendedColors.colSecondaryContainer
-                                    value: root.trackLength > 0 ? (root.player?.position ?? 0) / root.trackLength : 0
-                                }
-                            }
-                        }
-
-                        RowLayout {
-                            Layout.fillWidth: true
-
-                            StyledText {
-                                visible: root.player?.positionSupported ?? false
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: root.blendedColors.colSubtext
-                                font.features: { "tnum": 1 }
-                                text: StringUtils.friendlyTimeForSeconds(root.player?.position ?? 0)
-                            }
-                            Item { Layout.fillWidth: true }
-                            StyledText {
-                                visible: root.hasLength
-                                font.pixelSize: Appearance.font.pixelSize.small
-                                color: root.blendedColors.colSubtext
-                                font.features: { "tnum": 1 }
-                                text: StringUtils.friendlyTimeForSeconds(root.trackLength)
-                            }
-                        }
-                    }
-                }
             }
 
             // ── Lyrics toggle, volume, art options ──
@@ -579,7 +594,7 @@ Item {
                 id: utilityRow
                 Layout.fillWidth: true
                 Layout.topMargin: content.gap
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 UtilityButton {
                     iconName: "lyrics"
@@ -602,24 +617,16 @@ Item {
                     }
                 }
 
-                UtilityButton {
+                // Volume: one slider instead of two stepping buttons
+                StyledSlider {
                     Layout.fillWidth: true
-                    iconName: "remove"
-                    enabled: root.canChangeVolume && root.volume > 0
-                    downAction: () => root.setVolume(root.volume - 0.1)
-                    StyledToolTip {
-                        text: Translation.tr("Lower volume")
-                    }
-                }
-
-                UtilityButton {
-                    Layout.fillWidth: true
-                    iconName: "add"
-                    enabled: root.canChangeVolume && root.volume < 1
-                    downAction: () => root.setVolume(root.volume + 0.1)
-                    StyledToolTip {
-                        text: Translation.tr("Raise volume")
-                    }
+                    enabled: root.canChangeVolume
+                    opacity: enabled ? 1 : 0.4
+                    highlightColor: root.blendedColors.colPrimary
+                    trackColor: root.blendedColors.colSecondaryContainer
+                    handleColor: root.blendedColors.colPrimary
+                    value: root.volume
+                    onMoved: root.setVolume(value)
                 }
 
                 UtilityButton {
@@ -637,7 +644,7 @@ Item {
                         width: Math.min(300, root.width - 24)
                         x: moreButton.width - width
                         y: -height - 8
-                        padding: 12
+                        padding: Appearance.spacing.md
                         modal: true
                         dim: false
                         closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
@@ -650,7 +657,7 @@ Item {
                         }
 
                         contentItem: ColumnLayout {
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
 
                             OptionSwitch {
                                 buttonIcon: "palette"
@@ -699,18 +706,18 @@ Item {
         implicitWidth: root.skipSize
         implicitHeight: root.skipSize
         padding: 0
-        colBackground: "transparent"
-        colBackgroundHover: "transparent"
-        colRipple: "transparent"
-        contentItem: MaterialShapeWrappedMaterialSymbol {
-            shape: MaterialShape.Shape.Cookie12Sided
-            padding: 0
+        buttonRadius: Appearance.rounding.full
+        colBackground: ColorUtils.transparentize(root.blendedColors.colSecondaryContainer, 0.35)
+        colBackgroundHover: root.blendedColors.colSecondaryContainerHover
+        colRipple: root.blendedColors.colSecondaryContainerActive
+        opacity: enabled ? 1 : 0.4
+        contentItem: MaterialSymbol {
             iconSize: Math.round(root.skipSize * 0.5)
             fill: 1
+            horizontalAlignment: Text.AlignHCenter
+            verticalAlignment: Text.AlignVCenter
+            color: root.blendedColors.colOnSecondaryContainer
             text: skipButton.iconName
-            color: skipButton.hovered ? root.blendedColors.colSecondaryContainerHover
-                : ColorUtils.transparentize(root.blendedColors.colSecondaryContainer, 0.7)
-            colSymbol: root.blendedColors.colOnSecondaryContainer
         }
     }
 
@@ -721,7 +728,7 @@ Item {
         implicitWidth: root.smallSize
         implicitHeight: root.smallSize
         buttonRadius: Appearance.rounding.large
-        colBackground: ColorUtils.transparentize(root.blendedColors.colSecondaryContainer, 0.7)
+        colBackground: ColorUtils.transparentize(root.blendedColors.colSecondaryContainer, 0.4)
         colBackgroundHover: root.blendedColors.colSecondaryContainerHover
         colRipple: root.blendedColors.colSecondaryContainerActive
         colBackgroundToggled: root.blendedColors.colSecondaryContainer

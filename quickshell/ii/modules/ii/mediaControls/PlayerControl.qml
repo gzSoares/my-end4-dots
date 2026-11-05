@@ -207,8 +207,8 @@ Item { // Player instance
             id: playPauseButton
             anchors.right: parent.right
             anchors.top: background.top
-            anchors.topMargin: 16
-            anchors.rightMargin: 16
+            anchors.topMargin: Appearance.spacing.lg
+            anchors.rightMargin: Appearance.spacing.lg
             property real size: 44
 
             implicitWidth: size
@@ -389,7 +389,7 @@ Item { // Player instance
                         anchors.left: trackTime.right
                         anchors.right: sliderRow.right
                         anchors.leftMargin: 10
-                        anchors.rightMargin: 4
+                        anchors.rightMargin: Appearance.spacing.xs
 
                         visible: root.player !== null
 

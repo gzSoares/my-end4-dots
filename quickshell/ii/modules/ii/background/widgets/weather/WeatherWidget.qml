@@ -37,7 +37,7 @@ AbstractBackgroundWidget {
             anchors {
                 right: parent.right
                 top: parent.top
-                rightMargin: 16
+                rightMargin: Appearance.spacing.lg
                 topMargin: 20
             }
         }
@@ -50,7 +50,7 @@ AbstractBackgroundWidget {
                 left: parent.left
                 bottom: parent.bottom
 
-                leftMargin: 16
+                leftMargin: Appearance.spacing.lg
                 bottomMargin: 20
             }
         }

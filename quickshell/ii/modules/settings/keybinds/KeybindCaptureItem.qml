@@ -165,7 +165,7 @@ FocusScope {
 
         ColumnLayout {
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             MaterialSymbol {
                 Layout.alignment: Qt.AlignHCenter
                 text: root.capturing ? "fiber_manual_record" : (root.mouseMode ? "mouse" : "keyboard")

@@ -17,7 +17,7 @@ ContentSection {
 
     StyledText {
         Layout.fillWidth: true
-        Layout.bottomMargin: 4
+        Layout.bottomMargin: Appearance.spacing.xs
         text: Translation.tr("The app that opens when you double click a file or press its shortcut key.")
         color: Appearance.colors.colSubtext
         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -40,7 +40,7 @@ ContentSection {
                 anchors.fill: parent
                 anchors.leftMargin: 14
                 anchors.rightMargin: 10
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 MaterialSymbol {
                     text: roleRow.modelData.icon

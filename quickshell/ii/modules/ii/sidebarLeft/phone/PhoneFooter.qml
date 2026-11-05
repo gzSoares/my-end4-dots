@@ -170,7 +170,7 @@ Rectangle {
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.top: parent.top
-        anchors.margins: 8
+        anchors.margins: Appearance.spacing.sm
         spacing: 6
         opacity: root.collapsed ? 1 : 0
         visible: opacity > 0
@@ -228,8 +228,8 @@ Rectangle {
         Item {
             Layout.fillHeight: true
             Layout.leftMargin: 6
-            Layout.topMargin: 8
-            Layout.bottomMargin: 8
+            Layout.topMargin: Appearance.spacing.sm
+            Layout.bottomMargin: Appearance.spacing.sm
             implicitWidth: tabBar.implicitWidth
 
             CalendarHeaderButton {
@@ -680,7 +680,7 @@ Rectangle {
                     RowLayout {
                         id: liveRow
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         Rectangle {
                             implicitWidth: 6
                             implicitHeight: 6
@@ -925,7 +925,7 @@ Rectangle {
         RowLayout {
             id: chipRow
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             MaterialSymbol {
                 text: chip.symbol
                 iconSize: Appearance.font.pixelSize.normal

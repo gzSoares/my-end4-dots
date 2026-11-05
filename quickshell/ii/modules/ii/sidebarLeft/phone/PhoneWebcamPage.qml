@@ -55,7 +55,7 @@ ContentPage {
                 property: "opacity"
                 from: 0
                 to: 1
-                duration: 260
+                duration: Appearance.motion.normal
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
@@ -63,7 +63,7 @@ ContentPage {
                 property: "y"
                 from: 18
                 to: 0
-                duration: 380
+                duration: Appearance.motion.slow
                 easing.type: Easing.OutBack
                 easing.overshoot: 1.25
             }
@@ -72,7 +72,7 @@ ContentPage {
 
     // ─── Header ─────────────────────────────────────────────
     RowLayout {
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         RippleButton {
             implicitWidth: implicitHeight
@@ -282,7 +282,7 @@ ContentPage {
         // Quick action row: Flip, Mirror, Open
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             RippleButton {
                 Layout.preferredHeight: 44

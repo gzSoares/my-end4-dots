@@ -102,15 +102,15 @@ Rectangle {
     ColumnLayout {
         id: mainLayout
         anchors.fill: parent
-        anchors.leftMargin: 16
-        anchors.rightMargin: 16
-        anchors.topMargin: 8
-        anchors.bottomMargin: 8
-        spacing: 4
+        anchors.leftMargin: Appearance.spacing.lg
+        anchors.rightMargin: Appearance.spacing.lg
+        anchors.topMargin: Appearance.spacing.sm
+        anchors.bottomMargin: Appearance.spacing.sm
+        spacing: Appearance.spacing.xs
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             Loader {
                 active: root.icon && root.icon.length > 0
@@ -179,7 +179,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             MaterialTextField {
                 id: textFieldWidget

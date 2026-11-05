@@ -272,7 +272,7 @@ ContentPage {
         id: fadeOutAnim
         property: "opacity"
         from: 1.0; to: 0.0
-        duration: 200
+        duration: Appearance.motion.fast
         easing.type: Easing.OutQuad
         onFinished: {
             hideWindowProc.running = false
@@ -284,7 +284,7 @@ ContentPage {
         id: fadeInAnim
         property: "opacity"
         from: 0.0; to: 1.0
-        duration: 200
+        duration: Appearance.motion.fast
         easing.type: Easing.InQuad
     }
 
@@ -1370,8 +1370,8 @@ finally:
         SubtleNoticeBox {
             visible: root.statusMessage.length > 0
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
+            Layout.topMargin: Appearance.spacing.xs
+            Layout.bottomMargin: Appearance.spacing.xs
             text: root.statusMessage
         }
 
@@ -1383,8 +1383,8 @@ finally:
         SubtleNoticeBox {
             visible: root.scheduleActive
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
+            Layout.topMargin: Appearance.spacing.xs
+            Layout.bottomMargin: Appearance.spacing.xs
             materialIcon: "lock"
             text: Translation.tr("Manual apply is disabled to honor your Day/Night Themes settings, but you can still save new themes and update the current theme with Day/Night Themes active. Set Day/Night Themes to \"Off\" below to apply themes manually.")
         }
@@ -1417,7 +1417,7 @@ finally:
                 ColumnLayout {
                     anchors.fill: parent
                     anchors.margins: 10
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     // 16:9 preview with camera overlay
                     Item {
@@ -1515,7 +1515,7 @@ finally:
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 10
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         // Preview 16:9
                         Item {
@@ -1746,8 +1746,8 @@ finally:
     // rather than a continuous flow.
     Rectangle {
         Layout.fillWidth: true
-        Layout.topMargin: 24
-        Layout.bottomMargin: 12
+        Layout.topMargin: Appearance.spacing.xl
+        Layout.bottomMargin: Appearance.spacing.md
         implicitHeight: 1
         color: Appearance.m3colors.m3outlineVariant
     }
@@ -1769,7 +1769,7 @@ finally:
             Layout.topMargin: 6
             // Bigger bottom margin pushes the description well clear of the
             // Day / Night card row so the cards don't hug the explainer.
-            Layout.bottomMargin: 24
+            Layout.bottomMargin: Appearance.spacing.xl
             wrapMode: Text.WordWrap
             color: Appearance.colors.colSubtext
             font.pixelSize: Appearance.font.pixelSize.small
@@ -1825,7 +1825,7 @@ finally:
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 10
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         // Screenshot of the picked theme; placeholder when unset.
                         Item {
@@ -1855,7 +1855,7 @@ finally:
                                 color: Appearance.colors.colLayer3
                                 ColumnLayout {
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
                                     MaterialSymbol {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: "wb_sunny"
@@ -1966,7 +1966,7 @@ finally:
                     ColumnLayout {
                         anchors.fill: parent
                         anchors.margins: 10
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         Item {
                             Layout.fillWidth: true
@@ -1995,7 +1995,7 @@ finally:
                                 color: Appearance.colors.colLayer3
                                 ColumnLayout {
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
                                     MaterialSymbol {
                                         Layout.alignment: Qt.AlignHCenter
                                         text: "bedtime"
@@ -2048,7 +2048,7 @@ finally:
         // Schedule mode dropdown — centred under the card row.
         RowLayout {
             Layout.fillWidth: true
-            Layout.topMargin: 12
+            Layout.topMargin: Appearance.spacing.md
             Item { Layout.fillWidth: true }
             StyledText {
                 Layout.alignment: Qt.AlignVCenter
@@ -2136,7 +2136,7 @@ finally:
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: Appearance.spacing.md
                     MaterialSymbol {
                         text: "photo_library"
                         iconSize: 28
@@ -2170,7 +2170,7 @@ finally:
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     Item { Layout.fillWidth: true }
                     RippleButton {
                         buttonRadius: Appearance.rounding.full
@@ -2284,7 +2284,7 @@ finally:
                 // Countdown slider
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     RowLayout {
                         Layout.fillWidth: true
                         StyledText {
@@ -2336,7 +2336,7 @@ finally:
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     Item { Layout.fillWidth: true }
                     RippleButton {
                         buttonRadius: Appearance.rounding.full

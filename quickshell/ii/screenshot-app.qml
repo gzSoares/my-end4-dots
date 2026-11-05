@@ -369,7 +369,7 @@ exit 0
             // Capture button + status
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 FloatingActionButton {
                     id: captureButton
@@ -378,7 +378,7 @@ exit 0
                     iconText: "photo_camera"
                     onClicked: root.capture()
                     contentItem: Row {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         anchors.centerIn: parent
                         MaterialSymbol {
                             anchors.verticalCenter: parent.verticalCenter
@@ -418,7 +418,7 @@ exit 0
             // Gallery header
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 StyledText {
                     text: Translation.tr("Recent screenshots")
                     font.pixelSize: Appearance.font.pixelSize.normal
@@ -477,7 +477,7 @@ exit 0
                 ColumnLayout {
                     anchors.centerIn: parent
                     visible: gallery.count === 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignHCenter
                         text: "image"
@@ -494,7 +494,7 @@ exit 0
                 GridView {
                     id: grid
                     anchors.fill: parent
-                    anchors.margins: 8
+                    anchors.margins: Appearance.spacing.sm
                     visible: gallery.count > 0
                     clip: true
                     model: gallery
@@ -516,7 +516,7 @@ exit 0
 
                         ClippingRectangle {
                             anchors.fill: parent
-                            anchors.margins: 4
+                            anchors.margins: Appearance.spacing.xs
                             radius: Appearance.rounding.small
                             color: Appearance.colors.colLayer2
 
@@ -552,7 +552,7 @@ exit 0
                                         left: parent.left
                                         right: parent.right
                                         verticalCenter: parent.verticalCenter
-                                        margins: 8
+                                        margins: Appearance.spacing.sm
                                     }
                                     text: Qt.formatDateTime(cell.fileModified, "dd/MM/yyyy  HH:mm:ss")
                                     elide: Text.ElideRight
@@ -568,7 +568,7 @@ exit 0
                                     right: parent.right
                                     margins: 6
                                 }
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
                                 opacity: cellHover.hovered ? 1 : 0
                                 visible: opacity > 0
                                 Behavior on opacity { NumberAnimation { duration: 120 } }

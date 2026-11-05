@@ -149,7 +149,7 @@ Singleton {
         Behavior on multipliedBrightness {
             enabled: monitor.animateChanges
             NumberAnimation {
-                duration: 200
+                duration: Appearance.motion.fast
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: Appearance.animationCurves.expressiveEffects
             }

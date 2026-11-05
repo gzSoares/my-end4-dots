@@ -132,7 +132,7 @@ ApplicationWindow {
                     left: Config.options.windows.centerTitle ? undefined : parent.left
                     horizontalCenter: Config.options.windows.centerTitle ? parent.horizontalCenter : undefined
                     verticalCenter: parent.verticalCenter
-                    leftMargin: 12
+                    leftMargin: Appearance.spacing.md
                 }
                 color: Appearance.colors.colOnLayer0
                 text: Translation.tr("Kill conflicting programs?")
@@ -172,7 +172,7 @@ ApplicationWindow {
             ColumnLayout {
                 id: contentColumn
                 anchors.fill: parent
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 ConflictingProgramGroup {
                     id: kded6Group

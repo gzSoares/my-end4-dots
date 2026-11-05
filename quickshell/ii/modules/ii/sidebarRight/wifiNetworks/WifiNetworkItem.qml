@@ -52,7 +52,7 @@ DialogListItem {
 
         ColumnLayout { // Password
             id: passwordPrompt
-            Layout.topMargin: 8
+            Layout.topMargin: Appearance.spacing.sm
             visible: root.wifiNetwork?.askingPassword ?? false
 
             // Error message
@@ -105,7 +105,7 @@ DialogListItem {
 
         ColumnLayout { // Public wifi login page
             id: publicWifiPortal
-            Layout.topMargin: 8
+            Layout.topMargin: Appearance.spacing.sm
             visible: (root.wifiNetwork?.active && (root.wifiNetwork?.security ?? "").trim().length === 0) ?? false
 
             RowLayout {

@@ -502,7 +502,7 @@ open(path, "w").write(text)
         ContentSubsection {
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 RowLayout {
                     Layout.fillWidth: true
@@ -557,7 +557,7 @@ open(path, "w").write(text)
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     Repeater {
                         model: root._bindsByCat[modelData.id] || []
@@ -585,7 +585,7 @@ open(path, "w").write(text)
 
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 StyledText {
                     Layout.fillWidth: true
@@ -666,8 +666,8 @@ open(path, "w").write(text)
         RowLayout {
             id: rowLayout
             anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
+            anchors.leftMargin: Appearance.spacing.sm
+            anchors.rightMargin: Appearance.spacing.sm
             anchors.verticalCenter: parent.verticalCenter
             spacing: 10
 
@@ -683,7 +683,7 @@ open(path, "w").write(text)
             // Key pills
             Row {
                 Layout.preferredWidth: implicitWidth
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 Repeater {
                     model: (bindRow.bind && bindRow.bind.mods) ? bindRow.bind.mods.filter(m => m && m.length > 0) : []
                     delegate: KeyboardKey {

@@ -60,7 +60,7 @@ Rectangle {
             direction: RotationAnimation.Shortest
             property: "leapRotation"
             to: (root.leapRotation + 90) % 360
-            duration: 350
+            duration: Appearance.motion.slow
             easing.type: Easing.InOutQuad
         }
         NumberAnimation {

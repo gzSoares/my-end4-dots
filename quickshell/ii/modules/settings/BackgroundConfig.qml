@@ -21,11 +21,11 @@ ContentPage {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 8
-            Layout.bottomMargin: 8
-            spacing: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
+            Layout.topMargin: Appearance.spacing.sm
+            Layout.bottomMargin: Appearance.spacing.sm
+            spacing: Appearance.spacing.sm
 
             RowLayout {
                 Layout.fillWidth: true
@@ -843,8 +843,8 @@ ContentPage {
 
         GridLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             columns: 3
             rowSpacing: 8
             columnSpacing: 8
@@ -875,7 +875,7 @@ ContentPage {
                             top: parent.top
                             left: parent.left
                             right: parent.right
-                            margins: 12
+                            margins: Appearance.spacing.md
                         }
                         spacing: 0
                         RowLayout {
@@ -957,7 +957,7 @@ ContentPage {
             }
             StyledText {
                 Layout.fillWidth: true
-                Layout.leftMargin: 8
+                Layout.leftMargin: Appearance.spacing.sm
                 text: Translation.tr("Drop an image onto the widget to set the picture.")
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colSubtext
@@ -981,7 +981,7 @@ ContentPage {
             }
             StyledText {
                 Layout.fillWidth: true
-                Layout.leftMargin: 8
+                Layout.leftMargin: Appearance.spacing.sm
                 text: Translation.tr("Pick each city on the widget itself.")
                 font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colSubtext

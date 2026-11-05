@@ -31,7 +31,7 @@ Rectangle {
             fill: parent
             margins: root.padding
         }
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         RippleButton {
             id: parentDirButton

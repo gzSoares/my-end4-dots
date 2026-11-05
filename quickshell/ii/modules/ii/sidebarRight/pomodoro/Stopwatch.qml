@@ -15,9 +15,9 @@ Item {
     Item {
         anchors {
             fill: parent
-            topMargin: 8
-            leftMargin: 16
-            rightMargin: 16
+            topMargin: Appearance.spacing.sm
+            leftMargin: Appearance.spacing.lg
+            rightMargin: Appearance.spacing.lg
         }
 
         RowLayout { // Elapsed
@@ -79,10 +79,10 @@ Item {
                 bottom: controlButtons.top
                 left: parent.left
                 right: parent.right
-                topMargin: 16
-                bottomMargin: 16
+                topMargin: Appearance.spacing.lg
+                bottomMargin: Appearance.spacing.lg
             }
-            spacing: 4
+            spacing: Appearance.spacing.xs
             clip: true
             popin: true
 
@@ -157,7 +157,7 @@ Item {
                 bottom: parent.bottom
                 bottomMargin: 6
             }
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             RippleButton {
                 Layout.preferredHeight: 35

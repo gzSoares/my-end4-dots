@@ -266,7 +266,7 @@ ContentPage {
             // ── Card header ───────────────────────────────────────────────────
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 Rectangle {
                     id: avatarCircle
@@ -285,7 +285,7 @@ ContentPage {
                         anchors.centerIn: parent
                         visible: faceImage.status !== Image.Ready
                         text: (account.name.charAt(0) ?? "?").toUpperCase()
-                        font.pixelSize: 16
+                        font.pixelSize: Appearance.font.pixelSize.normal
                         font.weight: Font.Medium
                         color: account.isCurrent ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer2
                     }
@@ -303,7 +303,7 @@ ContentPage {
                     Layout.fillWidth: true
                     spacing: 2
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText {
                             text: account.name
                             font.pixelSize: Appearance.font.pixelSize.normal
@@ -320,7 +320,7 @@ ContentPage {
                                 id: youLabel
                                 anchors.centerIn: parent
                                 text: Translation.tr("You")
-                                font.pixelSize: 10
+                                font.pixelSize: Appearance.font.pixelSize.smallest
                                 font.weight: Font.Medium
                                 color: Appearance.colors.colOnPrimary
                             }
@@ -370,7 +370,7 @@ ContentPage {
                 // of them outside the card.
                 Flow {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     RippleButton {
                         implicitWidth: changePassContent.implicitWidth + 28
@@ -432,7 +432,7 @@ ContentPage {
 
                 Flow {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     RippleButton {
                         implicitWidth: changeImageContent.implicitWidth + 28
@@ -580,7 +580,7 @@ ContentPage {
                 ColumnLayout {
                     visible: item.showChangePassword
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     MaterialTextField {
                         id: oldPassField
@@ -668,7 +668,7 @@ ContentPage {
                 ColumnLayout {
                     visible: item.showChangeName
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     StyledText {
                         text: Translation.tr("The name shown on the login screen. The name used to sign in does not change.")
@@ -722,7 +722,7 @@ ContentPage {
                 ColumnLayout {
                     visible: item.showRemove
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     Rectangle {
                         Layout.fillWidth: true
@@ -734,7 +734,7 @@ ContentPage {
                         RowLayout {
                             id: removeWarnRow
                             anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 10 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "warning"; iconSize: 14; color: Appearance.colors.colError }
                             StyledText {
                                 Layout.fillWidth: true
@@ -814,7 +814,7 @@ ContentPage {
             RowLayout {
                 id: statusMsgRow
                 anchors { left: parent.left; right: parent.right; verticalCenter: parent.verticalCenter; margins: 10 }
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 MaterialSymbol {
                     id: statusIcon
                     text: root.busy ? "progress_activity" : (root.statusIsError ? "error" : "check_circle")
@@ -854,7 +854,7 @@ ContentPage {
             visible: root.accounts.length === 0 && !root.helperMissing
             Layout.fillWidth: true
             Layout.topMargin: 20; Layout.bottomMargin: 20
-            spacing: 8
+            spacing: Appearance.spacing.sm
             MaterialSymbol { Layout.alignment: Qt.AlignHCenter; text: "person_off"; iconSize: 40; color: Appearance.colors.colLayer3 }
             StyledText { Layout.alignment: Qt.AlignHCenter; text: Translation.tr("No accounts found"); font.pixelSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colSubtext }
         }

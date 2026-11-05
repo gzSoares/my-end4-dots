@@ -17,7 +17,7 @@ Item {
     RowLayout {
         id: rowLayout
 
-        spacing: 4
+        spacing: Appearance.spacing.xs
         anchors.centerIn: parent
 
         Loader {

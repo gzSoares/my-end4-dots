@@ -1724,6 +1724,57 @@ PanelWindow {
     // Pinned clipboard entries (persisted by the helper in ~/.local/share/quickshell/spotlight-clip-pins)
     property var clipPins: []
     property var _clipQueue: []
+
+    // Pinned entries are reordered by holding one for 750 ms, then dragging it
+    // up or down while the others make room. Positions are in the list's own
+    // (content) coordinates; every pinned row is rowH tall and they sit together.
+    property string pinDragH: ""
+    property int pinDragFrom: -1
+    property int pinDragTarget: -1
+    property real pinDragStartY: 0
+    property real pinDragDelta: 0
+    property bool pinDragJustEnded: false
+    Timer { id: pinDragSettle; interval: 80; onTriggered: root.pinDragJustEnded = false }
+
+    function pinIndexOf(h) {
+        const pins = root.clipPins || [];
+        for (let i = 0; i < pins.length; i++) if (pins[i].h === h) return i;
+        return -1;
+    }
+    function beginPinDrag(h, contentY) {
+        const idx = root.pinIndexOf(h);
+        if (idx < 0 || (root.clipPins || []).length < 2) return false;
+        root.pinDragH = h;
+        root.pinDragFrom = idx;
+        root.pinDragTarget = idx;
+        root.pinDragStartY = contentY;
+        root.pinDragDelta = 0;
+        return true;
+    }
+    function updatePinDrag(contentY) {
+        if (root.pinDragH === "") return;
+        const last = (root.clipPins || []).length - 1;
+        const lo = -root.pinDragFrom * root.rowH, hi = (last - root.pinDragFrom) * root.rowH;
+        root.pinDragDelta = Math.max(lo, Math.min(hi, contentY - root.pinDragStartY));
+        root.pinDragTarget = Math.max(0, Math.min(last, Math.round(root.pinDragFrom + root.pinDragDelta / root.rowH)));
+    }
+    function endPinDrag() {
+        if (root.pinDragH === "") return;
+        const h = root.pinDragH, from = root.pinDragFrom, to = root.pinDragTarget;
+        root.pinDragH = "";
+        root.pinDragFrom = -1;
+        root.pinDragTarget = -1;
+        root.pinDragDelta = 0;
+        root.pinDragJustEnded = true;
+        pinDragSettle.restart();
+        if (from < 0 || to < 0 || from === to) return;
+        // Show the new order at once; the helper saves it and confirms
+        const pins = (root.clipPins || []).slice();
+        pins.splice(to, 0, pins.splice(from, 1)[0]);
+        root.clipPins = pins;
+        root.scheduleRebuild();
+        root.clipOp("move", h + ":" + to);
+    }
     // Helper used for: history listing ("hist"), pin / unpin / pins
     readonly property string _clipPy: `import sys, os, json, hashlib, subprocess, time
 
@@ -1790,6 +1841,15 @@ elif op == 'unpin':
             keep.append(p)
     save(keep)
     print(json.dumps(keep))
+elif op == 'move':
+    # arg is "<hash>:<new position>"
+    mh, _, to = arg.rpartition(':')
+    pins = load()
+    cur = [i for i, p in enumerate(pins) if p.get('h') == mh]
+    if cur and to.isdigit():
+        pins.insert(max(0, min(len(pins) - 1, int(to))), pins.pop(cur[0]))
+        save(pins)
+    print(json.dumps(load()))
 elif op == 'pins':
     print(json.dumps(load()))
 else:
@@ -1858,7 +1918,7 @@ else:
     property double _micHold: 0
     readonly property bool micCardShown: root.results.some(r => r.kind === "mic")
 
-    // -- Bedroom light card ("luz" / "light"): scripts/lamp/lamp.py talks to the bulb over the local network
+    // -- Bedroom light card ("luz"): scripts/lamp/lamp.py talks to the bulb over the local network
     property real lampLevel: 0.5
     property bool lampOn: false
     property bool lampDragging: false
@@ -2063,6 +2123,7 @@ else:
         if (it && it.kind === "kproc") out.push({ k: "Shift \u21B5", t: "Force kill" });
         if (it && it.kind === "usb" && it.mp) out.push({ k: "Shift \u21B5", t: "Open folder" });
         if (it && it.kind === "clip" && root.mode === "clipboard") out.push({ k: "Ctrl P", t: it.pinned ? "Unpin" : "Pin" });
+        if (it && it.kind === "clip" && it.pinned && (root.clipPins || []).length > 1 && root.mode === "clipboard") out.push({ k: "Hold", t: "Reorder" });
         if (root.mode === "menu" && root.menuStack.length > 0) out.push({ k: "Bksp", t: "Back" });
         out.push({ k: "Tab", t: "Modes" });
         return out;
@@ -2509,25 +2570,11 @@ else:
                  category: "Color \u2014 click to copy hex" };
     }
 
-    // What was asked of the bedroom light, in Portuguese or English: "" for the bare word
-    // ("luz", "light"), the action for "luz azul" / "light blue" / "acender a luz" /
-    // "turn on the light" / "turn the light off", and null when it is not a light command.
-    function _lampArg(ql) {
-        const s = ql.trim().replace(/\s+/g, " ");
-        const word = "(?:luz|luzes|l[aâ]mpada|l[aâ]mpadas|lamp|lamps|light|lights)";
-        let m = s.match(new RegExp("^(?:(?:a|as|o|os|the)\\s)?" + word + "(?:\\s(.*))?$"));
-        if (m) return m[1] || "";
-        m = s.match(new RegExp("^(ligar|liga|acender|acende|desligar|desliga|apagar|apaga|alternar|alterna|inverter|inverte|(?:turn|switch) on|(?:turn|switch) off|toggle)\\s(?:(?:a|as|o|os|the)\\s)?" + word + "$"));
-        if (m) return m[1];
-        m = s.match(new RegExp("^(turn|switch)\\s(?:the\\s)?" + word + "\\s(on|off)$"));
-        return m ? m[1] + " " + m[2] : null;
-    }
-
     function sysControlItems(ql) {
             const out = [];
             const add = (name, cmd) => out.push({ kind: "action", action: "shell", cmd: cmd, name: name, category: "System control", iconKey: "shortcut" });
             const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
-            let m, lampArg;
+            let m;
         
             // Trigger OSD when typing "volume" alone
             // (typing "volume" alone now shows the volume card instead of the OSD row)
@@ -2562,40 +2609,39 @@ else:
                 "elif command -v swaync-client >/dev/null; then swaync-client -d; " +
                 "elif command -v dunstctl >/dev/null; then dunstctl set-paused toggle; " +
                 "fi");
-        } else if ((lampArg = root._lampArg(ql)) !== null) {
+        } else if ((m = ql.match(/^(?:luz|l[a\u00e2]mpada|lampada|lamp)(?:\s+(.*))?$/))) {
             // Bedroom bulb, over the local network (scripts/lamp/lamp.py, needs tinytuya
-            // and ~/.config/ii-lamp/devices.json). "luz"/"light" alone offers the usual choices.
-            const arg = lampArg.replace(/^(?:brilho|brightness|bright|cor|color|colour)\s+/, "");
+            // and ~/.config/ii-lamp/devices.json). "luz" alone offers the usual choices.
+            const arg = (m[1] || "").trim();
             const script = Quickshell.shellPath("scripts/lamp/lamp.py").toString().replace(/^file:\/\//, "");
             const lamp = (name, args) => add(name, "python3 \"" + script + "\" " + args);
-            const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-            const colors = { vermelha: "red", vermelho: "red", red: "red", verde: "green", green: "green",
-                azul: "blue", blue: "blue", amarela: "yellow", amarelo: "yellow", yellow: "yellow",
-                laranja: "orange", orange: "orange", roxa: "purple", roxo: "purple", purple: "purple",
-                rosa: "pink", pink: "pink", ciano: "cyan", cyan: "cyan" };
-            const temps = { quente: "warm", warm: "warm", neutra: "neutral", neutro: "neutral", neutral: "neutral",
-                fria: "cool", frio: "cool", cool: "cool", cold: "cool" };
+            const colors = { vermelha: "vermelha", vermelho: "vermelha", red: "red", verde: "verde", green: "green",
+                azul: "azul", blue: "blue", amarela: "amarela", amarelo: "amarela", yellow: "yellow",
+                laranja: "laranja", orange: "orange", roxa: "roxa", roxo: "roxa", purple: "purple",
+                rosa: "rosa", pink: "pink", ciano: "ciano", cyan: "cyan" };
+            const temps = { quente: "quente", warm: "warm", neutra: "neutra", neutro: "neutra", neutral: "neutral",
+                fria: "fria", frio: "fria", cool: "cool" };
             let n;
             if (arg === "") {
-                lamp("Toggle bedroom light", "toggle");
-                lamp("Turn light on", "on");
-                lamp("Turn light off", "off");
-                lamp("Set light to 50%", "brightness 50");
-            } else if (/^(on|ligar|liga|acender|acende|(?:turn|switch) on)$/.test(arg)) {
-                lamp("Turn light on", "on");
-            } else if (/^(off|desligar|desliga|apagar|apaga|(?:turn|switch) off)$/.test(arg)) {
-                lamp("Turn light off", "off");
-            } else if (/^(toggle|switch|alternar|alterna|inverter|inverte)$/.test(arg)) {
-                lamp("Toggle bedroom light", "toggle");
+                lamp("Alternar luz do quarto", "toggle");
+                lamp("Acender luz", "on");
+                lamp("Apagar luz", "off");
+                lamp("Luz com brilho 50%", "brightness 50");
+            } else if (/^(on|ligar|liga|acender|acende)$/.test(arg)) {
+                lamp("Acender luz", "on");
+            } else if (/^(off|desligar|desliga|apagar|apaga)$/.test(arg)) {
+                lamp("Apagar luz", "off");
+            } else if (/^(toggle|alternar|inverter)$/.test(arg)) {
+                lamp("Alternar luz do quarto", "toggle");
             } else if ((n = arg.match(/^(\d{1,3})\s*%?$/))) {
                 const pct = clamp(parseInt(n[1]), 1, 100);
-                lamp("Set light to " + pct + "%", "brightness " + pct);
+                lamp("Luz com brilho " + pct + "%", "brightness " + pct);
             } else if (temps[arg]) {
-                lamp(cap(temps[arg]) + " white light", "temp " + temps[arg]);
+                lamp("Luz branca " + arg, "temp " + temps[arg]);
             } else if (colors[arg]) {
-                lamp(cap(colors[arg]) + " light", "color " + colors[arg]);
+                lamp("Luz " + arg, "color " + colors[arg]);
             } else if (/^#[0-9a-f]{6}$/.test(arg)) {
-                lamp("Light color " + arg, "color " + arg);
+                lamp("Luz na cor " + arg, "color " + arg);
             }
         }
         return out;
@@ -5124,7 +5170,7 @@ else:
             if (/^(noi|noit|noite|nig|nigh|night)$/.test(ql)) root._pinCard(disp, "night");
         });
         safe("lamp", () => {
-            if (root._lampArg(ql) === "") root._pinCard(disp, "lamp");
+            if (/^(luz|l[a\u00e2]mpada|lampada|lamp)$/.test(ql)) root._pinCard(disp, "lamp");
         });
         safe("power", () => {
             if (/^(ener|energ|energi|energia|power)$/.test(ql)) root._pinCard(disp, "power");
@@ -6278,6 +6324,20 @@ else:
                             readonly property bool isQr: modelData.kind === "qr"
                             readonly property bool isCard: isWeather || isVolume || isBrightness || isMic || isNight || isLamp || isPower || isQr
                             readonly property bool isClipImage: modelData.kind === "clip" && modelData.isImage === true && !!modelData.imagePath
+                            readonly property bool isDraggedPin: isPinned && root.pinDragH === modelData.h
+                            // Where a pinned row sits while another one is being dragged
+                            readonly property real pinShiftY: {
+                                if (!isPinned || root.pinDragH === "" || isDraggedPin) return 0;
+                                const i = root.pinIndexOf(modelData.h), f = root.pinDragFrom, t = root.pinDragTarget;
+                                if (f < t && i > f && i <= t) return -root.rowH;
+                                if (f > t && i < f && i >= t) return root.rowH;
+                                return 0;
+                            }
+                            z: isDraggedPin ? 20 : 0
+                            transform: Translate {
+                                y: dlg.isDraggedPin ? root.pinDragDelta : dlg.pinShiftY
+                                Behavior on y { enabled: !dlg.isDraggedPin; NumberAnimation { duration: root.animMed; easing.type: Easing.OutCubic } }
+                            }
                             width: resultList.width
                             height: isHeader ? root.headerH : (isWeather ? root.weatherH : (isPower ? root.powerH : (isQr ? root.qrH : ((isVolume || isBrightness || isMic || isNight || isLamp) ? root.volumeH : root.rowH))))
                             Text {
@@ -6428,15 +6488,31 @@ else:
                                 anchors.fill: parent
                                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                                 hoverEnabled: true
-                                cursorShape: Qt.PointingHandCursor
+                                preventStealing: root.pinDragH !== ""
+                                pressAndHoldInterval: 750
+                                cursorShape: dlg.isDraggedPin ? Qt.ClosedHandCursor : Qt.PointingHandCursor
 
-                                onPositionChanged: {
+                                // A held pinned row is picked up; the others make room
+                                onPressAndHold: (mouse) => {
+                                    if (!dlg.isPinned || mouse.button !== Qt.LeftButton) return
+                                    root.beginPinDrag(modelData.h, rowHover.mapToItem(resultList.contentItem, mouse.x, mouse.y).y)
+                                }
+                                onReleased: root.endPinDrag()
+                                onCanceled: root.endPinDrag()
+
+                                onPositionChanged: (mouse) => {
+                                    if (dlg.isDraggedPin) {
+                                        root.updatePinDrag(rowHover.mapToItem(resultList.contentItem, mouse.x, mouse.y).y)
+                                        return
+                                    }
                                     if (root.selectedIndex !== modelData._idx) {
                                         root._userNavigated = true
                                         root.selectedIndex = modelData._idx
                                     }
                                 }
                                 onClicked: (mouse) => {
+                                    // A drag that just ended must not also run the row
+                                    if (root.pinDragJustEnded) return
                                     root.selectedIndex = modelData._idx
 
                                     const ctrl = !!(mouse.modifiers & Qt.ControlModifier)
@@ -6632,8 +6708,8 @@ else:
                                 panelBorder: root.white10
                                 speakerPath: root.cmdGlyphPaths["bulb"]
                                 hint: root.lampError !== "" && !root.lampKnown
-                                      ? ("Light not responding  \u00B7  " + root.lampError)
-                                      : "Bedroom light  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps  \u00B7  click the bulb to turn on or off"
+                                      ? ("Luz sem resposta  \u00B7  " + root.lampError)
+                                      : "Luz do quarto  \u00B7  \u2190 \u2192 adjust  \u00B7  Shift for fine steps  \u00B7  click the bulb to turn on or off"
                                 onLevelChosen: (value) => root.lampSet(value)
                                 onMuteToggled: root.lampToggle()
                                 onDraggingChanged: root.lampDragging = dragging

@@ -20,8 +20,8 @@ Rectangle {
     RowLayout {
         id: noteRow
         anchors.fill: parent
-        anchors.margins: 8
-        spacing: 8
+        anchors.margins: Appearance.spacing.sm
+        spacing: Appearance.spacing.sm
         MaterialSymbol {
             text: root.materialIcon
             iconSize: Appearance.font.pixelSize.larger

@@ -29,7 +29,7 @@ MouseArea {
         trackColor: Appearance.barContent.faded(highlightColor, 0.5)
 
         font {
-            pixelSize: 13
+            pixelSize: Appearance.font.pixelSize.smallie
             weight: Font.DemiBold
         }
 

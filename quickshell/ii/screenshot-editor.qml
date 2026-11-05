@@ -31,7 +31,7 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.modules.ii.screenshotEditor
 
-ApplicationWindow {
+TranslucentAppWindow {
     id: root
     visible: true
     width: 1180
@@ -41,7 +41,6 @@ ApplicationWindow {
     // Transparent window, translucent surface: the compositor blurs what is
     // behind it, as it does for the shell's panels (rule in hypr rules.lua,
     // matched on this exact title, so it is not translated).
-    color: "transparent"
     title: "Screenshot editor"
 
     readonly property string sourceFile: Quickshell.env("SCREENSHOT_EDIT_FILE") ?? ""
@@ -181,9 +180,8 @@ ApplicationWindow {
     // ── Layout ─────────────────────────────────────────────────────
     // Minimal: the picture, and one floating toolbar above it. Sizes have no
     // controls of their own; the mouse wheel sets them (see adjustSize).
-    Rectangle {
+    Item {
         anchors.fill: parent
-        color: Appearance.colors.colLayer0
 
         ColumnLayout {
             anchors.fill: parent
@@ -192,25 +190,25 @@ ApplicationWindow {
             Toolbar {
                 id: toolbar
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 12
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
+                Layout.topMargin: Appearance.spacing.md
+                Layout.leftMargin: Appearance.spacing.md
+                Layout.rightMargin: Appearance.spacing.md
                 enableShadow: false
                 spacing: 2
 
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "undo"
                     tip: Translation.tr("Undo (Ctrl+Z)")
                     enabled: canvas.canUndo
                     onClicked: canvas.undo()
                 }
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "redo"
                     tip: Translation.tr("Redo (Ctrl+Shift+Z)")
                     enabled: canvas.canRedo
                     onClicked: canvas.redo()
                 }
-                Divider {}
+                ToolbarDivider {}
 
                 Repeater {
                     model: root.tools
@@ -236,13 +234,13 @@ ApplicationWindow {
                 }
 
                 // Rectangle and oval: filled or just the outline
-                TopButton {
+                ToolbarSymbolButton {
                     visible: canvas.tool === "rect" || canvas.tool === "oval"
                     symbol: canvas.fillShape ? "square" : "check_box_outline_blank"
                     tip: (canvas.fillShape ? Translation.tr("Fill shape") : Translation.tr("Outline")) + "  (F)"
                     onClicked: root.toggleFill()
                 }
-                Divider {}
+                ToolbarDivider {}
 
                 Repeater {
                     model: ["#ff3b30", "#34c759", "#0a84ff", "#ffd60a", "#ffffff", "#000000"]
@@ -268,7 +266,7 @@ ApplicationWindow {
                                 anchors.centerIn: parent
                                 width: 24
                                 height: 24
-                                radius: 12
+                                radius: Appearance.rounding.small
                                 color: "transparent"
                                 border.width: 2
                                 border.color: Appearance.colors.colPrimary
@@ -277,14 +275,14 @@ ApplicationWindow {
                         }
                     }
                 }
-                Divider {}
+                ToolbarDivider {}
 
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "content_copy"
                     tip: Translation.tr("Copy to the clipboard (Ctrl+C)")
                     onClicked: root.copy()
                 }
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "save"
                     tip: Translation.tr("Save (Ctrl+S)")
                     onClicked: root.save()
@@ -368,34 +366,5 @@ ApplicationWindow {
                 }
             }
         }
-    }
-
-    component Divider: Rectangle {
-        implicitWidth: 1
-        implicitHeight: 22
-        Layout.alignment: Qt.AlignVCenter
-        Layout.leftMargin: 4
-        Layout.rightMargin: 4
-        color: Appearance.colors.colOutlineVariant
-    }
-
-    component TopButton: RippleButton {
-        id: topButton
-        // Not "icon": the button already has a final property of that name
-        property string symbol
-        property string tip
-        implicitWidth: 40
-        implicitHeight: 40
-        buttonRadius: Appearance.rounding.full
-        opacity: enabled ? 1 : 0.4
-        contentItem: MaterialSymbol {
-            anchors.centerIn: parent
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-            text: topButton.symbol
-            iconSize: Appearance.font.pixelSize.larger
-            color: Appearance.colors.colOnLayer1
-        }
-        StyledToolTip { text: topButton.tip }
     }
 }

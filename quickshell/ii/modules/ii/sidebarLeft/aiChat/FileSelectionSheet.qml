@@ -355,9 +355,9 @@ SheetBase {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
-                spacing: 4
+                anchors.leftMargin: Appearance.spacing.sm
+                anchors.rightMargin: Appearance.spacing.sm
+                spacing: Appearance.spacing.xs
 
                 MaterialSymbol {
                     text: "folder_open"
@@ -407,7 +407,7 @@ SheetBase {
 
                 contentItem: RowLayout {
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     MaterialSymbol {
                         text: bookmarkBtn.modelData.icon
@@ -444,8 +444,8 @@ SheetBase {
 
         RowLayout {
             anchors.fill: parent
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
+            anchors.leftMargin: Appearance.spacing.sm
+            anchors.rightMargin: Appearance.spacing.sm
             spacing: 6
 
             MaterialSymbol {
@@ -501,7 +501,7 @@ SheetBase {
     // 5. Category Filter Chips Row
     RowLayout {
         Layout.fillWidth: true
-        spacing: 4
+        spacing: Appearance.spacing.xs
 
         Repeater {
             model: [
@@ -560,7 +560,7 @@ SheetBase {
             anchors.fill: parent
             visible: !root.isSearching
             clip: true
-            spacing: 4
+            spacing: Appearance.spacing.xs
             model: folderModel
 
             onCurrentIndexChanged: {
@@ -588,7 +588,7 @@ SheetBase {
             anchors.fill: parent
             visible: root.isSearching
             clip: true
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             model: ScriptModel {
                 values: attachmentSearch.results
@@ -616,7 +616,7 @@ SheetBase {
         ColumnLayout {
             anchors.centerIn: parent
             visible: Boolean(root.emptyStateInfo.visible)
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             MaterialSymbol {
                 Layout.alignment: Qt.AlignHCenter

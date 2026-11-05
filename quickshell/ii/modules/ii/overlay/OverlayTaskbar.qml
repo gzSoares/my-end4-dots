@@ -35,7 +35,7 @@ Rectangle {
         spacing: 6
 
         Row {
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Repeater {
                 model: ScriptModel {
                     values: OverlayContext.availableWidgets
@@ -68,7 +68,7 @@ Rectangle {
 
     component TimeWidget: StyledText {
         Layout.alignment: Qt.AlignVCenter
-        Layout.leftMargin: 8
+        Layout.leftMargin: Appearance.spacing.sm
         Layout.rightMargin: 6
 
         text: DateTime.time
@@ -76,7 +76,7 @@ Rectangle {
         font {
             family: Appearance.font.family.numbers
             variableAxes: Appearance.font.variableAxes.numbers
-            pixelSize: 22
+            pixelSize: Appearance.font.pixelSize.huge
         }
     }
     
@@ -106,7 +106,7 @@ Rectangle {
             font {
                 family: Appearance.font.family.numbers
                 variableAxes: Appearance.font.variableAxes.numbers
-                pixelSize: 18
+                pixelSize: Appearance.font.pixelSize.large
             }
         }
     }

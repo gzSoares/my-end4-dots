@@ -123,13 +123,13 @@ Rectangle {
             left: parent.left
             right: parent.right
             top: parent.top
-            margins: 12
+            margins: Appearance.spacing.md
         }
         spacing: 10
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             // Animated signal strength icon
             Item {
@@ -169,7 +169,7 @@ Rectangle {
             // Network info
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 
                 StyledText {
                     text: root.wifiNetwork?.ssid ?? Translation.tr("Unknown")
@@ -201,7 +201,7 @@ Rectangle {
                         RowLayout {
                             id: securityRow
                             anchors.centerIn: securityBadge
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             z: 1  // Ensure content is above background
                             
                             MaterialSymbol {
@@ -211,7 +211,7 @@ Rectangle {
                             }
                             StyledText {
                                 text: root.securityType
-                                font.pixelSize: 11
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 font.weight: Font.Medium
                                 color: root.isActive ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colOnLayer2
                             }
@@ -236,7 +236,7 @@ Rectangle {
                         RowLayout {
                             id: openRow
                             anchors.centerIn: openBadge
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             z: 1
                             
                             MaterialSymbol {
@@ -246,7 +246,7 @@ Rectangle {
                             }
                             StyledText {
                                 text: Translation.tr("Open")
-                                font.pixelSize: 11
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 font.weight: Font.Medium
                                 color: Appearance.colors.colTertiary
                             }
@@ -272,7 +272,7 @@ Rectangle {
                             id: freqText
                             anchors.centerIn: freqBadge
                             text: root.frequencyBand
-                            font.pixelSize: 11
+                            font.pixelSize: Appearance.font.pixelSize.smaller
                             color: root.isActive ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colSubtext
                         }
                     }
@@ -421,7 +421,7 @@ Rectangle {
             visible: root.expanded && root.isActive
             Layout.fillWidth: true
             Layout.leftMargin: 40
-            spacing: 8
+            spacing: Appearance.spacing.sm
             
             Rectangle {
                 Layout.fillWidth: true
@@ -484,8 +484,8 @@ Rectangle {
             // Actions Row
             RowLayout {
                 Layout.alignment: Qt.AlignRight
-                Layout.topMargin: 4
-                spacing: 12
+                Layout.topMargin: Appearance.spacing.xs
+                spacing: Appearance.spacing.md
 
                 // Disconnect button
                 Item {
@@ -572,7 +572,7 @@ Rectangle {
         ColumnLayout {
             visible: root.isAskingPassword
             Layout.fillWidth: true
-            Layout.topMargin: 4
+            Layout.topMargin: Appearance.spacing.xs
             spacing: 10
 
             MaterialTextField {
@@ -627,7 +627,7 @@ Rectangle {
                     
                     contentItem: RowLayout {
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             text: "wifi"
                             iconSize: 16

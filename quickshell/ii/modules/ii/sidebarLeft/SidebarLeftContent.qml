@@ -318,7 +318,7 @@ Item {
                 Column {
                     anchors.centerIn: parent
                     width: parent.width - 40
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     StyledText {
                         width: parent.width
                         horizontalAlignment: Text.AlignHCenter

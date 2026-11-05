@@ -599,7 +599,7 @@ ApplicationWindow {
     Component {
         id: renameMountBlock
         ColumnLayout {
-            spacing: 12
+            spacing: Appearance.spacing.md
             Rectangle {
                 Layout.fillWidth: true
                 color: Appearance.colors.colLayer1
@@ -608,7 +608,7 @@ ApplicationWindow {
                 ColumnLayout {
                     id: rmCol
                     anchors.fill: parent
-                    anchors.margins: 12
+                    anchors.margins: Appearance.spacing.md
                     spacing: 10
                     RowLayout {
                         Layout.fillWidth: true
@@ -628,7 +628,7 @@ ApplicationWindow {
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "auto_awesome"
                             iconSize: 16
@@ -648,7 +648,7 @@ ApplicationWindow {
             }
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 Item { Layout.fillWidth: true }
                 RippleButton {
                     buttonRadius: Appearance.rounding.normal
@@ -696,7 +696,7 @@ ApplicationWindow {
     Component {
         id: unlockMountBlock
         ColumnLayout {
-            spacing: 12
+            spacing: Appearance.spacing.md
             Rectangle {
                 Layout.fillWidth: true
                 color: Appearance.colors.colLayer1
@@ -705,7 +705,7 @@ ApplicationWindow {
                 ColumnLayout {
                     id: umCol
                     anchors.fill: parent
-                    anchors.margins: 12
+                    anchors.margins: Appearance.spacing.md
                     spacing: 10
                     RowLayout {
                         Layout.fillWidth: true
@@ -743,7 +743,7 @@ ApplicationWindow {
                     }
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "lock_open"
                             iconSize: 16
@@ -763,7 +763,7 @@ ApplicationWindow {
             }
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 Item { Layout.fillWidth: true }
                 RippleButton {
                     buttonRadius: Appearance.rounding.normal
@@ -835,7 +835,7 @@ ApplicationWindow {
                     width: 24
                     height: 24
                     anchors.left: parent.left
-                    anchors.leftMargin: 12
+                    anchors.leftMargin: Appearance.spacing.md
                     anchors.verticalCenter: parent.verticalCenter
                     MaterialSymbol {
                         anchors.centerIn: parent
@@ -850,7 +850,7 @@ ApplicationWindow {
                 }
                 StyledText {
                     anchors.left: rowIconSlot.right
-                    anchors.leftMargin: 12
+                    anchors.leftMargin: Appearance.spacing.md
                     anchors.bottom: parent.verticalCenter
                     anchors.bottomMargin: 1
                     text: rowBtn.blank
@@ -862,7 +862,7 @@ ApplicationWindow {
                 }
                 StyledText {
                     anchors.left: rowIconSlot.right
-                    anchors.leftMargin: 12
+                    anchors.leftMargin: Appearance.spacing.md
                     anchors.top: parent.verticalCenter
                     anchors.topMargin: 1
                     text: rowBtn.blank
@@ -888,7 +888,7 @@ ApplicationWindow {
             MaterialSymbol {
                 id: mIcon
                 anchors.left: parent.left
-                anchors.leftMargin: 12
+                anchors.leftMargin: Appearance.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
                 text: {
                     const ft = (modelData.fstype || "").toLowerCase()
@@ -903,9 +903,9 @@ ApplicationWindow {
             }
             ColumnLayout {
                 anchors.left: mIcon.right
-                anchors.leftMargin: 12
+                anchors.leftMargin: Appearance.spacing.md
                 anchors.right: unmountBtn.left
-                anchors.rightMargin: 12
+                anchors.rightMargin: Appearance.spacing.md
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 1
                 RowLayout {
@@ -991,7 +991,7 @@ ApplicationWindow {
         ColumnLayout {
         anchors.fill: parent
         anchors.margins: 20
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         // Section header — title left, refresh right
         RowLayout {
@@ -1063,7 +1063,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         Row {
                             anchors.centerIn: parent
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 anchors.verticalCenter: parent.verticalCenter
                                 text: modelData.icon
@@ -1092,7 +1092,7 @@ ApplicationWindow {
 
             // ===== TAB 0: LOCAL ===========================================
             ColumnLayout {
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 StyledFlickable {
                     id: localFlick
@@ -1108,17 +1108,17 @@ ApplicationWindow {
                     ColumnLayout {
                         id: localScrollCol
                         width: localFlick.width
-                        spacing: 12
+                        spacing: Appearance.spacing.md
 
                 // Storage drives list
                 ColumnLayout {
                     id: storageCol
                     Layout.fillWidth: true
                     visible: root.drives.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "storage"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                             StyledText {
                                 Layout.fillWidth: true
@@ -1140,7 +1140,7 @@ ApplicationWindow {
                             Layout.preferredHeight: Math.min(count, 6) * 58
                             Layout.maximumHeight: 6 * 58
                             clip: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             model: root.drives
 
                             delegate: driveRow
@@ -1162,10 +1162,10 @@ ApplicationWindow {
                     id: mountedLocalCol
                     Layout.fillWidth: true
                     visible: root.mountedLocal.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "folder_special"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                             StyledText {
                                 Layout.fillWidth: true
@@ -1187,7 +1187,7 @@ ApplicationWindow {
                             Layout.preferredHeight: Math.min(count, 6) * 60
                             Layout.maximumHeight: 6 * 60
                             clip: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             model: root.mountedLocal
                             delegate: mountedRow
                         }
@@ -1198,10 +1198,10 @@ ApplicationWindow {
                     id: osCol
                     Layout.fillWidth: true
                     visible: root.osDrives.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "install_desktop"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                             StyledText {
                                 Layout.fillWidth: true
@@ -1222,7 +1222,7 @@ ApplicationWindow {
                             Layout.preferredHeight: Math.min(count, 4) * 58
                             Layout.maximumHeight: 4 * 58
                             clip: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             interactive: count > 4
                             model: root.osDrives
                             delegate: driveRow
@@ -1246,10 +1246,10 @@ ApplicationWindow {
                     id: encryptedCol
                     Layout.fillWidth: true
                     visible: root.encrypted.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 text: "lock"
                                 iconSize: 18
@@ -1274,7 +1274,7 @@ ApplicationWindow {
                             Layout.preferredHeight: Math.min(count, 4) * 58
                             Layout.maximumHeight: 4 * 58
                             clip: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             interactive: count > 4
                             model: root.encrypted
                             delegate: driveRow
@@ -1302,10 +1302,10 @@ ApplicationWindow {
                     id: unformattedCol
                     Layout.fillWidth: true
                     visible: root.unformatted.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 text: "deployed_code"
                                 iconSize: 18
@@ -1330,7 +1330,7 @@ ApplicationWindow {
                             Layout.preferredHeight: Math.min(count, 4) * 58
                             Layout.maximumHeight: 4 * 58
                             clip: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             interactive: count > 4
                             model: root.unformatted
                             delegate: driveRow
@@ -1355,7 +1355,7 @@ ApplicationWindow {
 
                 StyledText {
                     Layout.fillWidth: true
-                    Layout.topMargin: 8
+                    Layout.topMargin: Appearance.spacing.sm
                     visible: root.drives.length === 0 && root.osDrives.length === 0
                         && root.encrypted.length === 0 && root.unformatted.length === 0
                         && root.mountedLocal.length === 0
@@ -1371,7 +1371,7 @@ ApplicationWindow {
 
             // ===== TAB 1: NETWORK ========================================
             ColumnLayout {
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 // Discovered hosts via avahi-browse
                 ColumnLayout {
@@ -1381,10 +1381,10 @@ ApplicationWindow {
                     // space with the form instead of staying at 150.
                     Layout.fillHeight: false
                     Layout.preferredHeight: 150
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "lan"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                             StyledText {
                                 Layout.fillWidth: true
@@ -1431,7 +1431,7 @@ ApplicationWindow {
                                     MaterialSymbol {
                                         id: dhIcon
                                         anchors.left: parent.left
-                                        anchors.leftMargin: 8
+                                        anchors.leftMargin: Appearance.spacing.sm
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: "computer"
                                         iconSize: 16
@@ -1475,7 +1475,7 @@ ApplicationWindow {
                         // ── Fixed header ─────────────────────────────
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "add_link"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                             StyledText {
                                 Layout.fillWidth: true
@@ -1680,7 +1680,7 @@ ApplicationWindow {
                         // ── Fixed Mount button ──────────────────────
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             Item { Layout.fillWidth: true }
                             RippleButton {
                                 buttonRadius: Appearance.rounding.normal
@@ -1711,10 +1711,10 @@ ApplicationWindow {
                     Layout.fillWidth: true
                     Layout.fillHeight: false
                     visible: root.mountedNetwork.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                         RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol { text: "folder_special"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                             StyledText {
                                 Layout.fillWidth: true
@@ -1735,7 +1735,7 @@ ApplicationWindow {
                             Layout.preferredHeight: Math.min(count, 4) * 60
                             Layout.maximumHeight: 4 * 60
                             clip: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             model: root.mountedNetwork
                             delegate: mountedRow
                         }
@@ -1764,7 +1764,7 @@ ApplicationWindow {
             RowLayout {
                 id: statusRow
                 anchors.fill: parent
-                anchors.margins: 12
+                anchors.margins: Appearance.spacing.md
                 spacing: 10
                 MaterialSymbol {
                     Layout.alignment: Qt.AlignVCenter
@@ -1804,7 +1804,7 @@ ApplicationWindow {
         // ── Close button (always visible, in all tabs) ──────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
             Item { Layout.fillWidth: true }
             RippleButton {
                 buttonRadius: Appearance.rounding.normal

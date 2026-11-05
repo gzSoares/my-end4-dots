@@ -140,7 +140,7 @@ MouseArea {
         RowLayout {
             id: sysTrayLayout
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Appearance.spacing.sm
             
             // Show all system tray items (no pin logic, read-only on lock screen)
             Repeater {
@@ -372,35 +372,35 @@ MouseArea {
                         property: "x"; 
                         from: 0; 
                         to: -10; 
-                        duration: 50 
+                        duration: Appearance.motion.instant 
                         easing.type: Easing.OutQuad
                     }
                     NumberAnimation { 
                         target: fingerprintContainer; 
                         property: "x"; 
                         to: 10; 
-                        duration: 50 
+                        duration: Appearance.motion.instant 
                         easing.type: Easing.InOutQuad
                     }
                     NumberAnimation { 
                         target: fingerprintContainer; 
                         property: "x"; 
                         to: -8; 
-                        duration: 40 
+                        duration: Appearance.motion.instant 
                         easing.type: Easing.InOutQuad
                     }
                     NumberAnimation { 
                         target: fingerprintContainer; 
                         property: "x"; 
                         to: 8; 
-                        duration: 40 
+                        duration: Appearance.motion.instant 
                         easing.type: Easing.InOutQuad
                     }
                     NumberAnimation { 
                         target: fingerprintContainer; 
                         property: "x"; 
                         to: 0; 
-                        duration: 30 
+                        duration: Appearance.motion.instant 
                         easing.type: Easing.InQuad
                     }
                     onStopped: {
@@ -450,7 +450,7 @@ MouseArea {
                 Behavior on x {
                     enabled: !fingerprintShakeAnim.running
                     NumberAnimation {
-                        duration: 100
+                        duration: Appearance.motion.instant
                         easing.type: Easing.OutQuad
                     }
                 }
@@ -579,21 +579,21 @@ MouseArea {
 
         // Username
         IconAndTextPair {
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             icon: "account_circle"
             text: SystemInfo.username
         }
 
         // Keyboard layout (Xkb)
         Loader {
-            Layout.rightMargin: 8
+            Layout.rightMargin: Appearance.spacing.sm
             Layout.fillHeight: true
 
             active: true
             visible: active
 
             sourceComponent: Row {
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     id: keyboardIcon
@@ -690,7 +690,7 @@ MouseArea {
         required property string text
         property color color: Appearance.colors.colOnSurfaceVariant
 
-        spacing: 4
+        spacing: Appearance.spacing.xs
         Layout.fillHeight: true
         Layout.leftMargin: 10
         Layout.rightMargin: 10

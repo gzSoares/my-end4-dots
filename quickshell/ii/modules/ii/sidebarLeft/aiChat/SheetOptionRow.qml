@@ -26,10 +26,10 @@ RippleButton {
             left: parent.left
             right: parent.right
             verticalCenter: parent.verticalCenter
-            leftMargin: 12
-            rightMargin: 12
+            leftMargin: Appearance.spacing.md
+            rightMargin: Appearance.spacing.md
         }
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         MaterialSymbol {
             Layout.alignment: Qt.AlignVCenter

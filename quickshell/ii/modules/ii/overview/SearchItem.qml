@@ -277,7 +277,7 @@ RippleButton {
             Layout.alignment: Qt.AlignTop
             Layout.topMargin: root.buttonVerticalPadding
             Layout.bottomMargin: -root.buttonVerticalPadding // Why is this necessary? Good question.
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Repeater {
                 model: (root.entry.actions ?? []).slice(0, 4)
                 delegate: RippleButton {

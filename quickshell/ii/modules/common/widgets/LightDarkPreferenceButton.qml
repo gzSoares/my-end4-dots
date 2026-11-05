@@ -51,7 +51,7 @@ RippleButton {
                             implicitHeight: 50
                         }
                         ColumnLayout {
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             Rectangle {
                                 radius: Appearance.rounding.unsharpenmore
                                 color: lightDarkButtonRoot.previewFg

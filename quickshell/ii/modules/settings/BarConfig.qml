@@ -160,7 +160,7 @@ ContentPage {
 
         ConfigResetButton {
             visible: Config.options.bar.thickness >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default bar size")
             onClicked: Config.options.bar.thickness = -1
@@ -266,7 +266,7 @@ ContentPage {
                 || Config.options.bar.floatRadius >= 0
                 || Config.options.bar.floatWidth >= 0
                 || Config.options.bar.notchWidth >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default shape")
             onClicked: {
@@ -344,7 +344,7 @@ ContentPage {
         ConfigResetButton {
             visible: Config.options.bar.backgroundOpacity >= 0
                 || Config.options.bar.widgetOpacity >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default transparency")
             onClicked: {
@@ -394,7 +394,7 @@ ContentPage {
                 || Config.options.bar.backgroundColorLight !== ""
                 || Config.options.bar.widgetColorDark !== ""
                 || Config.options.bar.widgetColorLight !== ""
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default colors")
             onClicked: {
@@ -407,10 +407,10 @@ ContentPage {
 
         SubtleNoticeBox {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
+            Layout.topMargin: Appearance.spacing.xs
+            Layout.bottomMargin: Appearance.spacing.xs
             text: Translation.tr("Dark mode and light mode each keep their own colors.")
         }
     }
@@ -475,7 +475,7 @@ ContentPage {
             visible: Config.options.bar.groupPadding >= 0
                 || Config.options.bar.itemSpacing >= 0
                 || Config.options.bar.pillMargin >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default spacing")
             onClicked: {
@@ -537,7 +537,7 @@ ContentPage {
             visible: !Config.options.bar.pillOutline
                 || Config.options.bar.pillOutlineWidth !== 1
                 || Config.options.bar.pillHighlight >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default outline")
             onClicked: {
@@ -598,7 +598,7 @@ ContentPage {
 
         ConfigResetButton {
             visible: Config.options.bar.shadowStrength !== 1 || Config.options.bar.shadowSize !== 1
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default shadow")
             onClicked: {
@@ -739,7 +739,7 @@ ContentPage {
 
         ConfigResetButton {
             visible: Config.options.bar.workspaces.buttonSize >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default button size")
             onClicked: Config.options.bar.workspaces.buttonSize = -1
@@ -930,7 +930,7 @@ ContentPage {
                 visible: Config.options.bar.clock.fontSize >= 0
                     || Config.options.bar.clock.bold
                     || Config.options.bar.clock.separator !== "dot"
-                Layout.leftMargin: 8
+                Layout.leftMargin: Appearance.spacing.sm
                 Layout.topMargin: 2
                 buttonText: Translation.tr("Reset to default clock look")
                 onClicked: {

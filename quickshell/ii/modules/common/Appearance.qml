@@ -12,6 +12,9 @@ Singleton {
     property QtObject animationCurves
     property QtObject colors
     property QtObject rounding
+    property QtObject spacing
+    property QtObject motion
+    property QtObject panel
     property QtObject font
     property QtObject sizes
     property string syntaxHighlightingTheme
@@ -1105,6 +1108,30 @@ Singleton {
         property color colErrorContainerHover: ColorUtils.mix(m3colors.m3errorContainer, m3colors.m3onErrorContainer, 0.90)
         property color colErrorContainerActive: ColorUtils.mix(m3colors.m3errorContainer, m3colors.m3onErrorContainer, 0.70)
         property color colOnErrorContainer: m3colors.m3onErrorContainer
+    }
+
+    // Gaps and margins: one scale, so neighbouring panels line up
+    spacing: QtObject {
+        readonly property int xs: 4
+        readonly property int sm: 8
+        readonly property int md: 12
+        readonly property int lg: 16
+        readonly property int xl: 24
+    }
+
+    // How long a one-shot transition takes. Pick the nearest step instead of
+    // a number of your own; loops and long ambient motion keep their own.
+    motion: QtObject {
+        readonly property int instant: 100
+        readonly property int fast: 200
+        readonly property int normal: 300
+        readonly property int slow: 400
+    }
+
+    // What every floating panel shares: a hairline in the outline colour
+    panel: QtObject {
+        readonly property int borderWidth: 1
+        readonly property color borderColor: root.colors.colOutlineVariant
     }
 
     rounding: QtObject {

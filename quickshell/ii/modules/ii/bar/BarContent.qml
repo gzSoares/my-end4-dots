@@ -315,7 +315,7 @@ Item { // Bar content region
             id: chromelessRow
             anchors.fill: parent
             visible: pill.chromeless
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Repeater {
                 // Gated on chromelessness, not just hidden: an always-built
                 // model would keep a live duplicate of every widget behind
@@ -963,7 +963,7 @@ Item { // Bar content region
                         anchors.fill: parent
                         anchors.leftMargin: root.floatPad
                         anchors.rightMargin: root.floatPad
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
 
             Repeater {
                 model: Config.options.bar.layout.left
@@ -1002,7 +1002,7 @@ Item { // Bar content region
         Row {
             id: centerMidRow
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Repeater {
                 model: root.groupsAt()
                 delegate: GroupPill {
@@ -1021,7 +1021,7 @@ Item { // Bar content region
             rightMargin: root.groupsAt().length > 0 ? 6 : 3
             verticalCenter: parent.verticalCenter
         }
-        spacing: 4
+        spacing: Appearance.spacing.xs
         Repeater {
             model: root.groupsBefore()
             delegate: GroupPill {
@@ -1055,7 +1055,7 @@ Item { // Bar content region
         Row {
             id: centerRightFlankRow
             anchors.fill: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Repeater {
                 model: root.groupsAfter()
                 delegate: GroupPill {

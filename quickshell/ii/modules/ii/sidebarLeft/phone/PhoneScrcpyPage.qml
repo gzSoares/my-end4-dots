@@ -42,7 +42,7 @@ ContentPage {
                 property: "opacity"
                 from: 0
                 to: 1
-                duration: 260
+                duration: Appearance.motion.normal
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
@@ -50,7 +50,7 @@ ContentPage {
                 property: "y"
                 from: 18
                 to: 0
-                duration: 380
+                duration: Appearance.motion.slow
                 easing.type: Easing.OutBack
                 easing.overshoot: 1.25
             }
@@ -59,7 +59,7 @@ ContentPage {
 
     // ─── Header ─────────────────────────────────────────────
     RowLayout {
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         RippleButton {
             implicitWidth: implicitHeight
@@ -240,7 +240,7 @@ ContentPage {
         // Quick actions row
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             RippleButton {
                 Layout.preferredHeight: 44
@@ -459,7 +459,7 @@ ContentPage {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             RippleButton {
                 Layout.fillWidth: true
@@ -562,9 +562,9 @@ ContentPage {
             RowLayout {
                 id: hostReadout
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                spacing: 8
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.rightMargin: Appearance.spacing.md
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     Layout.alignment: Qt.AlignVCenter

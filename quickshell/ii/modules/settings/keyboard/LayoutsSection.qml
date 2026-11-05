@@ -225,7 +225,7 @@ ContentSection {
 
         ConfigRow {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             MaterialSymbol {
                 text: "keyboard"
@@ -237,7 +237,7 @@ ContentSection {
                 color: Appearance.colors.colSubtext
             }
             Row {
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 KeyboardKey { key: "CTRL" }
                 KeyboardKey { key: Config.options.cheatsheet.superKey || "SUPER" }
                 StyledText {

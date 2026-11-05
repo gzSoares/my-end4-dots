@@ -249,7 +249,7 @@ ApplicationWindow {
         ColumnLayout {
             anchors.fill: parent
             anchors.margins: 20
-            spacing: 12
+            spacing: Appearance.spacing.md
 
         // Section header
         RowLayout {
@@ -292,7 +292,7 @@ ApplicationWindow {
             ColumnLayout {
                 anchors.centerIn: parent
                 width: parent.width - 48
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 visible: root.filteredApps.length === 0
                 MaterialSymbol {
                     Layout.alignment: Qt.AlignHCenter
@@ -333,7 +333,7 @@ ApplicationWindow {
                         anchors.fill: parent
                         anchors.leftMargin: 10
                         anchors.rightMargin: 10
-                        spacing: 12
+                        spacing: Appearance.spacing.md
 
                         IconImage {
                             implicitSize: 40
@@ -380,7 +380,7 @@ ApplicationWindow {
                             onClicked: root.askRemove(modelData)
                             contentItem: RowLayout {
                                 anchors.centerIn: parent
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
                                 MaterialSymbol {
                                     text: "delete"
                                     iconSize: 18
@@ -419,7 +419,7 @@ ApplicationWindow {
             RowLayout {
                 id: statusRow
                 anchors.fill: parent
-                anchors.margins: 12
+                anchors.margins: Appearance.spacing.md
                 spacing: 10
                 MaterialSymbol {
                     visible: !root.busy
@@ -435,7 +435,7 @@ ApplicationWindow {
                 ColumnLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignVCenter
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     StyledText {
                         Layout.fillWidth: true
                         text: root.status
@@ -454,7 +454,7 @@ ApplicationWindow {
         // Footer
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
             RippleButton {
                 buttonRadius: Appearance.rounding.normal
                 implicitWidth: 110
@@ -465,7 +465,7 @@ ApplicationWindow {
                 onClicked: root.refresh()
                 contentItem: RowLayout {
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     MaterialSymbol { text: "refresh"; iconSize: 18; color: Appearance.colors.colOnSecondaryContainer }
                     StyledText {
                         text: Translation.tr("Refresh")
@@ -569,8 +569,8 @@ ApplicationWindow {
 
                 RowLayout {
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: 4
-                    spacing: 8
+                    Layout.topMargin: Appearance.spacing.xs
+                    spacing: Appearance.spacing.sm
                     RippleButton {
                         implicitWidth: 110
                         implicitHeight: 36
@@ -596,7 +596,7 @@ ApplicationWindow {
                         onClicked: root.confirmRemove()
                         contentItem: RowLayout {
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             MaterialSymbol { text: "delete"; iconSize: 18; color: Appearance.m3colors.m3onError }
                             StyledText {
                                 text: Translation.tr("Remove")

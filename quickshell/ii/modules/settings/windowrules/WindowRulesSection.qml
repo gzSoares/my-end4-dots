@@ -466,8 +466,8 @@ ContentSection {
 
     StyledText {
         Layout.fillWidth: true
-        Layout.leftMargin: 8
-        Layout.rightMargin: 8
+        Layout.leftMargin: Appearance.spacing.sm
+        Layout.rightMargin: Appearance.spacing.sm
         text: Translation.tr("Teach specific apps how to open: where they land, how they look, what they're allowed to do. Later rules win when two disagree.")
         font.pixelSize: Appearance.font.pixelSize.smaller
         color: Appearance.colors.colSubtext
@@ -480,7 +480,7 @@ ContentSection {
     NoticeBox {
         visible: !root.rulesUsable
         Layout.fillWidth: true
-        Layout.margins: 8
+        Layout.margins: Appearance.spacing.sm
         materialIcon: "warning"
         text: Translation.tr("Your window rules file couldn't be read, so it's being left alone: %1").arg(root.loadError)
     }
@@ -488,7 +488,7 @@ ContentSection {
     StyledText {
         visible: root.rulesUsable && root.rules.length === 0 && !root.editorOpen
         Layout.fillWidth: true
-        Layout.margins: 8
+        Layout.margins: Appearance.spacing.sm
         text: Translation.tr("No rules yet.")
         font.pixelSize: Appearance.font.pixelSize.small
         color: Appearance.colors.colSubtext
@@ -514,12 +514,12 @@ ContentSection {
                     id: cardRow
                     anchors {
                         fill: parent
-                        leftMargin: 12
-                        rightMargin: 8
-                        topMargin: 8
-                        bottomMargin: 8
+                        leftMargin: Appearance.spacing.md
+                        rightMargin: Appearance.spacing.sm
+                        topMargin: Appearance.spacing.sm
+                        bottomMargin: Appearance.spacing.sm
                     }
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     StyledSwitch {
                         checked: ruleCard.rule.enabled
@@ -583,7 +583,7 @@ ContentSection {
         active: root.editorOpen
         visible: active
         Layout.fillWidth: true
-        Layout.topMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
         // After onLoaded the item exists but the layout has not sized it yet;
         // one deferral lets implicitHeight land before the scroll measures it.
         onLoaded: Qt.callLater(() => root.scrollToEditor(item))
@@ -597,13 +597,13 @@ ContentSection {
                 id: editorColumn
                 anchors {
                     fill: parent
-                    margins: 12
+                    margins: Appearance.spacing.md
                 }
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     ContentSubsectionLabel {
                         text: Translation.tr("Which windows")
                     }
@@ -617,7 +617,7 @@ ContentSection {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     StyledComboBox {
                         id: windowPicker
                         Layout.fillWidth: true
@@ -644,7 +644,7 @@ ContentSection {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MaterialTextField {
                         Layout.fillWidth: true
                         placeholderText: Translation.tr("App class (regex)")
@@ -895,7 +895,7 @@ ContentSection {
                         id: customRow
                         required property int index
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         // Replaced rather than edited in place: changing a
                         // field inside the array notifies nothing, so the Save
                         // button never learned the rule had become saveable.
@@ -933,8 +933,8 @@ ContentSection {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: 4
-                    spacing: 8
+                    Layout.topMargin: Appearance.spacing.xs
+                    spacing: Appearance.spacing.sm
                     Item { Layout.fillWidth: true }
                     GroupButton {
                         buttonText: Translation.tr("Cancel")
@@ -964,8 +964,8 @@ ContentSection {
 
     RowLayout {
         visible: !root.editorOpen && root.rulesUsable
-        Layout.leftMargin: 8
-        Layout.rightMargin: 8
+        Layout.leftMargin: Appearance.spacing.sm
+        Layout.rightMargin: Appearance.spacing.sm
         Layout.fillWidth: true
         RippleButtonWithIcon {
             materialIcon: "add"

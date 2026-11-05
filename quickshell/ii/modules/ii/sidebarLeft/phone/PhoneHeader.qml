@@ -87,7 +87,7 @@ Item {
         id: deviceSelectorRow
         anchors.left: parent.left
         anchors.right: parent.right
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         // ─── Device selector chip ───
         RippleButton {
@@ -115,7 +115,7 @@ Item {
             Behavior on scale {
                 enabled: !headerEntranceAnim.running
                 NumberAnimation {
-                    duration: 150
+                    duration: Appearance.motion.fast
                     easing.type: Easing.OutQuad
                 }
             }
@@ -172,7 +172,7 @@ Item {
             Behavior on scale {
                 enabled: !headerEntranceAnim.running
                 NumberAnimation {
-                    duration: 180
+                    duration: Appearance.motion.fast
                     easing.type: Easing.OutBack
                     easing.overshoot: 1.5
                 }

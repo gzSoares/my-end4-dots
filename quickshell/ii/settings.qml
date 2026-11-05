@@ -370,7 +370,7 @@ ApplicationWindow {
                     left: Config.options.windows.centerTitle ? undefined : parent.left
                     horizontalCenter: Config.options.windows.centerTitle ? parent.horizontalCenter : undefined
                     verticalCenter: parent.verticalCenter
-                    leftMargin: 12
+                    leftMargin: Appearance.spacing.md
                 }
                 color: Appearance.colors.colOnLayer0
                 text: Translation.tr("Settings")
@@ -439,7 +439,7 @@ ApplicationWindow {
                             Rectangle {
                                 visible: index > 0 && root.pages[index - 1].group !== modelData.group
                                 Layout.fillWidth: true
-                                Layout.margins: 12
+                                Layout.margins: Appearance.spacing.md
                                 implicitHeight: 1
                                 opacity: 0.3
                                 color: Appearance.m3colors.m3outlineVariant
@@ -527,7 +527,7 @@ ApplicationWindow {
                             properties: "opacity"
                             from: 1
                             to: 0
-                            duration: 100
+                            duration: Appearance.motion.instant
                             easing.type: Appearance.animation.elementMoveExit.type
                             easing.bezierCurve: Appearance.animationCurves.emphasizedFirstHalf
                         }
@@ -549,7 +549,7 @@ ApplicationWindow {
                                 properties: "opacity"
                                 from: 0
                                 to: 1
-                                duration: 200
+                                duration: Appearance.motion.fast
                                 easing.type: Appearance.animation.elementMoveEnter.type
                                 easing.bezierCurve: Appearance.animationCurves.emphasizedLastHalf
                             }
@@ -557,7 +557,7 @@ ApplicationWindow {
                                 target: pageLoader
                                 properties: "anchors.topMargin"
                                 to: 0
-                                duration: 200
+                                duration: Appearance.motion.fast
                                 easing.type: Appearance.animation.elementMoveEnter.type
                                 easing.bezierCurve: Appearance.animationCurves.emphasizedLastHalf
                             }
@@ -643,7 +643,7 @@ ApplicationWindow {
                     verticalCenter: navBtnIconArea.verticalCenter
                 }
                 text: navBtn.buttonText
-                font.pixelSize: 14
+                font.pixelSize: Appearance.font.pixelSize.small
                 color: Appearance.colors.colOnLayer1
             }
         }

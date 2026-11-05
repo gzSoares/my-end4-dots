@@ -52,7 +52,7 @@ RippleButton {
                 id: popUpColumnLayout
 
                 width: parent.width
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Repeater {
                     model: ScriptModel {
@@ -68,12 +68,12 @@ RippleButton {
                         RowLayout {
                             id: eventRow
                             anchors.fill: parent
-                            anchors.margins: 8
-                            spacing: 8
+                            anchors.margins: Appearance.spacing.sm
+                            spacing: Appearance.spacing.sm
 
                             Rectangle {
                                 Layout.alignment: Qt.AlignTop
-                                Layout.topMargin: 4
+                                Layout.topMargin: Appearance.spacing.xs
                                 width: 8
                                 height: 8
                                 radius: 4
@@ -120,14 +120,14 @@ RippleButton {
                             id: contentColumn
 
                             width: parent.width
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             Layout.margins: 10
 
                             StyledText {
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 10
                                 Layout.rightMargin: 10
-                                Layout.topMargin: 8
+                                Layout.topMargin: Appearance.spacing.sm
                                 text: modelData.content
                                 wrapMode: Text.Wrap
                             }
@@ -136,7 +136,7 @@ RippleButton {
                                 Layout.fillWidth: true
                                 Layout.leftMargin: 10
                                 Layout.rightMargin: 10
-                                Layout.topMargin: 8
+                                Layout.topMargin: Appearance.spacing.sm
                                 text: {
                                     if (!modelData.date) return ""
                                     var d = new Date(modelData.date)
@@ -203,8 +203,8 @@ RippleButton {
             visible: button.hasTasks
             anchors.left: parent.left
             anchors.top: parent.top
-            anchors.leftMargin: 4
-            anchors.topMargin: 4
+            anchors.leftMargin: Appearance.spacing.xs
+            anchors.topMargin: Appearance.spacing.xs
             width: 5
             height: 5
             radius: 2.5
@@ -216,8 +216,8 @@ RippleButton {
             visible: button.hasEvents
             anchors.right: parent.right
             anchors.top: parent.top
-            anchors.rightMargin: 4
-            anchors.topMargin: 4
+            anchors.rightMargin: Appearance.spacing.xs
+            anchors.topMargin: Appearance.spacing.xs
             width: 5
             height: 5
             radius: 2.5

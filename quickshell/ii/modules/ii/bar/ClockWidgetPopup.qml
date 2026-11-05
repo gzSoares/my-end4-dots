@@ -35,7 +35,7 @@ StyledPopup {
     ColumnLayout {
         id: columnLayout
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Appearance.spacing.xs
 
         StyledPopupHeaderRow {
             icon: "calendar_month"

@@ -283,7 +283,7 @@ ApplicationWindow {
                     left: Config.options.windows.centerTitle ? undefined : parent.left
                     horizontalCenter: Config.options.windows.centerTitle ? parent.horizontalCenter : undefined
                     verticalCenter: parent.verticalCenter
-                    leftMargin: 12
+                    leftMargin: Appearance.spacing.md
                 }
                 color: Appearance.colors.colOnLayer0
                 text: root.cardTitle
@@ -412,7 +412,7 @@ ApplicationWindow {
             // the open one takes you to its first page.
             Row {
                 anchors.centerIn: parent
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Repeater {
                     model: root.sections
@@ -803,7 +803,7 @@ ApplicationWindow {
             ColumnLayout {
                 anchors.centerIn: parent
                 width: parent.width - 16
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 AppIcon {
                     Layout.alignment: Qt.AlignHCenter
@@ -976,8 +976,8 @@ ApplicationWindow {
 
         ColumnLayout {
             anchors.fill: parent
-            anchors.margins: 24
-            spacing: 12
+            anchors.margins: Appearance.spacing.xl
+            spacing: Appearance.spacing.md
 
             Repeater {
                 model: installCard.groups
@@ -1122,7 +1122,7 @@ ApplicationWindow {
             height: mock.gridH
             anchors.centerIn: parent
             scale: Math.min(mock.width / mock.gridW, mock.height / mock.gridH)
-            radius: 8
+            radius: Appearance.rounding.verysmall
             // No outline of its own: the tile around it is the frame, and a
             // second one inside it only doubles every edge on the page.
             color: mock.screenColor
@@ -1239,7 +1239,7 @@ ApplicationWindow {
         // third transparent they washed into the strip and the grouping, which
         // is the thing these panels are pointing at, stopped reading.
         color: Appearance.colors.colLayer1
-        radius: 8
+        radius: Appearance.rounding.verysmall
         border.width: 0
     }
 
@@ -1251,7 +1251,7 @@ ApplicationWindow {
     component AppWindow : Rectangle {
         id: appWin
         property string appIcon: ""
-        radius: 8
+        radius: Appearance.rounding.verysmall
         color: "#FFFFFF"
         clip: true
 
@@ -1301,7 +1301,7 @@ ApplicationWindow {
     // the mockup scales cleanly from preview size up to full tile.
     component NautilusWindow : Rectangle {
         id: nw
-        radius: 8
+        radius: Appearance.rounding.verysmall
         color: Appearance.m3colors.m3surfaceContainer
         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.45)
         border.width: 1
@@ -1349,9 +1349,9 @@ ApplicationWindow {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            anchors.leftMargin: 8
-            anchors.rightMargin: 8
-            anchors.bottomMargin: 8
+            anchors.leftMargin: Appearance.spacing.sm
+            anchors.rightMargin: Appearance.spacing.sm
+            anchors.bottomMargin: Appearance.spacing.sm
             anchors.topMargin: 2
             radius: 6
             color: ColorUtils.transparentize(Appearance.colors.colLayer2, 0.35)
@@ -1446,7 +1446,7 @@ ApplicationWindow {
         Row {
             id: mediaRow
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Rectangle {
                 width: 12; height: 12; radius: 6
                 color: Appearance.m3colors.m3primary
@@ -1462,7 +1462,7 @@ ApplicationWindow {
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "Subnautica 2 LAU…"
-                font.pixelSize: 8
+                font.pixelSize: Appearance.font.pixelSize.smallest
                 color: Appearance.colors.colOnLayer1
                 elide: Text.ElideRight
                 width: 70
@@ -1555,7 +1555,7 @@ ApplicationWindow {
             id: barCenter
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
-            spacing: 4
+            spacing: Appearance.spacing.xs
             PillBg {
                 height: mockBar.card.barPillH
                 width: utilRow.implicitWidth + 12
@@ -1589,7 +1589,7 @@ ApplicationWindow {
                     id: clockText
                     anchors.centerIn: parent
                     text: "9:41 AM"
-                    font.pixelSize: 10
+                    font.pixelSize: Appearance.font.pixelSize.smallest
                     color: Appearance.colors.colOnLayer1
                 }
             }
@@ -1610,7 +1610,7 @@ ApplicationWindow {
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
                         text: "73°F"
-                        font.pixelSize: 9
+                        font.pixelSize: Appearance.font.pixelSize.smallest
                         color: Appearance.colors.colOnLayer1
                     }
                 }
@@ -1672,7 +1672,7 @@ ApplicationWindow {
         Layout.fillWidth: false
         Layout.fillHeight: true
         Layout.alignment: Qt.AlignVCenter
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         Item { Layout.fillHeight: true }
 
@@ -1734,12 +1734,12 @@ ApplicationWindow {
         ColumnLayout {
             id: sectionColumn
             anchors.fill: parent
-            anchors.margins: 12
-            spacing: 8
+            anchors.margins: Appearance.spacing.md
+            spacing: Appearance.spacing.sm
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 MaterialSymbol {
                     text: section.symbol
                     iconSize: 18
@@ -1767,7 +1767,7 @@ ApplicationWindow {
         property bool selected: false
         implicitWidth: 16
         implicitHeight: 16
-        radius: 8
+        radius: Appearance.rounding.verysmall
         border.width: 2
         border.color: selected ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
         color: selected ? Appearance.colors.colPrimary : "transparent"
@@ -1824,7 +1824,7 @@ ApplicationWindow {
 
                 StyleMockup {
                     anchors.fill: parent
-                    anchors.margins: 8
+                    anchors.margins: Appearance.spacing.sm
                     styleName: tile.styleName
                 }
             }
@@ -2245,7 +2245,7 @@ ApplicationWindow {
                 anchors.horizontalCenter: parent.horizontalCenter
                 y: parent.gridTop - (1 - demo.openT) * 8
                 scale: 0.94 + 0.06 * demo.openT
-                radius: 8
+                radius: Appearance.rounding.verysmall
                 color: Appearance.colors.colBackgroundSurfaceContainer
 
                 Grid {
@@ -2501,13 +2501,13 @@ ApplicationWindow {
             id: move
             NumberAnimation {
                 target: mount; property: "retract"; to: 1
-                duration: 170
+                duration: Appearance.motion.fast
                 easing.type: Easing.InCubic
             }
             ScriptAction { script: mount.shownEdge = mount.edge }
             NumberAnimation {
                 target: mount; property: "retract"; to: 0
-                duration: 280
+                duration: Appearance.motion.normal
                 easing.type: Easing.OutCubic
             }
         }
@@ -2602,7 +2602,7 @@ ApplicationWindow {
                 visible: !bar.maskOnly
                 x: Math.max(10, bar.farRadius)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 Rectangle { width: 16; height: 6; radius: 3; color: Appearance.barStripContent.colPrimary }
                 Repeater {
                     model: 3
@@ -2612,7 +2612,7 @@ ApplicationWindow {
             Row {
                 visible: !bar.maskOnly
                 anchors.centerIn: parent
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 Rectangle { width: 20; height: 5; radius: 2.5; color: bar.markColor }
                 Rectangle { width: 12; height: 5; radius: 2.5; color: bar.markColor }
             }
@@ -2621,7 +2621,7 @@ ApplicationWindow {
                 anchors.right: parent.right
                 anchors.rightMargin: Math.max(10, bar.farRadius)
                 anchors.verticalCenter: parent.verticalCenter
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 Repeater {
                     model: 3
                     Rectangle { width: 6; height: 6; radius: 3; color: bar.markColor }
@@ -2992,7 +2992,7 @@ ApplicationWindow {
                         rightMargin: Math.max(7, surface.radius * 0.6)
                         verticalCenter: parent.verticalCenter
                     }
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     Repeater {
                         model: 3
                         Rectangle {
@@ -3664,8 +3664,8 @@ ApplicationWindow {
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 24
-            spacing: 16
+            anchors.margins: Appearance.spacing.xl
+            spacing: Appearance.spacing.lg
 
             StyleSection {
                 title: Translation.tr("Preview")
@@ -3954,8 +3954,8 @@ ApplicationWindow {
 
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 24
-            spacing: 16
+            anchors.margins: Appearance.spacing.xl
+            spacing: Appearance.spacing.lg
 
             StyleSection {
                 title: Translation.tr("Preview")
@@ -4363,7 +4363,7 @@ ApplicationWindow {
                                 anchors.rightMargin: 10
                                 anchors.bottomMargin: 10
                                 text: Translation.tr("Workspace %1").arg(card2.currentWs + 1)
-                                font.pixelSize: 10
+                                font.pixelSize: Appearance.font.pixelSize.smallest
                                 color: Appearance.colors.colOnLayer0
                                 opacity: 0.55
                                 z: 5
@@ -4402,7 +4402,7 @@ ApplicationWindow {
                                                 height: (rect.y + rect.h >= 1)
                                                     ? card2.tileH - y
                                                     : Math.round(rect.h * card2.tileH) - (rect.y > 0 ? card2.tileGap / 2 : 0) - card2.tileGap / 2
-                                                radius: 8
+                                                radius: Appearance.rounding.verysmall
                                                 color: ColorUtils.transparentize(Appearance.colors.colLayer2, 0.18)
                                                 border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.45)
                                                 border.width: 1
@@ -4703,7 +4703,7 @@ ApplicationWindow {
                                                             maskSource: Rectangle {
                                                                 width: tile3.width
                                                                 height: tile3.height
-                                                                radius: 8
+                                                                radius: Appearance.rounding.verysmall
                                                             }
                                                         }
                                                     }
@@ -4714,7 +4714,7 @@ ApplicationWindow {
                                                 Rectangle {
                                                     visible: !tile3.isSpotify
                                                     anchors.fill: parent
-                                                    radius: 8
+                                                    radius: Appearance.rounding.verysmall
                                                     color: ColorUtils.transparentize(Appearance.colors.colLayer2, 0.18)
                                                     border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.45)
                                                     border.width: 1
@@ -4851,7 +4851,7 @@ ApplicationWindow {
                             width: popupW
                             height: popupH
                             color: Appearance.m3colors.m3surfaceContainer
-                            radius: 12
+                            radius: Appearance.rounding.small
                             clip: true
                             opacity: card6.previewVisible ? 1 : 0
                             visible: opacity > 0
@@ -4867,10 +4867,10 @@ ApplicationWindow {
 
                                 StyledText {
                                     Layout.fillWidth: true
-                                    Layout.leftMargin: 4
-                                    Layout.rightMargin: 4
+                                    Layout.leftMargin: Appearance.spacing.xs
+                                    Layout.rightMargin: Appearance.spacing.xs
                                     text: "Spotify"
-                                    font.pixelSize: 10
+                                    font.pixelSize: Appearance.font.pixelSize.smallest
                                     color: Appearance.m3colors.m3onSurface
                                     elide: Text.ElideRight
                                 }
@@ -4910,7 +4910,7 @@ ApplicationWindow {
                             y: card6.menuY
                             width: card6.menuW
                             height: menuColumn3.implicitHeight + 12
-                            radius: 12
+                            radius: Appearance.rounding.small
                             color: Appearance.m3colors.m3surfaceContainer
                             opacity: card6.menuVisible ? 1 : 0
                             visible: opacity > 0
@@ -4941,7 +4941,7 @@ ApplicationWindow {
                                         anchors.verticalCenter: parent.verticalCenter
                                         anchors.leftMargin: 14
                                         text: "New Window"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: Appearance.m3colors.m3onSurface
                                     }
                                 }
@@ -4959,7 +4959,7 @@ ApplicationWindow {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 26
-                                    spacing: 8
+                                    spacing: Appearance.spacing.sm
                                     MaterialSymbol {
                                         Layout.leftMargin: 10
                                         text: "open_in_new"
@@ -4970,7 +4970,7 @@ ApplicationWindow {
                                         Layout.fillWidth: true
                                         Layout.rightMargin: 14
                                         text: "Open new instance"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: Appearance.m3colors.m3onSurface
                                     }
                                 }
@@ -4996,7 +4996,7 @@ ApplicationWindow {
                                         anchors.top: parent.top
                                         anchors.leftMargin: 2
                                         text: "Hulu | Watch"
-                                        font.pixelSize: 9
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
                                         color: Appearance.m3colors.m3onSurface
                                     }
                                     RowLayout {
@@ -5036,7 +5036,7 @@ ApplicationWindow {
                                             Layout.preferredWidth: 26
                                             horizontalAlignment: Text.AlignRight
                                             text: Math.round(card6.volume1 * 100) + "%"
-                                            font.pixelSize: 9
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
                                             color: Appearance.m3colors.m3onSurface
                                         }
                                     }
@@ -5056,7 +5056,7 @@ ApplicationWindow {
                                         anchors.leftMargin: 2
                                         text: "(179) PoE2 Made Me Rethink How I Play Path of Exile ..."
                                         elide: Text.ElideRight
-                                        font.pixelSize: 9
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
                                         color: Appearance.m3colors.m3onSurface
                                     }
                                     RowLayout {
@@ -5096,7 +5096,7 @@ ApplicationWindow {
                                             Layout.preferredWidth: 26
                                             horizontalAlignment: Text.AlignRight
                                             text: Math.round(card6.volume2 * 100) + "%"
-                                            font.pixelSize: 9
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
                                             color: Appearance.m3colors.m3onSurface
                                         }
                                     }
@@ -5115,7 +5115,7 @@ ApplicationWindow {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 26
-                                    spacing: 8
+                                    spacing: Appearance.spacing.sm
                                     MaterialSymbol {
                                         Layout.leftMargin: 10
                                         text: "logout"
@@ -5126,7 +5126,7 @@ ApplicationWindow {
                                         Layout.fillWidth: true
                                         Layout.rightMargin: 14
                                         text: "Move to workspace"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: Appearance.m3colors.m3outline
                                     }
                                 }
@@ -5145,7 +5145,7 @@ ApplicationWindow {
                                             StyledText {
                                                 anchors.centerIn: parent
                                                 text: String(parent.index + 1)
-                                                font.pixelSize: 10
+                                                font.pixelSize: Appearance.font.pixelSize.smallest
                                                 color: Appearance.m3colors.m3onSurface
                                             }
                                         }
@@ -5156,7 +5156,7 @@ ApplicationWindow {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 26
-                                    spacing: 8
+                                    spacing: Appearance.spacing.sm
                                     MaterialSymbol {
                                         Layout.leftMargin: 10
                                         text: "push_pin"
@@ -5167,7 +5167,7 @@ ApplicationWindow {
                                         Layout.fillWidth: true
                                         Layout.rightMargin: 14
                                         text: "Pin to dock"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: Appearance.m3colors.m3onSurface
                                     }
                                 }
@@ -5185,7 +5185,7 @@ ApplicationWindow {
                                 RowLayout {
                                     Layout.fillWidth: true
                                     Layout.preferredHeight: 26
-                                    spacing: 8
+                                    spacing: Appearance.spacing.sm
                                     MaterialSymbol {
                                         Layout.leftMargin: 10
                                         text: "close"
@@ -5196,7 +5196,7 @@ ApplicationWindow {
                                         Layout.fillWidth: true
                                         Layout.rightMargin: 14
                                         text: "Close all windows"
-                                        font.pixelSize: 11
+                                        font.pixelSize: Appearance.font.pixelSize.smaller
                                         color: Appearance.m3colors.m3onSurface
                                     }
                                 }
@@ -5553,7 +5553,7 @@ ApplicationWindow {
                             y: cardDesk.clickY
                             width: deskMenuColumn.implicitWidth + cardDesk.menuPad * 2
                             height: deskMenuColumn.implicitHeight + cardDesk.menuPad * 2
-                            radius: 12
+                            radius: Appearance.rounding.small
                             color: Appearance.m3colors.m3surfaceContainer
                             // Fade only, no grow: the real menu fades in
                             // right where the pointer already is.
@@ -5593,7 +5593,7 @@ ApplicationWindow {
                                             Layout.fillWidth: true
                                             implicitHeight: cardDesk.menuRowH
                                             implicitWidth: Math.max(deskMenuRow.implicitWidth + 24, 144)
-                                            radius: 8
+                                            radius: Appearance.rounding.verysmall
                                             color: ColorUtils.transparentize(Appearance.m3colors.m3onSurface,
                                                 cardDesk.hoveredRow === deskMenuEntry.index ? 0.88 : 1)
                                             Behavior on color {
@@ -5607,7 +5607,7 @@ ApplicationWindow {
                                                     leftMargin: 10
                                                     rightMargin: 14
                                                 }
-                                                spacing: 8
+                                                spacing: Appearance.spacing.sm
                                                 MaterialSymbol {
                                                     Layout.alignment: Qt.AlignVCenter
                                                     text: deskMenuEntry.modelData.icon
@@ -5618,7 +5618,7 @@ ApplicationWindow {
                                                 StyledText {
                                                     Layout.fillWidth: true
                                                     text: deskMenuEntry.modelData.label
-                                                    font.pixelSize: 11
+                                                    font.pixelSize: Appearance.font.pixelSize.smaller
                                                     color: Appearance.m3colors.m3onSurface
                                                 }
                                             }
@@ -5870,7 +5870,7 @@ readonly property var drawerApps: root.drawerApps
                             y: card4.wsContainerY
                             width: card4.wsContainerW
                             height: card4.wsContainerH
-                            radius: 12
+                            radius: Appearance.rounding.small
                             color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.22)
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.55)
                             border.width: 1
@@ -5891,7 +5891,7 @@ readonly property var drawerApps: root.drawerApps
                                 y: card4.wsAreaY + row * (card4.wsTileH + card4.wsGap)
                                 width: card4.wsTileW
                                 height: card4.wsTileH
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.14)
                                 border.width: isActive ? 2 : 1
                                 border.color: isActive
@@ -5907,7 +5907,7 @@ readonly property var drawerApps: root.drawerApps
                                 StyledText {
                                     anchors.centerIn: parent
                                     text: (index + 1).toString()
-                                    font.pixelSize: 22
+                                    font.pixelSize: Appearance.font.pixelSize.huge
                                     font.family: Appearance.font.family.title
                                     color: Appearance.colors.colOnLayer0
                                     opacity: (parent.isSource
@@ -5947,7 +5947,7 @@ readonly property var drawerApps: root.drawerApps
                                         Rectangle {
                                             anchors.left: parent.left
                                             anchors.top: parent.top
-                                            anchors.leftMargin: 4
+                                            anchors.leftMargin: Appearance.spacing.xs
                                             anchors.topMargin: 2
                                             width: 12
                                             height: parent.height - 3
@@ -5996,7 +5996,7 @@ readonly property var drawerApps: root.drawerApps
                                         Rectangle {
                                             anchors.left: parent.left
                                             anchors.top: parent.top
-                                            anchors.leftMargin: 4
+                                            anchors.leftMargin: Appearance.spacing.xs
                                             anchors.topMargin: 2
                                             width: 12
                                             height: parent.height - 3
@@ -6113,7 +6113,7 @@ readonly property var drawerApps: root.drawerApps
                             y: card4.drawerY
                             width: card4.drawerW
                             height: card4.drawerH
-                            radius: 12
+                            radius: Appearance.rounding.small
                             color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.28)
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.55)
                             border.width: 1
@@ -6548,7 +6548,7 @@ readonly property var drawerApps: root.drawerApps
                             y: card1.calloutY
                             width: card1.calloutW
                             height: card1.calloutH
-                            radius: 12
+                            radius: Appearance.rounding.small
                             color: Appearance.m3colors.m3surfaceContainer
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.45)
                             border.width: 1
@@ -6556,7 +6556,7 @@ readonly property var drawerApps: root.drawerApps
 
                             ColumnLayout {
                                 anchors.fill: parent
-                                anchors.margins: 16
+                                anchors.margins: Appearance.spacing.lg
                                 spacing: 6
 
                                 StyledText {
@@ -6808,7 +6808,7 @@ readonly property var drawerApps: root.drawerApps
                                 y: card3.wsContainerY
                                 width: card3.wsContainerW
                                 height: card3.wsContainerH
-                                radius: 12
+                                radius: Appearance.rounding.small
                                 color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.22)
                                 border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.55)
                                 border.width: 1
@@ -6826,7 +6826,7 @@ readonly property var drawerApps: root.drawerApps
                                     y: card3.wsAreaY + row * (card3.wsTileH + card3.wsGap)
                                     width: card3.wsTileW
                                     height: card3.wsTileH
-                                    radius: 8
+                                    radius: Appearance.rounding.verysmall
                                     color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.14)
                                     border.width: isActive ? 2 : 1
                                     border.color: isActive
@@ -6836,7 +6836,7 @@ readonly property var drawerApps: root.drawerApps
                                     StyledText {
                                         anchors.centerIn: parent
                                         text: (index + 1).toString()
-                                        font.pixelSize: 22
+                                        font.pixelSize: Appearance.font.pixelSize.huge
                                         font.family: Appearance.font.family.title
                                         color: Appearance.colors.colOnLayer0
                                         opacity: 0.35
@@ -6851,7 +6851,7 @@ readonly property var drawerApps: root.drawerApps
                             y: card3.drawerY
                             width: card3.drawerW
                             height: card3.drawerH
-                            radius: 12
+                            radius: Appearance.rounding.small
                             color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.28)
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.55)
                             border.width: 1
@@ -6883,7 +6883,7 @@ readonly property var drawerApps: root.drawerApps
                             y: topPad
                             width: card3.mockW - 72
                             height: bottomPad - topPad
-                            radius: 8
+                            radius: Appearance.rounding.verysmall
                             color: "#FFFFFF"
                             transformOrigin: Item.Center
                             visible: opacity > 0.01
@@ -6997,7 +6997,7 @@ readonly property var drawerApps: root.drawerApps
                             y: card3.drawerIconCenterY(card3.joplinIdx) - menuH - 6
                             width: menuW
                             height: menuH
-                            radius: 8
+                            radius: Appearance.rounding.verysmall
                             color: ColorUtils.transparentize(Appearance.m3colors.m3surfaceContainer, 0.05)
                             border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.55)
                             border.width: 1
@@ -7007,14 +7007,14 @@ readonly property var drawerApps: root.drawerApps
                             transformOrigin: Item.BottomLeft
                             Behavior on opacity {
                                 NumberAnimation {
-                                    duration: 200
+                                    duration: Appearance.motion.fast
                                     easing.type: Easing.BezierSpline
                                     easing.bezierCurve: [0.34, 0.80, 0.34, 1.00, 1, 1]
                                 }
                             }
                             Behavior on scale {
                                 NumberAnimation {
-                                    duration: 200
+                                    duration: Appearance.motion.fast
                                     easing.type: Easing.BezierSpline
                                     easing.bezierCurve: [0.34, 0.80, 0.34, 1.00, 1, 1]
                                 }
@@ -7022,7 +7022,7 @@ readonly property var drawerApps: root.drawerApps
 
                             Column {
                                 anchors.fill: parent
-                                anchors.margins: 4
+                                anchors.margins: Appearance.spacing.xs
                                 spacing: 0
 
                                 Rectangle {
@@ -7044,7 +7044,7 @@ readonly property var drawerApps: root.drawerApps
                                         StyledText {
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: Translation.tr("Pin to dock")
-                                            font.pixelSize: 10
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
                                             color: Appearance.colors.colOnLayer0
                                         }
                                     }
@@ -7099,7 +7099,7 @@ readonly property var drawerApps: root.drawerApps
                 target: card3
                 property: "dockReveal"
                 to: 1
-                duration: 200
+                duration: Appearance.motion.fast
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: [0.34, 0.80, 0.34, 1.00, 1, 1]
             }
@@ -7119,7 +7119,7 @@ readonly property var drawerApps: root.drawerApps
                 target: card3
                 property: "drawerOpen"
                 to: 1
-                duration: 200
+                duration: Appearance.motion.fast
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: [0.34, 0.80, 0.34, 1.00, 1, 1]
             }
@@ -7180,7 +7180,7 @@ readonly property var drawerApps: root.drawerApps
                 target: card3
                 property: "drawerOpen"
                 to: 0
-                duration: 200
+                duration: Appearance.motion.fast
                 easing.type: Easing.BezierSpline
                 easing.bezierCurve: [0.34, 0.80, 0.34, 1.00, 1, 1]
             }
@@ -7356,7 +7356,7 @@ readonly property var drawerApps: root.drawerApps
                                 anchors.verticalCenter: parent.verticalCenter
                                 height: card5.barPillH
                                 width: trayIcons11.implicitWidth + 12
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 color: Appearance.colors.colLayer1
                                 Row {
                                     id: trayIcons11
@@ -7376,12 +7376,12 @@ readonly property var drawerApps: root.drawerApps
                                 anchors.verticalCenter: parent.verticalCenter
                                 height: card5.barPillH
                                 width: mediaRow11.implicitWidth + 12
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 color: Appearance.colors.colLayer1
                                 Row {
                                     id: mediaRow11
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
                                     Rectangle {
                                         width: 12; height: 12; radius: 6
                                         color: "#FFFFFF"
@@ -7396,7 +7396,7 @@ readonly property var drawerApps: root.drawerApps
                                     StyledText {
                                         anchors.verticalCenter: parent.verticalCenter
                                         text: "Subnautica 2 LAU…"
-                                        font.pixelSize: 8
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
                                         color: Appearance.colors.colOnLayer1
                                         elide: Text.ElideRight
                                         width: 70
@@ -7412,7 +7412,7 @@ readonly property var drawerApps: root.drawerApps
                                 anchors.verticalCenter: parent.verticalCenter
                                 height: card5.barPillH
                                 width: card5.barPillW
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 color: card5.barDragActive
                                     ? ColorUtils.transparentize(Appearance.colors.colPrimary, 0.82)
                                     : Appearance.colors.colLayer1
@@ -7518,7 +7518,7 @@ readonly property var drawerApps: root.drawerApps
                                 anchors.rightMargin: card5.barPillRightMargin
                                 height: card5.barPillH
                                 width: trayRow11.implicitWidth + 12
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 color: Appearance.colors.colLayer1
                                 Row {
                                     id: trayRow11
@@ -7555,7 +7555,7 @@ readonly property var drawerApps: root.drawerApps
                                     height: card5.barPillH
                                     width: utilRow11.implicitWidth + 12
                                     anchors.verticalCenter: parent.verticalCenter
-                                    radius: 8
+                                    radius: Appearance.rounding.verysmall
                                     color: Appearance.colors.colLayer1
                                     Row {
                                         id: utilRow11
@@ -7578,18 +7578,18 @@ readonly property var drawerApps: root.drawerApps
                                         }
                                     }
                                 }
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
                                 Rectangle {
                                     height: card5.barPillH
                                     width: clockText11.implicitWidth + 16
                                     anchors.verticalCenter: parent.verticalCenter
-                                    radius: 8
+                                    radius: Appearance.rounding.verysmall
                                     color: Appearance.colors.colLayer1
                                     StyledText {
                                         id: clockText11
                                         anchors.centerIn: parent
                                         text: "9:41 AM"
-                                        font.pixelSize: 10
+                                        font.pixelSize: Appearance.font.pixelSize.smallest
                                         color: Appearance.colors.colOnLayer1
                                     }
                                 }
@@ -7597,7 +7597,7 @@ readonly property var drawerApps: root.drawerApps
                                     height: card5.barPillH
                                     width: weatherRow11.implicitWidth + 10
                                     anchors.verticalCenter: parent.verticalCenter
-                                    radius: 8
+                                    radius: Appearance.rounding.verysmall
                                     color: Appearance.colors.colLayer1
                                     Row {
                                         id: weatherRow11
@@ -7612,7 +7612,7 @@ readonly property var drawerApps: root.drawerApps
                                         StyledText {
                                             anchors.verticalCenter: parent.verticalCenter
                                             text: "73°F"
-                                            font.pixelSize: 9
+                                            font.pixelSize: Appearance.font.pixelSize.smallest
                                             color: Appearance.colors.colOnLayer1
                                         }
                                     }
@@ -7660,7 +7660,7 @@ readonly property var drawerApps: root.drawerApps
                                             maskSource: Rectangle {
                                                 width: sourceNautilus.width
                                                 height: sourceNautilus.height
-                                                radius: 8
+                                                radius: Appearance.rounding.verysmall
                                             }
                                         }
                                     }
@@ -7689,7 +7689,7 @@ readonly property var drawerApps: root.drawerApps
                                             anchors.bottom: parent.bottom
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: "notes.txt"
-                                            font.pixelSize: 12
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
                                             color: "#FFFFFF"
                                         }
                                     }
@@ -7732,7 +7732,7 @@ readonly property var drawerApps: root.drawerApps
                                             maskSource: Rectangle {
                                                 width: destNautilus.width
                                                 height: destNautilus.height
-                                                radius: 8
+                                                radius: Appearance.rounding.verysmall
                                             }
                                         }
                                     }
@@ -7765,7 +7765,7 @@ readonly property var drawerApps: root.drawerApps
                                             anchors.bottom: parent.bottom
                                             anchors.horizontalCenter: parent.horizontalCenter
                                             text: "notes.txt"
-                                            font.pixelSize: 12
+                                            font.pixelSize: Appearance.font.pixelSize.smaller
                                             color: "#FFFFFF"
                                         }
                                     }
@@ -7801,7 +7801,7 @@ readonly property var drawerApps: root.drawerApps
                                 anchors.bottom: parent.bottom
                                 anchors.horizontalCenter: parent.horizontalCenter
                                 text: "notes.txt"
-                                font.pixelSize: 12
+                                font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: "#FFFFFF"
                             }
                         }
@@ -8049,7 +8049,7 @@ readonly property var drawerApps: root.drawerApps
                 // Match Card5/6/9 so the title/body sit at the same Y
                 // as the standalone cards instead of being pushed down
                 // by the tab row.
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 // Top section hosts the tab row at its bottom edge.
                 // Fixed (non-fillHeight) so the whole stack — tabs,
@@ -8521,8 +8521,8 @@ readonly property var drawerApps: root.drawerApps
         // ── Layout ──────────────────────────────────────────────────────
         RowLayout {
             anchors.fill: parent
-            anchors.margins: 24
-            spacing: 16
+            anchors.margins: Appearance.spacing.xl
+            spacing: Appearance.spacing.lg
 
             // The sections share out whatever height the picture leaves, so
             // the column ends where the picture does.
@@ -8569,7 +8569,7 @@ readonly property var drawerApps: root.drawerApps
                     // lit the way Settings → Layouts lights the one in use.
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         uniformCellSizes: true
 
                         Repeater {
@@ -8694,8 +8694,8 @@ readonly property var drawerApps: root.drawerApps
                     // only when the corner triggers the scrolling overview.
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: 8
-                        spacing: 4
+                        Layout.leftMargin: Appearance.spacing.sm
+                        spacing: Appearance.spacing.xs
                         visible: Config.options.bar.hotCorners.trigger === "scrolloverview"
                         OptionalMaterialSymbol {
                             icon: "splitscreen"

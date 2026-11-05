@@ -7,8 +7,8 @@ import qs.services
 RowLayout {
     id: root
     spacing: 10
-    Layout.leftMargin: 8
-    Layout.rightMargin: 8
+    Layout.leftMargin: Appearance.spacing.sm
+    Layout.rightMargin: Appearance.spacing.sm
 
     property string text: ""
     property string buttonIcon: ""

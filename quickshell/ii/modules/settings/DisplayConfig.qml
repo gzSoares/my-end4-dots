@@ -1331,12 +1331,12 @@ except Exception:
         RowLayout {
             anchors {
                 fill: parent
-                leftMargin: 16
-                rightMargin: 12
-                topMargin: 8
-                bottomMargin: 8
+                leftMargin: Appearance.spacing.lg
+                rightMargin: Appearance.spacing.md
+                topMargin: Appearance.spacing.sm
+                bottomMargin: Appearance.spacing.sm
             }
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             MaterialSymbol {
                 text: "schedule"
@@ -1530,7 +1530,7 @@ except Exception:
                                 id: disabledLabel
                                 anchors.centerIn: parent
                                 text: Translation.tr("OFF")
-                                font.pixelSize: 9
+                                font.pixelSize: Appearance.font.pixelSize.smallest
                                 color: Appearance.m3colors.m3onError
                             }
                         }
@@ -1822,7 +1822,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Mode")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -1926,7 +1926,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Scale")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -1995,7 +1995,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Orientation")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2067,7 +2067,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Duplicate screen")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2135,7 +2135,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: "VRR"
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2215,7 +2215,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: "10-bit"
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2314,7 +2314,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Position")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2380,7 +2380,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Horizontal Offset")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2472,7 +2472,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("Vertical Offset")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2553,9 +2553,9 @@ except Exception:
             // sense once there's a Position/offset section to explain.
             SubtleNoticeBox {
                 Layout.fillWidth: true
-                Layout.leftMargin: 8
-                Layout.rightMargin: 8
-                Layout.topMargin: 8
+                Layout.leftMargin: Appearance.spacing.sm
+                Layout.rightMargin: Appearance.spacing.sm
+                Layout.topMargin: Appearance.spacing.sm
                 visible: displayConfigPage.defaultMonitor !== "" &&
                          monitorSection.monName !== displayConfigPage.defaultMonitor
                 text: Translation.tr("Offset is capped so a display won't overlap the default display.")
@@ -2568,7 +2568,7 @@ except Exception:
             Rectangle {
                 id: colorMgmtCard
                 Layout.fillWidth: true
-                Layout.topMargin: 8
+                Layout.topMargin: Appearance.spacing.sm
                 color: Appearance.colors.colLayer2
                 radius: Appearance.rounding.normal
                 clip: true
@@ -2593,7 +2593,7 @@ except Exception:
                         implicitHeight: 44
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 16 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 text: "palette"
                                 iconSize: Appearance.font.pixelSize.normal
@@ -2727,7 +2727,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText {
                                 text: Translation.tr("HDR Mode")
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -2777,7 +2777,7 @@ except Exception:
             // Run this once, then use Fine Tune below for nudges.
             Rectangle {
                 Layout.fillWidth: true
-                Layout.topMargin: 8
+                Layout.topMargin: Appearance.spacing.sm
                 color: Appearance.colors.colLayer2
                 radius: Appearance.rounding.normal
                 clip: true
@@ -2834,7 +2834,7 @@ except Exception:
             Rectangle {
                 id: fineTuneCard
                 Layout.fillWidth: true
-                Layout.topMargin: 8
+                Layout.topMargin: Appearance.spacing.sm
                 color: Appearance.colors.colLayer2
                 radius: Appearance.rounding.normal
                 clip: true
@@ -2869,7 +2869,7 @@ except Exception:
 
                         RowLayout {
                             anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 text: "sliders"
                                 iconSize: Appearance.font.pixelSize.larger
@@ -3169,7 +3169,7 @@ except Exception:
             Rectangle {
                 id: iccCard
                 Layout.fillWidth: true
-                Layout.topMargin: 8
+                Layout.topMargin: Appearance.spacing.sm
                 color: Appearance.colors.colLayer2
                 radius: Appearance.rounding.normal
                 clip: true
@@ -3290,7 +3290,7 @@ except Exception:
                             // Normal row content
                             RowLayout {
                                 anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                                spacing: 8
+                                spacing: Appearance.spacing.sm
                                 visible: !iccProfileRow.confirmingDelete
 
                                 // Radio indicator
@@ -3303,7 +3303,7 @@ except Exception:
                                     Rectangle {
                                         anchors.centerIn: parent
                                         width: 16; height: 16
-                                        radius: 8
+                                        radius: Appearance.rounding.verysmall
                                         color: "transparent"
                                         border.width: 2
                                         border.color: iccProfileRow.isActive
@@ -3329,7 +3329,7 @@ except Exception:
                                     RowLayout {
                                         anchors.left: parent.left
                                         anchors.verticalCenter: parent.verticalCenter
-                                        spacing: 8
+                                        spacing: Appearance.spacing.sm
                                         StyledText {
                                             id: nameTxt
                                             text: iccProfileRow.modelData.name
@@ -3375,7 +3375,7 @@ except Exception:
                             // Confirmation row
                             RowLayout {
                                 anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                                spacing: 8
+                                spacing: Appearance.spacing.sm
                                 visible: iccProfileRow.confirmingDelete
 
                                 MaterialSymbol {
@@ -3495,7 +3495,7 @@ except Exception:
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     // Dynamic workspace rows — row 0 shares its line with the Custom pill
                     Repeater {
@@ -3505,7 +3505,7 @@ except Exception:
                             id: wsRow
                             required property int index
                             Layout.fillWidth: true
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
 
                             property int rowIndex: index
                             property bool isLastRow: rowIndex === wsSubsection.rowCount - 1
@@ -3719,8 +3719,8 @@ except Exception:
     // Day/Night Themes.
     Rectangle {
         Layout.fillWidth: true
-        Layout.topMargin: 24
-        Layout.bottomMargin: 12
+        Layout.topMargin: Appearance.spacing.xl
+        Layout.bottomMargin: Appearance.spacing.md
         implicitHeight: 1
         color: Appearance.m3colors.m3outlineVariant
     }
@@ -3756,8 +3756,8 @@ except Exception:
         // currentIndex is derived from the existing backend state so
         // configs from before this change still resolve cleanly.
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "schedule"
                 Layout.alignment: Qt.AlignVCenter
@@ -3840,12 +3840,12 @@ except Exception:
             // applied when the pickers are actually visible (manual
             // mode), otherwise the section just collapses.
             Layout.topMargin: visible ? 8 : 0
-            spacing: 8
+            spacing: Appearance.spacing.sm
             visible: Config.options.light.night.mode === "manual"
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 StyledText {
                     Layout.preferredWidth: 80
@@ -3864,7 +3864,7 @@ except Exception:
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 StyledText {
                     Layout.preferredWidth: 80
@@ -3895,8 +3895,8 @@ except Exception:
         // persists in Config and applies on the next on-cycle.
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             spacing: 10
 
             MaterialSymbol {

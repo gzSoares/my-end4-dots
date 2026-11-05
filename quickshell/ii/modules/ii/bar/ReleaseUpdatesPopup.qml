@@ -20,7 +20,7 @@ StyledPopup {
 
     ColumnLayout {
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Appearance.spacing.xs
 
         StyledPopupHeaderRow {
             icon: "campaign"

@@ -97,7 +97,7 @@ Rectangle {
                 property: "opacity"
                 from: 0
                 to: 1
-                duration: 280
+                duration: Appearance.motion.normal
                 easing.type: Easing.OutCubic
             }
             NumberAnimation {
@@ -105,7 +105,7 @@ Rectangle {
                 property: "y"
                 from: 16
                 to: 0
-                duration: 360
+                duration: Appearance.motion.slow
                 easing.type: Easing.OutBack
                 easing.overshoot: 1.3
             }
@@ -119,11 +119,11 @@ Rectangle {
     required property var contact
     property bool expanded: false
                             Layout.fillWidth: true
-                            Layout.leftMargin: 8
-                            Layout.rightMargin: 8
+                            Layout.leftMargin: Appearance.spacing.sm
+                            Layout.rightMargin: Appearance.spacing.sm
                             visible: opacity > 0
                             opacity: details.expanded ? 1.0 : 0.0
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
 
                             Behavior on opacity {
                                 NumberAnimation {
@@ -156,7 +156,7 @@ Rectangle {
                                 delegate: RowLayout {
                                     required property var modelData
                                     Layout.fillWidth: true
-                                    spacing: 8
+                                    spacing: Appearance.spacing.sm
 
                                     MaterialSymbol {
                                         text: modelData.type === "mobile" ? "smartphone" : "phone"
@@ -294,7 +294,7 @@ Rectangle {
                                 delegate: RowLayout {
                                     required property var modelData
                                     Layout.fillWidth: true
-                                    spacing: 8
+                                    spacing: Appearance.spacing.sm
 
                                     MaterialSymbol {
                                         text: "email"
@@ -343,7 +343,7 @@ Rectangle {
         // ─── Header Bar ──────────────────────────────────────────
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             RippleButton {
                 id: backBtn
@@ -419,9 +419,9 @@ Rectangle {
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
-                spacing: 8
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.rightMargin: Appearance.spacing.md
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     text: "search"
@@ -566,8 +566,8 @@ Rectangle {
                                 anchors.left: parent.left
                                 anchors.right: parent.right
                                 anchors.top: parent.top
-                                anchors.margins: 8
-                                spacing: 8
+                                anchors.margins: Appearance.spacing.sm
+                                spacing: Appearance.spacing.sm
 
                                 Rectangle {
                                     id: favHeader
@@ -579,8 +579,8 @@ Rectangle {
                                     RowLayout {
                                         z: 1 // above the press-and-hold area, so the star gets its own clicks
                                         anchors.fill: parent
-                                        anchors.leftMargin: 4
-                                        anchors.rightMargin: 4
+                                        anchors.leftMargin: Appearance.spacing.xs
+                                        anchors.rightMargin: Appearance.spacing.xs
                                         spacing: 10
 
                                         Rectangle {
@@ -776,8 +776,8 @@ Rectangle {
                         anchors.left: parent.left
                         anchors.right: parent.right
                         anchors.top: parent.top
-                        anchors.margins: 8
-                        spacing: 8
+                        anchors.margins: Appearance.spacing.sm
+                        spacing: Appearance.spacing.sm
 
                         // Collapsed row header
                         RippleButton {
@@ -789,8 +789,8 @@ Rectangle {
 
                             contentItem: RowLayout {
                                 anchors.fill: parent
-                                anchors.leftMargin: 4
-                                anchors.rightMargin: 4
+                                anchors.leftMargin: Appearance.spacing.xs
+                                anchors.rightMargin: Appearance.spacing.xs
                                 spacing: 10
 
                                 // Circular Avatar
@@ -923,7 +923,7 @@ Rectangle {
             // Empty State overlay if list is empty
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 12
+                spacing: Appearance.spacing.md
                 visible: PhoneContactsService.filteredContacts.length === 0
 
                 MaterialSymbol {

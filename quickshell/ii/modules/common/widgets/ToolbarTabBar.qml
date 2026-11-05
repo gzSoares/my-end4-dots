@@ -169,7 +169,7 @@ Item {
         id: contentItem
         z: 1
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Appearance.spacing.xs
 
         Repeater {
             model: root.tabButtonList

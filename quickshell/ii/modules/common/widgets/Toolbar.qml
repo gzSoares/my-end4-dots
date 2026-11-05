@@ -38,7 +38,7 @@ Item {
 
         RowLayout {
             id: toolbarLayout
-            spacing: 4
+            spacing: Appearance.spacing.xs
             anchors {
                 fill: parent
                 margins: root.padding

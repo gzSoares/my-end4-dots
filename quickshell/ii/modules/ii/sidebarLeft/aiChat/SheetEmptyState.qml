@@ -11,7 +11,7 @@ ColumnLayout {
     property string title
     property string subtitle
 
-    spacing: 8
+    spacing: Appearance.spacing.sm
 
     MaterialSymbol {
         Layout.alignment: Qt.AlignHCenter

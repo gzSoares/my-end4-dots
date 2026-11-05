@@ -185,10 +185,10 @@ ContentPage {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             ColumnLayout {
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 ContentSubsectionLabel { text: Translation.tr("Power Button Behavior") }
                 StyledComboBox {
                     textRole: "displayName"
@@ -241,12 +241,12 @@ ContentPage {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Appearance.spacing.md
             uniformCellSizes: true
 
             // Screen Blank column
             ColumnLayout {
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 ConfigSwitch {
                     Layout.fillWidth: true
                     buttonIcon: "monitor"
@@ -290,7 +290,7 @@ ContentPage {
 
             // Auto Suspend column
             ColumnLayout {
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 ConfigSwitch {
                     Layout.fillWidth: true
                     buttonIcon: "bedtime"
@@ -334,12 +334,12 @@ ContentPage {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             // Matches ConfigSwitch's vertical padding so the selector sits with
             // the same breathing room as the switches above it.
-            Layout.topMargin: 8
-            Layout.bottomMargin: 8
+            Layout.topMargin: Appearance.spacing.sm
+            Layout.bottomMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "motion_photos_on"
                 Layout.alignment: Qt.AlignVCenter
@@ -490,10 +490,10 @@ ContentPage {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             ColumnLayout {
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 ConfigSwitch {
                     Layout.fillWidth: true
                     buttonIcon: "battery_android_full"

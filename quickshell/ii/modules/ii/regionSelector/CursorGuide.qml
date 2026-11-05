@@ -86,7 +86,7 @@ Item {
                 left: parent.left
                 leftMargin: content.padding
             }
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             MaterialSymbol {
                 anchors.verticalCenter: parent.verticalCenter

@@ -87,7 +87,7 @@ Rectangle {
         id: mainRowLayout
         anchors.fill: parent
         anchors.margins: 14
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         MaterialShapeWrappedMaterialSymbol {
             id: icon
@@ -103,7 +103,7 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             StyledText {
                 id: warningText

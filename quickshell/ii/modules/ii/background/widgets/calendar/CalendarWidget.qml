@@ -196,7 +196,7 @@ AbstractBackgroundWidget {
 
                         RowLayout {
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             StyledText {
                                 text: root.today.toLocaleDateString(Qt.locale(), "MMM").toUpperCase()
                                 font.pixelSize: Appearance.font.pixelSize.normal
@@ -234,7 +234,7 @@ AbstractBackgroundWidget {
             id: oneByTwoContent
             ColumnLayout {
                 anchors { fill: parent; margins: 14 }
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Rectangle {
                     Layout.leftMargin: 3
@@ -258,7 +258,7 @@ AbstractBackgroundWidget {
                     rowSpacing: 4
                     columnSpacing: 0
                     Layout.fillWidth: true
-                    Layout.topMargin: 4
+                    Layout.topMargin: Appearance.spacing.xs
 
                     Repeater {
                         model: ["Mo","Tu","We","Th","Fr","Sa","Su"]
@@ -313,11 +313,11 @@ AbstractBackgroundWidget {
             id: twoByTwoContent
             ColumnLayout {
                 anchors { fill: parent; margins: 16 }
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     StyledText {
                         Layout.fillWidth: true
@@ -366,7 +366,7 @@ AbstractBackgroundWidget {
 
                 RowLayout {
                     Layout.alignment: Qt.AlignHCenter
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     Repeater {
                         model: ["Mo","Tu","We","Th","Fr","Sa","Su"]
                         delegate: StyledText {
@@ -395,7 +395,7 @@ AbstractBackgroundWidget {
                             model: root.weeks
                             delegate: RowLayout {
                                 required property var modelData
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
                                 Repeater {
                                     model: parent.modelData
                                     delegate: DayCell {
@@ -417,7 +417,7 @@ AbstractBackgroundWidget {
             id: twoByThreeContent
             RowLayout {
                 anchors { fill: parent; margins: 16 }
-                spacing: 16
+                spacing: Appearance.spacing.lg
 
                 ColumnLayout {
                     Layout.preferredWidth: 110
@@ -469,12 +469,12 @@ AbstractBackgroundWidget {
 
                     ColumnLayout {
                         anchors { fill: parent; margins: 10 }
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
 
                         RowLayout {
                             Layout.alignment: Qt.AlignHCenter
                             Layout.topMargin: 10
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             Repeater {
                                 model: ["Mo","Tu","We","Th","Fr","Sa","Su"]
                                 delegate: StyledText {
@@ -498,7 +498,7 @@ AbstractBackgroundWidget {
                                 model: root.getMonthMatrix(root.today)
                                 delegate: RowLayout {
                                     required property var modelData
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
                                     Repeater {
                                         model: parent.modelData
                                         delegate: DayCell {

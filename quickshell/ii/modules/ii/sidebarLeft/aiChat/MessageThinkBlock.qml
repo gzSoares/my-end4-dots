@@ -189,7 +189,7 @@ Item {
                 anchors.fill: parent
                 anchors.leftMargin: 10
                 anchors.rightMargin: 10
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     id: thinkIcon
@@ -283,8 +283,8 @@ Item {
                 id: contentPlaceholder
                 anchors.left: parent.left
                 anchors.top: parent.top
-                anchors.leftMargin: 12
-                anchors.topMargin: 8
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.topMargin: Appearance.spacing.sm
                 visible: ((rowsLoader.item?.rowCount ?? 0) === 0) && root.live
                 text: Translation.tr("Reasoning...")
                 font.pixelSize: Appearance.font.pixelSize.small
@@ -298,7 +298,7 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                anchors.margins: 12
+                anchors.margins: Appearance.spacing.md
                 active: !root.collapsed || root.animatingToggle
                 visible: !contentPlaceholder.visible
                 sourceComponent: thinkRowsComponent
@@ -398,7 +398,7 @@ Item {
                 id: bottomSummaryContainer
                 visible: fileModel.count > 0
                 Layout.fillWidth: true
-                Layout.topMargin: 4
+                Layout.topMargin: Appearance.spacing.xs
                 spacing: 0
 
                 Rectangle {
@@ -427,7 +427,7 @@ Item {
                         anchors.fill: parent
                         anchors.leftMargin: 10
                         anchors.rightMargin: 10
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         StyledText {
                             text: fileModel.count === 1
@@ -493,7 +493,7 @@ Item {
                             RowLayout {
                                 id: reviewRow
                                 anchors.centerIn: parent
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
 
                                 MaterialSymbol {
                                     text: "rate_review"
@@ -531,7 +531,7 @@ Item {
                         anchors.right: parent.right
                         anchors.top: parent.top
                         anchors.margins: 6
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
 
                         Repeater {
                             model: fileModel
@@ -572,8 +572,8 @@ Item {
 
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
+                                    anchors.leftMargin: Appearance.spacing.sm
+                                    anchors.rightMargin: Appearance.spacing.sm
                                     spacing: 6
 
                                     MaterialSymbol {

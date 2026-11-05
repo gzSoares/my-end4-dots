@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Video Editor
+Name[pt_BR]=Editor de vídeo
+Comment=Trim, crop, change speed and export videos or GIFs
+Comment[pt_BR]=Corte, recorte, mude a velocidade e exporte vídeos ou GIFs
+Exec=bash -c 'VIDEO_EDIT_FILE="$1" qs -p ~/.config/quickshell/ii/video-editor.qml --no-duplicate' _ %f
+Icon=video-x-generic
+Terminal=false
+Categories=AudioVideo;Video;AudioVideoEditing;
+MimeType=video/mp4;video/x-matroska;video/webm;
+Keywords=video;editor;trim;gif;vídeo;editor;cortar;

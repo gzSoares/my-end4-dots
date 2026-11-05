@@ -78,7 +78,7 @@ Item {
         ColumnLayout {
             anchors.centerIn: parent
             width: parent.width
-            spacing: 4
+            spacing: Appearance.spacing.xs
             visible: !loadingIndicator.visible
 
             StyledText {
@@ -156,9 +156,9 @@ Item {
                 font.weight: dist === 0 ? Font.DemiBold : Font.Normal
                 opacity: {
                     if (dist === 0) return 1
-                    if (dist === 1) return 0.8
-                    if (dist === 2) return 0.6
-                    return 0.25
+                    if (dist === 1) return 0.88
+                    if (dist === 2) return 0.72
+                    return 0.5
                 }
                 color: dist === 0 ? root.activeColor : root.textColor
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }

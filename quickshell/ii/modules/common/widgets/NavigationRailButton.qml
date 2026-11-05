@@ -150,7 +150,7 @@ TabButton {
                 }
             }
             text: buttonText
-            font.pixelSize: 14
+            font.pixelSize: Appearance.font.pixelSize.small
             color: root.colText
         }
     }

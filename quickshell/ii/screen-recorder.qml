@@ -35,14 +35,13 @@ import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 
-ApplicationWindow {
+TranslucentAppWindow {
     id: root
     visible: true
     width: 760
     height: 620
     minimumWidth: 560
     minimumHeight: 420
-    color: "transparent"
     // Fixed, not translated: the blur rule in rules.lua matches on it
     title: "Screen recorder"
 
@@ -162,9 +161,8 @@ fi
     }
 
     // ── Layout ─────────────────────────────────────────────────────
-    Rectangle {
+    Item {
         anchors.fill: parent
-        color: Appearance.colors.colLayer0
 
         ColumnLayout {
             anchors.fill: parent
@@ -172,9 +170,9 @@ fi
 
             Toolbar {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 12
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
+                Layout.topMargin: Appearance.spacing.md
+                Layout.leftMargin: Appearance.spacing.md
+                Layout.rightMargin: Appearance.spacing.md
                 enableShadow: false
                 spacing: 2
 
@@ -205,9 +203,9 @@ fi
                         StyledToolTip { text: modeButton.modelData.tip }
                     }
                 }
-                Divider {}
+                ToolbarDivider {}
 
-                TopButton {
+                ToolbarSymbolButton {
                     enabled: !root.recording
                     symbol: root.withSound ? "volume_up" : "volume_off"
                     tip: root.withSound ? Translation.tr("Recording system sound") : Translation.tr("No sound")
@@ -215,7 +213,7 @@ fi
                     onClicked: root.withSound = !root.withSound
                 }
                 // Cycles through the delays; the region goes through the selector, which has none
-                TopButton {
+                ToolbarSymbolButton {
                     enabled: !root.recording && root.mode !== "region"
                     symbol: "timer"
                     label: root.delay > 0 && root.mode !== "region" ? root.delay + "s" : ""
@@ -223,7 +221,7 @@ fi
                     toggled: root.delay > 0 && root.mode !== "region"
                     onClicked: root.delay = root.delay === 0 ? 3 : root.delay === 3 ? 5 : root.delay === 5 ? 10 : 0
                 }
-                Divider {}
+                ToolbarDivider {}
 
                 // Record, or stop with the time so far
                 RippleButton {
@@ -239,7 +237,7 @@ fi
                     contentItem: Row {
                         id: stopRow
                         anchors.centerIn: parent
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.recording ? "stop" : "fiber_manual_record"
@@ -251,6 +249,7 @@ fi
                             visible: root.recording
                             anchors.verticalCenter: parent.verticalCenter
                             text: root.formatTime(root.elapsed)
+                            font.features: ({ "tnum": 1 })
                             font.pixelSize: Appearance.font.pixelSize.small
                             color: Appearance.colors.colOnError
                         }
@@ -263,7 +262,7 @@ fi
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: 12
+                Layout.margins: Appearance.spacing.md
                 radius: Appearance.rounding.normal
                 color: Appearance.colors.colLayer1
                 clip: true
@@ -280,7 +279,7 @@ fi
                 ColumnLayout {
                     anchors.centerIn: parent
                     visible: recordings.count === 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignHCenter
                         text: "videocam"
@@ -300,7 +299,7 @@ fi
                     anchors.margins: 6
                     visible: recordings.count > 0
                     clip: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     model: recordings
                     boundsBehavior: Flickable.StopAtBounds
                     ScrollBar.vertical: StyledScrollBar {}
@@ -338,12 +337,12 @@ fi
                         RowLayout {
                             anchors {
                                 fill: parent
-                                leftMargin: 8
-                                rightMargin: 8
+                                leftMargin: Appearance.spacing.sm
+                                rightMargin: Appearance.spacing.sm
                                 topMargin: 6
                                 bottomMargin: 6
                             }
-                            spacing: 12
+                            spacing: Appearance.spacing.md
 
                             ClippingRectangle {
                                 Layout.preferredWidth: 104
@@ -427,46 +426,5 @@ fi
                 }
             }
         }
-    }
-
-    component Divider: Rectangle {
-        implicitWidth: 1
-        implicitHeight: 22
-        Layout.alignment: Qt.AlignVCenter
-        Layout.leftMargin: 4
-        Layout.rightMargin: 4
-        color: Appearance.colors.colOutlineVariant
-    }
-
-    component TopButton: RippleButton {
-        id: topButton
-        // Not "icon": the button already has a final property of that name
-        property string symbol
-        property string tip
-        property string label: ""
-        implicitWidth: label.length > 0 ? 40 + labelText.implicitWidth + 4 : 40
-        implicitHeight: 40
-        buttonRadius: Appearance.rounding.full
-        opacity: enabled ? 1 : 0.4
-        contentItem: Row {
-            anchors.centerIn: parent
-            spacing: 2
-            MaterialSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                text: topButton.symbol
-                fill: topButton.toggled ? 1 : 0
-                iconSize: Appearance.font.pixelSize.larger
-                color: topButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-            }
-            StyledText {
-                id: labelText
-                visible: topButton.label.length > 0
-                anchors.verticalCenter: parent.verticalCenter
-                text: topButton.label
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: topButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-            }
-        }
-        StyledToolTip { text: topButton.tip }
     }
 }

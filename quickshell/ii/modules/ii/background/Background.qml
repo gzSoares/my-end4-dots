@@ -712,7 +712,7 @@ Variants {
                 Behavior on scale {
                     NumberAnimation {
                         id: scaleAnim
-                        duration: 400
+                        duration: Appearance.motion.slow
                         easing.type: Easing.BezierSpline
                         easing.bezierCurve: Appearance.animationCurves.expressiveEffects
                     }

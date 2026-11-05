@@ -17,7 +17,7 @@ Item {
         id: navigationRow
         anchors.left: parent.left
         anchors.right: parent.right
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         // Contacts Card
         RippleButton {
@@ -35,15 +35,15 @@ Item {
 
             contentItem: RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.rightMargin: Appearance.spacing.md
                 spacing: 10
 
                 MaterialShapeWrappedMaterialSymbol {
                     Layout.alignment: Qt.AlignVCenter
                     text: "contacts"
                     iconSize: 20
-                    padding: 8
+                    padding: Appearance.spacing.sm
                     fill: 1.0
                     color: Appearance.colors.colPrimaryContainer
                     colSymbol: Appearance.colors.colOnPrimaryContainer
@@ -105,15 +105,15 @@ Item {
 
             contentItem: RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.rightMargin: Appearance.spacing.md
                 spacing: 10
 
                 MaterialShapeWrappedMaterialSymbol {
                     Layout.alignment: Qt.AlignVCenter
                     text: "apps"
                     iconSize: 20
-                    padding: 8
+                    padding: Appearance.spacing.sm
                     fill: 1.0
                     color: Appearance.colors.colSecondaryContainer
                     colSymbol: Appearance.colors.colOnSecondaryContainer

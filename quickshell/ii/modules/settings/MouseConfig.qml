@@ -756,7 +756,7 @@ ContentPage {
                             Rectangle {
                                 width: 16
                                 height: 16
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 border.width: 2
                                 border.color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
                                 color: !root.naturalScroll ? Appearance.colors.colPrimary : "transparent"
@@ -1050,7 +1050,7 @@ ContentPage {
                             Rectangle {
                                 width: 16
                                 height: 16
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 border.width: 2
                                 border.color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
                                 color: root.naturalScroll ? Appearance.colors.colPrimary : "transparent"
@@ -1415,7 +1415,7 @@ ContentPage {
                             Rectangle {
                                 width: 16
                                 height: 16
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 border.width: 2
                                 border.color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
                                 color: !root.naturalScrollTP ? Appearance.colors.colPrimary : "transparent"
@@ -1722,7 +1722,7 @@ ContentPage {
                             Rectangle {
                                 width: 16
                                 height: 16
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 border.width: 2
                                 border.color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
                                 color: root.naturalScrollTP ? Appearance.colors.colPrimary : "transparent"
@@ -1891,8 +1891,8 @@ GestureRow {
                 property string slot
                 property var options: []
 
-                Layout.leftMargin: 8
-                Layout.rightMargin: 8
+                Layout.leftMargin: Appearance.spacing.sm
+                Layout.rightMargin: Appearance.spacing.sm
 
                 OptionalMaterialSymbol {
                     icon: gestureRow.icon

@@ -65,7 +65,7 @@ AbstractQuickPanel {
             fill: parent
             margins: root.padding
         }
-        spacing: 12
+        spacing: Appearance.spacing.md
         
         Column {
             id: usedRows

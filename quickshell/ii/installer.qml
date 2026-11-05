@@ -447,7 +447,7 @@ ApplicationWindow {
                                     font.pixelSize: Appearance.font.pixelSize.small
                                     font.weight: Font.DemiBold
                                     color: Appearance.colors.colSubtext
-                                    Layout.bottomMargin: 4
+                                    Layout.bottomMargin: Appearance.spacing.xs
                                 }
 
                                 Rectangle {
@@ -478,7 +478,7 @@ ApplicationWindow {
 
                                             RowLayout {
                                                 anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                                                spacing: 8
+                                                spacing: Appearance.spacing.sm
                                                 StyledText {
                                                     text: Translation.tr("Mode")
                                                     font.pixelSize: Appearance.font.pixelSize.normal
@@ -515,7 +515,7 @@ ApplicationWindow {
                                                 id: modePopup
                                                 y: modeRow.height + 4
                                                 width: modeRow.width
-                                                padding: 8
+                                                padding: Appearance.spacing.sm
                                                 enter: Transition { PropertyAnimation { properties: "opacity"; to: 1; duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                                                 exit:  Transition { PropertyAnimation { properties: "opacity"; to: 0; duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                                                 background: Item {
@@ -595,7 +595,7 @@ ApplicationWindow {
 
                                             RowLayout {
                                                 anchors { fill: parent; leftMargin: 16; rightMargin: 12 }
-                                                spacing: 8
+                                                spacing: Appearance.spacing.sm
                                                 StyledText {
                                                     text: Translation.tr("Scale")
                                                     font.pixelSize: Appearance.font.pixelSize.normal
@@ -628,7 +628,7 @@ ApplicationWindow {
                                                 id: scalePopup
                                                 y: scaleRow.height + 4
                                                 width: scaleRow.width
-                                                padding: 8
+                                                padding: Appearance.spacing.sm
                                                 enter: Transition { PropertyAnimation { properties: "opacity"; to: 1; duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                                                 exit:  Transition { PropertyAnimation { properties: "opacity"; to: 0; duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                                                 background: Item {
@@ -693,7 +693,7 @@ ApplicationWindow {
 
                                 contentItem: RowLayout {
                                     anchors.centerIn: parent
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
                                     MaterialSymbol {
                                         text: "refresh"
                                         iconSize: 16
@@ -749,7 +749,7 @@ ApplicationWindow {
                                 ColumnLayout {
                                     id: wifiListColumn
                                     width: wifiFlickable.width
-                                    spacing: 4
+                                    spacing: Appearance.spacing.xs
 
                                     Repeater {
                                         model: Network.availableNetworks
@@ -774,7 +774,7 @@ ApplicationWindow {
                             Layout.fillWidth: true
                             Layout.topMargin: 10
                             Layout.bottomMargin: 10
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
 
                             Rectangle {
                                 Layout.alignment: Qt.AlignHCenter
@@ -840,7 +840,7 @@ ApplicationWindow {
         anchors {
             bottom: parent.bottom
             horizontalCenter: parent.horizontalCenter
-            bottomMargin: 24
+            bottomMargin: Appearance.spacing.xl
         }
         z: 10
         implicitWidth: 220
@@ -865,7 +865,7 @@ ApplicationWindow {
 
         contentItem: RowLayout {
             anchors.centerIn: parent
-            spacing: 8
+            spacing: Appearance.spacing.sm
             MaterialSymbol {
                 text: "install_desktop"
                 iconSize: 22

@@ -59,7 +59,7 @@ Item {
     RowLayout { // Real content
         id: rowLayout
 
-        spacing: 4
+        spacing: Appearance.spacing.xs
         anchors.fill: parent
 
         ClippedFilledCircularProgress {

@@ -43,7 +43,7 @@ ContentPage {
         ColumnLayout {
             id: forkCardColumn
             anchors.horizontalCenter: parent.horizontalCenter
-            spacing: 8
+            spacing: Appearance.spacing.sm
             CircleAvatar {
                 source: forkCard.image
             }
@@ -61,7 +61,7 @@ ContentPage {
             }
             RowLayout {
                 Layout.alignment: Qt.AlignHCenter
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 RippleButtonWithIcon {
                     materialIcon: "code"
                     mainText: Translation.tr("Original Project")
@@ -127,7 +127,7 @@ ContentPage {
             ColumnLayout {
                 Layout.alignment: Qt.AlignVCenter
                 RowLayout {
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     StyledText {
                         // Two literal backslashes are part of the brand name.
                         text: "Mainstream OS\\\\"

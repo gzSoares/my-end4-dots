@@ -112,7 +112,7 @@ LazyLoader {
 
                 // Header
                 RowLayout {
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MaterialSymbol {
                         text: "volume_up"
                         iconSize: Appearance.font.pixelSize.larger
@@ -149,7 +149,7 @@ LazyLoader {
 
                 // Master volume slider
                 RowLayout {
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MouseArea {
                         implicitWidth: 24; implicitHeight: 24
                         cursorShape: Qt.PointingHandCursor
@@ -199,7 +199,7 @@ LazyLoader {
                     }
                     visible: count > 0
                     clip: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     model: ScriptModel { values: Audio.outputAppNodes }
                     delegate: Item {
                             required property var modelData

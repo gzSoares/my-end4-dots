@@ -190,7 +190,7 @@ Item { // Bar content region
             id: pillGroup
             anchors.fill: parent
             vertical: true
-            padding: 8
+            padding: Appearance.spacing.sm
             Repeater {
                 model: pill.gw
                 delegate: BarModule {
@@ -632,7 +632,7 @@ Item { // Bar content region
     Column { // Middle section (layout.center)
         id: middleSection
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Appearance.spacing.xs
         Repeater {
             model: Config.options.bar.layout.center
             delegate: GroupPill {
@@ -679,7 +679,7 @@ Item { // Bar content region
                 leftMargin: root.floatingInset
                 rightMargin: root.floatingInset
             }
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             Repeater {
                 model: Config.options.bar.layout.left
@@ -728,7 +728,7 @@ Item { // Bar content region
                 leftMargin: root.floatingInset
                 rightMargin: root.floatingInset
             }
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             Repeater {
                 model: Config.options.bar.layout.right

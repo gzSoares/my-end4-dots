@@ -75,7 +75,7 @@ AbstractBackgroundWidget {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 Item { Layout.fillWidth: true }
 
@@ -177,7 +177,7 @@ AbstractBackgroundWidget {
 
             RowLayout {
                 anchors.fill: parent
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 Repeater {
                     model: [1, 5]

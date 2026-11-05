@@ -106,7 +106,7 @@ PopupWindow {
 
     component NoAnim: Transition {
         NumberAnimation {
-            duration: 0
+            duration: Appearance.motion.instant
         }
     }
 
@@ -136,7 +136,7 @@ PopupWindow {
             sourceComponent: RippleButton {
                 id: backButton
                 buttonRadius: popupBackground.radius - popupBackground.padding
-                horizontalPadding: 12
+                horizontalPadding: Appearance.spacing.md
                 implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
                 implicitHeight: 36
 
@@ -150,7 +150,7 @@ PopupWindow {
                         leftMargin: backButton.horizontalPadding
                         rightMargin: backButton.horizontalPadding
                     }
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MaterialSymbol {
                         iconSize: 20
                         text: "chevron_left"
@@ -165,7 +165,7 @@ PopupWindow {
         RippleButton {
             id: pinEntry
             buttonRadius: popupBackground.radius - popupBackground.padding
-            horizontalPadding: 12
+            horizontalPadding: Appearance.spacing.md
             implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
             implicitHeight: 36
             Layout.topMargin: 0
@@ -183,7 +183,7 @@ PopupWindow {
                     leftMargin: pinEntry.horizontalPadding
                     rightMargin: pinEntry.horizontalPadding
                 }
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     iconSize: 18
@@ -201,8 +201,8 @@ PopupWindow {
             Layout.fillWidth: true
             implicitHeight: 1
             color: Appearance.colors.colSubtext
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
+            Layout.topMargin: Appearance.spacing.xs
+            Layout.bottomMargin: Appearance.spacing.xs
         }
 
         Repeater {

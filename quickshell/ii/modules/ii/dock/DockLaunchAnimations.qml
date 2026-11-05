@@ -24,7 +24,7 @@ Item {
             property: "scale"
             from: 0.0
             to: 1.0
-            duration: 350
+            duration: Appearance.motion.slow
             easing.type: Easing.OutBack 
         }
     }
@@ -36,7 +36,7 @@ Item {
             target: root
             property: "scale"
             from: 1.0; to: 0.82
-            duration: 100
+            duration: Appearance.motion.instant
             easing.type: Easing.InQuad
         }
         
@@ -44,7 +44,7 @@ Item {
             target: root
             property: "scale"
             from: 0.82; to: 1.0
-            duration: 400
+            duration: Appearance.motion.slow
             easing.type: Easing.OutBounce 
         }
     }
@@ -55,7 +55,7 @@ Item {
             target: root
             property: "scale"
             from: 1.0; to: 1.2
-            duration: 120
+            duration: Appearance.motion.instant
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
         }
@@ -63,7 +63,7 @@ Item {
             target: root
             property: "scale"
             from: 1.2; to: 1.0
-            duration: 350 // Regreso lento para suavidad
+            duration: Appearance.motion.slow // Regreso lento para suavidad
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.expressiveEffects
         }
@@ -75,7 +75,7 @@ Item {
             target: root
             property: "rot"
             from: 0; to: -10
-            duration: 60
+            duration: Appearance.motion.instant
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.emphasizedDecel
         }
@@ -83,7 +83,7 @@ Item {
             target: root
             property: "rot"
             from: -10; to: 10
-            duration: 80
+            duration: Appearance.motion.instant
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.expressiveEffects
         }
@@ -91,7 +91,7 @@ Item {
             target: root
             property: "rot"
             from: 10; to: -5
-            duration: 70
+            duration: Appearance.motion.instant
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.expressiveEffects
         }
@@ -99,7 +99,7 @@ Item {
             target: root
             property: "rot"
             from: -5; to: 5
-            duration: 60
+            duration: Appearance.motion.instant
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.expressiveEffects
         }
@@ -107,7 +107,7 @@ Item {
             target: root
             property: "rot"
             from: 5; to: 0
-            duration: 80
+            duration: Appearance.motion.instant
             easing.type: Easing.BezierSpline
             easing.bezierCurve: Appearance.animationCurves.expressiveDefaultSpatial
         }

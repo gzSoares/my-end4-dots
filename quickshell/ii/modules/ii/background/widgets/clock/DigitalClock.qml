@@ -7,7 +7,7 @@ import QtQuick.Layouts
 
 ColumnLayout {
     id: clockColumn
-    spacing: 4
+    spacing: Appearance.spacing.xs
 
     property bool isVertical: Config.options.background.widgets.clock.digital.vertical
     property color colText: Appearance.colors.colOnSecondaryContainer

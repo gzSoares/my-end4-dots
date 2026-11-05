@@ -24,8 +24,8 @@ MouseArea {
 
         spacing: 0
         anchors.fill: parent
-        anchors.leftMargin: 4
-        anchors.rightMargin: 4
+        anchors.leftMargin: Appearance.spacing.xs
+        anchors.rightMargin: Appearance.spacing.xs
 
         SpeedReading {
             iconName: "arrow_downward"

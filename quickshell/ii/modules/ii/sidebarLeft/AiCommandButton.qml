@@ -5,7 +5,7 @@ import QtQuick
 GroupButton {
     id: button
 
-    horizontalPadding: 8
+    horizontalPadding: Appearance.spacing.sm
     verticalPadding: 0
 
     baseWidth: contentItem.implicitWidth + horizontalPadding * 2

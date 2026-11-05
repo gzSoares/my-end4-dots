@@ -378,14 +378,14 @@ MouseArea {
             id: contentColumn
             anchors {
                 fill: parent
-                margins: 16
+                margins: Appearance.spacing.lg
             }
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             // ── Header: title, address bar, view toggle ──
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 StyledText {
                     text: root.monitorTarget !== "" ? Translation.tr("This screen only") : Translation.tr("Pick a wallpaper")
@@ -516,8 +516,8 @@ MouseArea {
                         top: parent.top
                         left: parent.left
                         right: parent.right
-                        leftMargin: 4
-                        rightMargin: 4
+                        leftMargin: Appearance.spacing.xs
+                        rightMargin: Appearance.spacing.xs
                     }
                 }
 
@@ -545,7 +545,7 @@ MouseArea {
                 ColumnLayout {
                     anchors.centerIn: parent
                     visible: root.itemCount === 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
 
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignHCenter
@@ -564,7 +564,7 @@ MouseArea {
             // ── Footer: info, search, actions ──
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 ColumnLayout {
                     Layout.fillWidth: true

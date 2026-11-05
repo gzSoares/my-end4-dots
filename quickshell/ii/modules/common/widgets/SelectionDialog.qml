@@ -41,7 +41,7 @@ Item {
         ColumnLayout {
             id: dialogColumnLayout
             anchors.fill: parent
-            spacing: 16
+            spacing: Appearance.spacing.lg
 
             StyledText {
                 id: dialogTitle

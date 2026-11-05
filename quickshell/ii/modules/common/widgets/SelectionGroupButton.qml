@@ -10,8 +10,8 @@ import qs.modules.common.widgets
 
 GroupButton {
     id: root
-    horizontalPadding: 12
-    verticalPadding: 8
+    horizontalPadding: Appearance.spacing.md
+    verticalPadding: Appearance.spacing.sm
     bounce: false
     property string buttonIcon
     property bool leftmost: false

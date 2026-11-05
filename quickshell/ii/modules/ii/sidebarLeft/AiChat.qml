@@ -635,8 +635,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
             contentItem: RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 12
-                anchors.rightMargin: 12
+                anchors.leftMargin: Appearance.spacing.md
+                anchors.rightMargin: Appearance.spacing.md
                 spacing: 10
 
                 MaterialSymbol {
@@ -682,8 +682,8 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
             contentItem: RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 8
-                anchors.rightMargin: 8
+                anchors.leftMargin: Appearance.spacing.sm
+                anchors.rightMargin: Appearance.spacing.sm
                 spacing: 10
 
                 MaterialSymbol {
@@ -786,7 +786,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 anchors {
                     horizontalCenter: parent.horizontalCenter
                     top: parent.top
-                    topMargin: 4
+                    topMargin: Appearance.spacing.xs
                 }
                 width: Math.min(parent.width - 16, implicitWidth)
                 implicitWidth: statusRowLayout.implicitWidth + 10 * 2
@@ -1392,9 +1392,9 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     anchors {
                         fill: parent
                         topMargin: statusBg.implicitHeight + 12
-                        bottomMargin: 8
-                        leftMargin: 8
-                        rightMargin: 8
+                        bottomMargin: Appearance.spacing.sm
+                        leftMargin: Appearance.spacing.sm
+                        rightMargin: Appearance.spacing.sm
                     }
                     contentWidth: width
                     contentHeight: emptyContentContainer.height
@@ -1415,7 +1415,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                             // Header section
                             ColumnLayout {
                                 Layout.alignment: Qt.AlignHCenter
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
 
                                 MaterialShapeWrappedMaterialSymbol {
                                     Layout.alignment: Qt.AlignHCenter
@@ -1532,7 +1532,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                                             id: shortcutsCardColumn
                                             anchors {
                                                 fill: parent
-                                                margins: 8
+                                                margins: Appearance.spacing.sm
                                             }
                                             spacing: emptyStatePlaceholder.isWide ? 6 : 4
 
@@ -1657,9 +1657,9 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 anchors {
                     left: parent.left; right: parent.right
                     verticalCenter: parent.verticalCenter
-                    leftMargin: 12; rightMargin: 12
+                    leftMargin: Appearance.spacing.md; rightMargin: 12
                 }
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 StyledText {
                     Layout.fillWidth: true
@@ -1787,7 +1787,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                     id: attachFileButton
                     Layout.alignment: Qt.AlignBottom
                     Layout.leftMargin: 6
-                    Layout.bottomMargin: 4
+                    Layout.bottomMargin: Appearance.spacing.xs
                     implicitWidth: 32
                     implicitHeight: 32
                     buttonRadius: Appearance.rounding.small
@@ -2107,7 +2107,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
                 anchors.bottomMargin: 5
                 anchors.leftMargin: 10
                 anchors.rightMargin: 5
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 AiInputBoxIndicator {
                     // Model indicator
@@ -2270,7 +2270,7 @@ Inline w/ backslash and round brackets \\(e^{i\\pi} + 1 = 0\\)
 
             ColumnLayout {
                 anchors.centerIn: parent
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 Rectangle {
                     Layout.alignment: Qt.AlignHCenter

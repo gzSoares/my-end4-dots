@@ -86,7 +86,7 @@ Rectangle {
         // Copied notification badge
         RowLayout {
             visible: root.copiedFeedback
-            spacing: 4
+            spacing: Appearance.spacing.xs
             Layout.alignment: Qt.AlignVCenter
 
             MaterialSymbol {

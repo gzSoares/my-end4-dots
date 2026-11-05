@@ -304,7 +304,7 @@ Item {
         RowLayout {
             id: tokRow
             anchors.centerIn: parent
-            spacing: 4
+            spacing: Appearance.spacing.xs
             MaterialSymbol {
                 text: tok.m.icon
                 iconSize: Appearance.font.pixelSize.larger
@@ -321,7 +321,7 @@ Item {
     ColumnLayout {
         id: mainColumn
         width: parent.width
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         ConfigSelectionArray {
             Layout.fillWidth: false
@@ -374,7 +374,7 @@ Item {
             id: customView
             visible: root.mode === "custom"
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
         Repeater {
             model: root.sectionIds
@@ -409,7 +409,7 @@ Item {
                             text: Translation.tr("Empty — drag a widget here")
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             color: Appearance.colors.colSubtext
-                            Layout.margins: 4
+                            Layout.margins: Appearance.spacing.xs
                         }
 
                         DropLine { newGroup: true; target: ({ section: secCol.modelData, newGroup: true, newGroupPos: 0 }) }
@@ -532,7 +532,7 @@ Item {
                         contentItem: RowLayout {
                             id: addRow
                             anchors.centerIn: parent
-                            spacing: 4
+                            spacing: Appearance.spacing.xs
                             MaterialSymbol { text: "add"; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1 }
                             MaterialSymbol { text: addChip.modelData.icon; iconSize: Appearance.font.pixelSize.normal; color: Appearance.colors.colOnLayer1 }
                             StyledText { text: addChip.modelData.name; font.pixelSize: Appearance.font.pixelSize.smaller; color: Appearance.colors.colOnLayer1 }
@@ -568,7 +568,7 @@ Item {
             RowLayout {
                 id: proxyRow
                 anchors.centerIn: parent
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 MaterialSymbol {
                     text: root.dragMeta ? root.dragMeta.icon : ""
                     iconSize: Appearance.font.pixelSize.large

@@ -18,8 +18,8 @@ ContentPage {
         // flipped to the opposite side. The Hug dock is only offered the edge
         // facing the bar, the one edge it can run the length of.
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "dock_to_bottom"
                 Layout.alignment: Qt.AlignVCenter
@@ -62,8 +62,8 @@ ContentPage {
         }
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "counter_1"
                 Layout.alignment: Qt.AlignVCenter
@@ -96,8 +96,8 @@ ContentPage {
         }
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "animation"
                 Layout.alignment: Qt.AlignVCenter
@@ -129,8 +129,8 @@ ContentPage {
         }
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "mouse"
                 Layout.alignment: Qt.AlignVCenter
@@ -361,7 +361,7 @@ ContentPage {
             visible: Config.options.dock.iconSize >= 0
                 || (Config.options.dock.cornerStyle !== "span"
                     && (Config.options.dock.radius >= 0 || Config.options.dock.topRadius >= 0))
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default shape")
             onClicked: {
@@ -405,7 +405,7 @@ ContentPage {
 
         ConfigResetButton {
             visible: Config.options.dock.backgroundOpacity >= 0
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default transparency")
             onClicked: Config.options.dock.backgroundOpacity = -1
@@ -478,7 +478,7 @@ ContentPage {
                 || Config.options.dock.badgeTextColorLight !== ""
                 || Config.options.dock.glowColorDark !== ""
                 || Config.options.dock.glowColorLight !== ""
-            Layout.leftMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
             Layout.topMargin: 2
             buttonText: Translation.tr("Reset to default colors")
             onClicked: {
@@ -495,10 +495,10 @@ ContentPage {
 
         SubtleNoticeBox {
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
-            Layout.topMargin: 4
-            Layout.bottomMargin: 4
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
+            Layout.topMargin: Appearance.spacing.xs
+            Layout.bottomMargin: Appearance.spacing.xs
             text: Translation.tr("Dark mode and light mode each keep their own colors.")
         }
     }

@@ -234,7 +234,7 @@ Item {
                                         Component {
                                             id: keysComponent
                                             Row {
-                                                spacing: 4
+                                                spacing: Appearance.spacing.xs
                                                 Repeater {
                                                     model: modelData.mods
                                                     delegate: KeyboardKey {

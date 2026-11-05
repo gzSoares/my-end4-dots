@@ -57,13 +57,13 @@ Rectangle {
             left: parent.left
             right: parent.right
             top: parent.top
-            margins: 12
+            margins: Appearance.spacing.md
         }
         spacing: 10
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             // Device icon with connection indicator
             Item {
@@ -72,7 +72,7 @@ Rectangle {
                 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 8
+                    radius: Appearance.rounding.verysmall
                     color: root.isConnected ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
                     opacity: root.isConnected ? 0.2 : 0.5
                 }
@@ -88,7 +88,7 @@ Rectangle {
             // Device info
             ColumnLayout {
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 
                 StyledText {
                     Layout.fillWidth: true
@@ -100,7 +100,7 @@ Rectangle {
                 }
                 
                 RowLayout {
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     
                     // Status badge
                     Item {
@@ -127,7 +127,7 @@ Rectangle {
                             }
                             StyledText {
                                 text: root.isConnected ? Translation.tr("Connected") : Translation.tr("Paired")
-                                font.pixelSize: 10
+                                font.pixelSize: Appearance.font.pixelSize.smallest
                                 font.weight: Font.Medium
                                 color: root.isConnected ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colSubtext
                             }
@@ -137,7 +137,7 @@ Rectangle {
                     // Battery indicator
                     RowLayout {
                         visible: root.hasBattery && root.batteryLevel > 0
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         
                         MaterialSymbol {
                             text: root.batteryLevel < 0.2 ? "battery_alert" : 
@@ -149,7 +149,7 @@ Rectangle {
                         
                         StyledText {
                             text: `${Math.round(root.batteryLevel * 100)}%`
-                            font.pixelSize: 10
+                            font.pixelSize: Appearance.font.pixelSize.smallest
                             color: root.isConnected ? Appearance.colors.colOnPrimaryContainer : Appearance.colors.colSubtext
                         }
                     }
@@ -187,7 +187,7 @@ Rectangle {
             ColumnLayout {
                 visible: root.isPaired || root.isConnected
                 Layout.fillWidth: true
-                spacing: 4
+                spacing: Appearance.spacing.xs
                 
                 RowLayout {
                     Layout.fillWidth: true

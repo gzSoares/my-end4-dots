@@ -64,9 +64,9 @@ ComboBox {
         RowLayout {
             id: buttonLayout
             anchors.fill: parent
-            spacing: 8
-            anchors.leftMargin: 16
-            anchors.rightMargin: 16
+            spacing: Appearance.spacing.sm
+            anchors.leftMargin: Appearance.spacing.lg
+            anchors.rightMargin: Appearance.spacing.lg
 
             Loader {
                 Layout.alignment: Qt.AlignVCenter
@@ -136,9 +136,9 @@ ComboBox {
         }
 
         contentItem: RowLayout {
-            spacing: 8
-            anchors.leftMargin: 12
-            anchors.rightMargin: 12
+            spacing: Appearance.spacing.sm
+            anchors.leftMargin: Appearance.spacing.md
+            anchors.rightMargin: Appearance.spacing.md
 
             Loader {
                 Layout.alignment: Qt.AlignVCenter
@@ -177,7 +177,7 @@ ComboBox {
             searchField.implicitHeight + 20 + (visibleCount * 42) + topPadding + bottomPadding,
             320
         )
-        padding: 8
+        padding: Appearance.spacing.sm
 
         onVisibleChanged: {
             if (visible) {
@@ -216,7 +216,7 @@ ComboBox {
         }
 
         contentItem: ColumnLayout {
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             Rectangle {
                 Layout.fillWidth: true
@@ -226,7 +226,7 @@ ComboBox {
 
                 RowLayout {
                     anchors.fill: parent
-                    anchors.margins: 4
+                    anchors.margins: Appearance.spacing.xs
                     spacing: 6
 
                     MaterialSymbol {

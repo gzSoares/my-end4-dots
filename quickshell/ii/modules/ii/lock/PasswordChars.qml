@@ -92,7 +92,7 @@ StyledFlickable {
                             target: materialShape
                             properties: "opacity"
                             to: 1
-                            duration: 50
+                            duration: Appearance.motion.instant
                             easing.type: Appearance.animation.elementMoveFast.type
                             easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve
                         }
@@ -100,7 +100,7 @@ StyledFlickable {
                             target: materialShape
                             properties: "scale"
                             to: 1
-                            duration: 200
+                            duration: Appearance.motion.fast
                             easing.type: Easing.BezierSpline
                             easing.bezierCurve: Appearance.animationCurves.expressiveFastSpatial
                         }

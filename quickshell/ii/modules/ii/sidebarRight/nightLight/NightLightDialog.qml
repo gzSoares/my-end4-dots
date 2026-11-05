@@ -56,8 +56,8 @@ WindowDialog {
         //   Set hours → schedule on, user-defined from/to (read-only here)
         //   Enabled   → filter on, schedule off (always-on override)
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "schedule"
                 Layout.alignment: Qt.AlignVCenter
@@ -100,15 +100,15 @@ WindowDialog {
         // reads them back on whichever clock the bar is set to.
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.leftMargin: 12
+            Layout.leftMargin: Appearance.spacing.md
             Layout.topMargin: visible ? 8 : 0
-            spacing: 4
+            spacing: Appearance.spacing.xs
             visible: Config.options.light.night.mode === "manual"
 
             // "Turn on" — read-only display.
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 StyledText {
                     Layout.alignment: Qt.AlignVCenter
@@ -126,7 +126,7 @@ WindowDialog {
             // "Turn off" — read-only display.
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 StyledText {
                     Layout.alignment: Qt.AlignVCenter
@@ -159,8 +159,8 @@ WindowDialog {
         // so dragging updates the screen tint immediately when on.
         WindowDialogSlider {
             Layout.fillWidth: true
-            Layout.leftMargin: 4
-            Layout.rightMargin: 4
+            Layout.leftMargin: Appearance.spacing.xs
+            Layout.rightMargin: Appearance.spacing.xs
             text: Translation.tr("Intensity")
             from: 6500
             to: 1200

@@ -34,7 +34,7 @@ Item {
 
                     contentItem: RowLayout {
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             text: Bluetooth.defaultAdapter?.discovering ? "stop" : "bluetooth_searching"
                             iconSize: 16
@@ -142,7 +142,7 @@ Item {
 
                 ColumnLayout {
                     anchors.centerIn: parent
-                    spacing: 12
+                    spacing: Appearance.spacing.md
 
                     Rectangle {
                         Layout.alignment: Qt.AlignHCenter

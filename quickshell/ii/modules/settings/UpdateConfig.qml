@@ -821,8 +821,8 @@ ContentPage {
         RowLayout {
             visible: root.awaitingReboot
             Layout.fillWidth: true
-            Layout.topMargin: 8
-            spacing: 8
+            Layout.topMargin: Appearance.spacing.sm
+            spacing: Appearance.spacing.sm
 
             Item { Layout.fillWidth: true }
 
@@ -867,8 +867,8 @@ ContentPage {
                     id: passwordField
                     anchors {
                         fill: parent
-                        leftMargin: 12
-                        rightMargin: 12
+                        leftMargin: Appearance.spacing.md
+                        rightMargin: Appearance.spacing.md
                     }
                     verticalAlignment: TextInput.AlignVCenter
                     echoMode: TextInput.Password
@@ -1020,7 +1020,7 @@ ContentPage {
                     id: customArgsField
                     anchors {
                         fill: parent
-                        margins: 8
+                        margins: Appearance.spacing.sm
                     }
                     text: root.customArgs
                     onTextChanged: root.customArgs = text
@@ -1055,7 +1055,7 @@ ContentPage {
                     id: previewText
                     anchors {
                         fill: parent
-                        margins: 8
+                        margins: Appearance.spacing.sm
                     }
                     text: root.commandPreview()
                     font.family: Appearance.font.family.monospace

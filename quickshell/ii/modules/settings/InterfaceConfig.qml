@@ -324,8 +324,8 @@ ContentPage {
             // sit flush against the left edge while the Ripple
             // Animation icon directly above is offset by Button's
             // leftPadding.
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "drag_click"
                 Layout.alignment: Qt.AlignVCenter
@@ -377,13 +377,13 @@ ContentPage {
         RowLayout {
             visible: root.scrollOverviewEnabled
             Layout.fillWidth: true
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             // Match ConfigSwitch's vertical padding (implicitHeight: content + 8*2)
             // so the selector has the same top/bottom breathing room as the
             // Per app/Per window selector, which inherits it from its paired switch.
-            Layout.topMargin: 8
-            Layout.bottomMargin: 8
+            Layout.topMargin: Appearance.spacing.sm
+            Layout.bottomMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "splitscreen"
                 Layout.alignment: Qt.AlignVCenter
@@ -496,10 +496,10 @@ ContentPage {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: 8
-                        Layout.rightMargin: 8
+                        Layout.leftMargin: Appearance.spacing.sm
+                        Layout.rightMargin: Appearance.spacing.sm
                         Layout.topMargin: 6
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         OptionalMaterialSymbol {
                             icon: "monitor"
                             Layout.alignment: Qt.AlignVCenter
@@ -526,8 +526,8 @@ ContentPage {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.leftMargin: 8
-                        Layout.rightMargin: 8
+                        Layout.leftMargin: Appearance.spacing.sm
+                        Layout.rightMargin: Appearance.spacing.sm
                         OptionalMaterialSymbol {
                             icon: "splitscreen"
                             Layout.alignment: Qt.AlignVCenter
@@ -1083,8 +1083,8 @@ ContentPage {
         ]
 
         ConfigRow {
-            Layout.leftMargin: 8
-            Layout.rightMargin: 8
+            Layout.leftMargin: Appearance.spacing.sm
+            Layout.rightMargin: Appearance.spacing.sm
             OptionalMaterialSymbol {
                 icon: "picture_in_picture"
                 Layout.alignment: Qt.AlignVCenter

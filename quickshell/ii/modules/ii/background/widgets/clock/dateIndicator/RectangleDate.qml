@@ -14,7 +14,7 @@ Rectangle {
         text: Qt.locale().toString(DateTime.clock.date, "dd")
         font {
             family: Appearance.font.family.expressive
-            pixelSize: 20
+            pixelSize: Appearance.font.pixelSize.larger
             weight: 1000
         }
     }

@@ -251,7 +251,7 @@ Item {
             Row {
                 id: uptimeRow
                 anchors.centerIn: parent
-                spacing: 8
+                spacing: Appearance.spacing.sm
                 CustomIcon {
                     id: distroIcon
                     anchors.verticalCenter: parent.verticalCenter
@@ -279,7 +279,7 @@ Item {
                 right: parent.right
             }
             color: Appearance.colors.colLayer1
-            padding: 4
+            padding: Appearance.spacing.xs
 
             QuickToggleButton {
                 toggled: root.editMode

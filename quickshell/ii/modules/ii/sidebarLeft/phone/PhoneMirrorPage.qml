@@ -202,7 +202,7 @@ Item {
             property: "opacity"
             from: 0
             to: 1
-            duration: 220
+            duration: Appearance.motion.fast
             easing.type: Easing.OutCubic
         }
         NumberAnimation {
@@ -210,7 +210,7 @@ Item {
             property: "y"
             from: 14
             to: 0
-            duration: 280
+            duration: Appearance.motion.normal
             easing.type: Easing.OutCubic
         }
     }

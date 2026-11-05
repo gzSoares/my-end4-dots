@@ -129,10 +129,10 @@ Item {
 
     Rectangle {
         anchors.fill: parent
-        anchors.leftMargin: 4
-        anchors.rightMargin: 4
+        anchors.leftMargin: Appearance.spacing.xs
+        anchors.rightMargin: Appearance.spacing.xs
         anchors.topMargin: -1
-        anchors.bottomMargin: 4
+        anchors.bottomMargin: Appearance.spacing.xs
         color: Appearance.colors.colLayer2
         radius: Appearance.rounding.normal
 
@@ -231,7 +231,7 @@ Item {
                         id: toastRow
                         Layout.alignment: Qt.AlignHCenter
                         Layout.maximumWidth: toastBg.width - 28
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         MaterialSymbol {
                             Layout.alignment: Qt.AlignVCenter
@@ -414,17 +414,17 @@ Item {
                 ColumnLayout {
                     id: deviceMenuColumn
                     anchors.fill: parent
-                    anchors.margins: 8
-                    spacing: 4
+                    anchors.margins: Appearance.spacing.sm
+                    spacing: Appearance.spacing.xs
 
                     // ─── Recent devices (MRU) ────────────────────────────
                     ColumnLayout {
                         Layout.fillWidth: true
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         visible: recentRepeater.count > 0
 
                         StyledText {
-                            Layout.leftMargin: 8
+                            Layout.leftMargin: Appearance.spacing.sm
                             Layout.bottomMargin: 2
                             text: Translation.tr("Recent")
                             font.pixelSize: Appearance.font.pixelSize.smallest
@@ -449,8 +449,8 @@ Item {
                                     anchors.fill: parent
                                     RowLayout {
                                         anchors.fill: parent
-                                        anchors.leftMargin: 8
-                                        anchors.rightMargin: 8
+                                        anchors.leftMargin: Appearance.spacing.sm
+                                        anchors.rightMargin: Appearance.spacing.sm
                                         spacing: 10
                                         MaterialSymbol {
                                             Layout.alignment: Qt.AlignVCenter
@@ -514,7 +514,7 @@ Item {
                     }
 
                     StyledText {
-                        Layout.leftMargin: 8
+                        Layout.leftMargin: Appearance.spacing.sm
                         Layout.bottomMargin: 2
                         visible: recentRepeater.count > 0
                         text: Translation.tr("All paired devices")
@@ -545,8 +545,8 @@ Item {
                                 anchors.fill: parent
                                 RowLayout {
                                     anchors.fill: parent
-                                    anchors.leftMargin: 8
-                                    anchors.rightMargin: 8
+                                    anchors.leftMargin: Appearance.spacing.sm
+                                    anchors.rightMargin: Appearance.spacing.sm
                                     spacing: 10
                                     MaterialSymbol {
                                         Layout.alignment: Qt.AlignVCenter
@@ -627,7 +627,7 @@ Item {
                         colBackgroundHover: Appearance.colors.colLayer4Hover
                         colBackgroundActive: Appearance.colors.colLayer4Active ?? Appearance.colors.colLayer4Hover
                         contentItem: RowLayout {
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 Layout.alignment: Qt.AlignVCenter
                                 text: "refresh"
@@ -730,7 +730,7 @@ Item {
                     RowLayout {
                         id: pairBannerLayout
                         anchors.fill: parent
-                        anchors.margins: 8
+                        anchors.margins: Appearance.spacing.sm
                         spacing: 10
 
                         MaterialSymbol {
@@ -788,8 +788,8 @@ Item {
                             colBackgroundHover: Appearance.colors.colPrimaryHover
                             contentItem: StyledText {
                                 anchors.centerIn: parent
-                                leftPadding: 12
-                                rightPadding: 12
+                                leftPadding: Appearance.spacing.md
+                                rightPadding: Appearance.spacing.md
                                 text: Translation.tr("Accept")
                                 font.pixelSize: Appearance.font.pixelSize.small
                                 font.weight: Font.DemiBold
@@ -854,7 +854,7 @@ Item {
                     anchors.top: parent.top
                     anchors.topMargin: phoneMediaLoader.active ? (phoneMediaLoader.height + 8) : 0
                     anchors.bottom: listBottomRow.top
-                    anchors.bottomMargin: 8
+                    anchors.bottomMargin: Appearance.spacing.sm
                     clip: true
 
                     Behavior on anchors.topMargin {
@@ -927,7 +927,7 @@ Item {
                     RippleButtonWithIcon {
                         id: notifSyncBtn
                         Layout.preferredHeight: 36
-                        horizontalPadding: 12
+                        horizontalPadding: Appearance.spacing.md
                         rippleEnabled: true
                         buttonRadius: 18
                         buttonRadiusPressed: 18
@@ -985,7 +985,7 @@ Item {
                     RippleButtonWithIcon {
                         id: notifClearBtn
                         Layout.preferredHeight: 36
-                        horizontalPadding: 12
+                        horizontalPadding: Appearance.spacing.md
                         rippleEnabled: true
                         buttonRadius: 18
                         buttonRadiusPressed: 18
@@ -1221,7 +1221,7 @@ Item {
             ColumnLayout {
                 id: readyStateLayout
                 anchors.centerIn: parent
-                spacing: 24
+                spacing: Appearance.spacing.xl
                 visible: phoneDropArea.containsDrag && !root.isSending
 
                 MaterialSymbol {
@@ -1254,7 +1254,7 @@ Item {
             ColumnLayout {
                 id: stagedStateLayout
                 anchors.fill: parent
-                anchors.margins: 24
+                anchors.margins: Appearance.spacing.xl
                 spacing: 28
                 visible: !phoneDropArea.containsDrag && root.hasStagedFiles && !root.isSending
 
@@ -1272,7 +1272,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         text: root.stagedFiles.length > 1 ? "file_copy" : "draft"
                         iconSize: 84
-                        padding: 24
+                        padding: Appearance.spacing.xl
                         fill: 1.0
                         color: Appearance.colors.colPrimaryContainer
                         colSymbol: Appearance.colors.colOnPrimaryContainer
@@ -1320,7 +1320,7 @@ Item {
                 // Action Buttons Row (Cancelar & Enviar)
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    spacing: Appearance.spacing.md
 
                     // Cancel button: no fill, border only
                     Rectangle {
@@ -1335,14 +1335,14 @@ Item {
 
                         Behavior on scale {
                             NumberAnimation {
-                                duration: 150
+                                duration: Appearance.motion.fast
                                 easing.type: Easing.OutQuad
                             }
                         }
 
                         RowLayout {
                             anchors.centerIn: parent
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 text: "close"
                                 iconSize: 20
@@ -1378,14 +1378,14 @@ Item {
 
                         Behavior on scale {
                             NumberAnimation {
-                                duration: 150
+                                duration: Appearance.motion.fast
                                 easing.type: Easing.OutQuad
                             }
                         }
 
                         RowLayout {
                             anchors.centerIn: parent
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             MaterialSymbol {
                                 text: "send"
                                 iconSize: 20

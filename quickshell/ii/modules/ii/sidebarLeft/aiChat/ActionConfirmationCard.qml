@@ -202,12 +202,12 @@ Rectangle {
             top: parent.top
             margins: 10
         }
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         // Header Row
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             MaterialSymbol {
                 text: "shield"
@@ -252,7 +252,7 @@ Rectangle {
                     left: parent.left
                     right: parent.right
                     verticalCenter: parent.verticalCenter
-                    margins: 8
+                    margins: Appearance.spacing.sm
                 }
                 height: {
                     const first = previewFlickable.firstChunk;
@@ -342,7 +342,7 @@ Rectangle {
         // Action Buttons Row
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             Item { Layout.fillWidth: true }
 
@@ -350,7 +350,7 @@ Rectangle {
                 id: rejectBtn
                 implicitHeight: 32
                 buttonRadius: Appearance.rounding.small
-                horizontalPadding: 12
+                horizontalPadding: Appearance.spacing.md
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer1Hover
 
@@ -383,7 +383,7 @@ Rectangle {
                 enabled: root.previewBuilt
                 implicitHeight: 32
                 buttonRadius: Appearance.rounding.small
-                horizontalPadding: 12
+                horizontalPadding: Appearance.spacing.md
                 colBackground: Appearance.colors.colPrimary
                 colBackgroundHover: Appearance.colors.colPrimaryHover
 

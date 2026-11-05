@@ -18,7 +18,7 @@ ContentSection {
 
     StyledText {
         Layout.fillWidth: true
-        Layout.bottomMargin: 4
+        Layout.bottomMargin: Appearance.spacing.xs
         text: Translation.tr("These open on their own after you log in. Turning one off does not uninstall it.")
         color: Appearance.colors.colSubtext
         font.pixelSize: Appearance.font.pixelSize.smaller
@@ -50,7 +50,7 @@ ContentSection {
                 anchors.fill: parent
                 anchors.leftMargin: 14
                 anchors.rightMargin: 6
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 IconImage {
                     implicitSize: 32
@@ -126,7 +126,7 @@ ContentSection {
 
     AppPicker {
         Layout.fillWidth: true
-        Layout.topMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
         fieldIcon: "add"
         currentId: ""
         placeholderText: Translation.tr("Add an app")
@@ -136,7 +136,7 @@ ContentSection {
 
     SubtleNoticeBox {
         Layout.fillWidth: true
-        Layout.topMargin: 4
+        Layout.topMargin: Appearance.spacing.xs
         materialIcon: "schedule"
         text: Translation.tr("A change here takes effect the next time you log in. Nothing opens or closes right now.")
     }

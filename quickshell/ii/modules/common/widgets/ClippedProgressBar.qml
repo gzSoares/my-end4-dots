@@ -30,7 +30,7 @@ ProgressBar {
 
     text: Math.round(value * 100)
     font {
-        pixelSize: 13
+        pixelSize: Appearance.font.pixelSize.smallie
         weight: text.length > 2 ? Font.Medium : Font.DemiBold
     }
 

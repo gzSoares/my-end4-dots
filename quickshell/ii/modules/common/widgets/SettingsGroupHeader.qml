@@ -18,8 +18,8 @@ RowLayout {
 
     Layout.fillWidth: true
     Layout.topMargin: 10
-    Layout.leftMargin: 4
-    spacing: 12
+    Layout.leftMargin: Appearance.spacing.xs
+    spacing: Appearance.spacing.md
 
     StyledText {
         text: root.text.toUpperCase()

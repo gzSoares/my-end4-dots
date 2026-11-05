@@ -285,9 +285,9 @@ Item {
                             }
 
                             RowLayout {
-                                Layout.leftMargin: 8
-                                Layout.rightMargin: 8
-                                Layout.bottomMargin: 4
+                                Layout.leftMargin: Appearance.spacing.sm
+                                Layout.rightMargin: Appearance.spacing.sm
+                                Layout.bottomMargin: Appearance.spacing.xs
                                 spacing: 2
 
                                 Repeater {
@@ -351,7 +351,7 @@ Item {
                                 readonly property int maxVisible: 5
                                 visible: count > 0
                                 Layout.fillWidth: true
-                                Layout.bottomMargin: 4
+                                Layout.bottomMargin: Appearance.spacing.xs
                                 clip: true
                                 spacing: 0
                                 implicitWidth: 200
@@ -384,7 +384,7 @@ Item {
                                             leftMargin: 10
                                             rightMargin: 14
                                         }
-                                        spacing: 8
+                                        spacing: Appearance.spacing.sm
                                         Rectangle {
                                             implicitWidth: Math.max(28, namedNumber.implicitWidth + 12)
                                             implicitHeight: 28

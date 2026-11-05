@@ -185,12 +185,12 @@ Item {
                 anchors.left: parent.left
                 anchors.right: parent.right
                 anchors.top: parent.top
-                spacing: 16
+                spacing: Appearance.spacing.lg
 
                 StyledText {
-                    Layout.topMargin: 16
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.topMargin: Appearance.spacing.lg
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
                     Layout.alignment: Qt.AlignLeft
                     color: Appearance.m3colors.m3onSurface
                     font.pixelSize: Appearance.font.pixelSize.larger
@@ -200,8 +200,8 @@ Item {
                 TextField {
                     id: todoInput
                     Layout.fillWidth: true
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
                     padding: 10
                     color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
                     renderType: ScreenScale.renderTypeFor(Screen.name)
@@ -229,9 +229,9 @@ Item {
 
                 // Due date checkbox row
                 RowLayout {
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    spacing: 8
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
+                    spacing: Appearance.spacing.sm
 
                     CheckBox {
                         id: addDateEnabled
@@ -263,9 +263,9 @@ Item {
 
                 // Date picker row
                 RowLayout {
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    spacing: 8
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
+                    spacing: Appearance.spacing.sm
                     opacity: addDateEnabled.checked ? 1.0 : 0.5
 
                     MaterialSymbol {
@@ -281,9 +281,9 @@ Item {
                 }
 
                 RowLayout {
-                    Layout.bottomMargin: 16
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.bottomMargin: Appearance.spacing.lg
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
                     Layout.alignment: Qt.AlignRight
                     spacing: 5
 
@@ -360,12 +360,12 @@ Item {
                 id: editDialogColumnLayout
                 anchors.left: parent.left
                 anchors.right: parent.right
-                spacing: 16
+                spacing: Appearance.spacing.lg
 
                 StyledText {
-                    Layout.topMargin: 16
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.topMargin: Appearance.spacing.lg
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
                     Layout.alignment: Qt.AlignLeft
                     color: Appearance.m3colors.m3onSurface
                     font.pixelSize: Appearance.font.pixelSize.larger
@@ -375,8 +375,8 @@ Item {
                 TextField {
                     id: editInput
                     Layout.fillWidth: true
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
                     padding: 10
                     color: activeFocus ? Appearance.m3colors.m3onSurface : Appearance.m3colors.m3onSurfaceVariant
                     renderType: ScreenScale.renderTypeFor(Screen.name)
@@ -404,9 +404,9 @@ Item {
 
                 // Due date checkbox row
                 RowLayout {
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    spacing: 8
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
+                    spacing: Appearance.spacing.sm
 
                     CheckBox {
                         id: editDateEnabled
@@ -438,9 +438,9 @@ Item {
 
                 // Date picker row
                 RowLayout {
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
-                    spacing: 8
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
+                    spacing: Appearance.spacing.sm
                     opacity: editDateEnabled.checked ? 1.0 : 0.5
 
                     MaterialSymbol {
@@ -456,9 +456,9 @@ Item {
                 }
 
                 RowLayout {
-                    Layout.bottomMargin: 16
-                    Layout.leftMargin: 16
-                    Layout.rightMargin: 16
+                    Layout.bottomMargin: Appearance.spacing.lg
+                    Layout.leftMargin: Appearance.spacing.lg
+                    Layout.rightMargin: Appearance.spacing.lg
                     Layout.alignment: Qt.AlignRight
                     spacing: 5
 

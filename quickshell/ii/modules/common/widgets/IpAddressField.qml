@@ -23,7 +23,7 @@ ColumnLayout {
     property string value: ""
     signal edited(string value)
 
-    spacing: 4
+    spacing: Appearance.spacing.xs
     Layout.fillWidth: true
 
     // The text of the four boxes, "" when all are empty.

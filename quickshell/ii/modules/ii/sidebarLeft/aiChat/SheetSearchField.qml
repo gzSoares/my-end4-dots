@@ -28,8 +28,8 @@ Rectangle {
 
     RowLayout {
         anchors.fill: parent
-        anchors.leftMargin: 8
-        anchors.rightMargin: 8
+        anchors.leftMargin: Appearance.spacing.sm
+        anchors.rightMargin: Appearance.spacing.sm
         spacing: 6
 
         MaterialSymbol {

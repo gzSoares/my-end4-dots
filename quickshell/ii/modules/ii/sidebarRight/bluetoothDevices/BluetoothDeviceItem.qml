@@ -88,7 +88,7 @@ DialogListItem {
 
         RowLayout {
             visible: root.expanded
-            Layout.topMargin: 8
+            Layout.topMargin: Appearance.spacing.sm
             Item {
                 Layout.fillWidth: true
             }

@@ -57,7 +57,7 @@ RippleButton {
 
     contentItem: Row {
         id: contentItem
-        spacing: 4
+        spacing: Appearance.spacing.xs
         MaterialSymbol {
             anchors.verticalCenter: parent.verticalCenter
             text: "arrow_downward"

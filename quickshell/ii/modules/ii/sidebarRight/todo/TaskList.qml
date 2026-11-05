@@ -63,7 +63,7 @@ Item {
                             leftMargin: 10
                             rightMargin: 14
                         }
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "edit"
                             iconSize: Appearance.font.pixelSize.normal
@@ -120,7 +120,7 @@ Item {
                         leftMargin: 10
                         rightMargin: 14
                     }
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     MaterialSymbol {
                         text: "delete"
                         iconSize: Appearance.font.pixelSize.normal
@@ -213,7 +213,7 @@ Item {
                         visible: todoItem.modelData.date !== undefined && todoItem.modelData.date !== ""
                         Layout.leftMargin: 10
                         Layout.rightMargin: 10
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
 
                         MaterialSymbol {
                             text: "calendar_today"

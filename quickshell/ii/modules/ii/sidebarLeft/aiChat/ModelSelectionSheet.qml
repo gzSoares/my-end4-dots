@@ -149,7 +149,7 @@ SheetBase {
                                 visible: modelItemButton.isPlan
                                 implicitHeight: 16
                                 implicitWidth: planText.implicitWidth + 8
-                                radius: 8
+                                radius: Appearance.rounding.verysmall
                                 color: Appearance.colors.colPrimaryContainer
 
                                 StyledText {
@@ -201,7 +201,7 @@ SheetBase {
     // Footer
     RowLayout {
         Layout.fillWidth: true
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         StyledText {
             Layout.fillWidth: true
@@ -220,7 +220,7 @@ SheetBase {
             contentItem: RowLayout {
                 id: refreshRow
                 anchors.centerIn: parent
-                spacing: 4
+                spacing: Appearance.spacing.xs
 
                 MaterialSymbol {
                     text: "refresh"

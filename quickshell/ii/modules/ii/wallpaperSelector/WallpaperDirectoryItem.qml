@@ -112,7 +112,7 @@ MouseArea {
         Loader {
             id: iconLoader
             anchors.fill: parent
-            anchors.margins: 16
+            anchors.margins: Appearance.spacing.lg
             active: !root.useThumbnail
             sourceComponent: DirectoryIcon {
                 fileModelData: root.fileModelData
@@ -158,7 +158,7 @@ MouseArea {
             anchors {
                 top: parent.top
                 right: parent.right
-                margins: 8
+                margins: Appearance.spacing.sm
             }
             width: 26
             height: 26
@@ -180,7 +180,7 @@ MouseArea {
             anchors {
                 top: parent.top
                 left: parent.left
-                margins: 8
+                margins: Appearance.spacing.sm
             }
             width: 26
             height: 26

@@ -40,7 +40,7 @@ RowLayout {
             root.edited(next);
     }
 
-    spacing: 8
+    spacing: Appearance.spacing.sm
 
     ConfigSpinBox {
         Layout.preferredWidth: 70

@@ -32,7 +32,7 @@ ContentPage {
 
     // ─── Header ─────────────────────────────────────────────
     RowLayout {
-        spacing: 12
+        spacing: Appearance.spacing.md
 
         RippleButton {
             implicitWidth: implicitHeight
@@ -171,7 +171,7 @@ ContentPage {
 
     RowLayout {
         Layout.fillWidth: true
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         StyledText {
             Layout.fillWidth: true

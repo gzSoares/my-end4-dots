@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Screenshot Editor
+Name[pt_BR]=Editor de captura de tela
+Comment=Annotate, blur and crop an image
+Comment[pt_BR]=Anote, desfoque e recorte uma imagem
+Exec=bash -c 'SCREENSHOT_EDIT_FILE="$1" qs -p ~/.config/quickshell/ii/screenshot-editor.qml --no-duplicate' _ %f
+Icon=applets-screenshooter
+Terminal=false
+Categories=Graphics;Utility;
+MimeType=image/png;image/jpeg;image/webp;
+Keywords=screenshot;editor;annotate;captura;editor;anotar;

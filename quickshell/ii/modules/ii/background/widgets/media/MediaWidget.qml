@@ -228,7 +228,7 @@ AbstractBackgroundWidget {
                         horizontalCenter: parent.horizontalCenter
                         bottomMargin: 10
                     }
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     visible: MprisController.activePlayer !== null
 
                     RippleButton {
@@ -328,10 +328,10 @@ AbstractBackgroundWidget {
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                     Layout.leftMargin: 14
-                    Layout.rightMargin: 12
-                    Layout.topMargin: 12
+                    Layout.rightMargin: Appearance.spacing.md
+                    Layout.topMargin: Appearance.spacing.md
                     Layout.bottomMargin: 10
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     ColumnLayout {
                         Layout.fillWidth: true
@@ -362,7 +362,7 @@ AbstractBackgroundWidget {
                     RowLayout {
                         Layout.fillWidth: true
                         Layout.alignment: Qt.AlignHCenter
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
 
                         RippleButton {
                             implicitWidth: 28
@@ -491,8 +491,8 @@ AbstractBackgroundWidget {
                 RowLayout {
                     Layout.fillWidth: true
                     Layout.alignment: Qt.AlignHCenter
-                    Layout.topMargin: 8
-                    Layout.bottomMargin: 12
+                    Layout.topMargin: Appearance.spacing.sm
+                    Layout.bottomMargin: Appearance.spacing.md
                     spacing: 6
 
                     RippleButton {
@@ -520,7 +520,7 @@ AbstractBackgroundWidget {
                         text: root.currentPlayer?.isPlaying ? "pause" : "play_arrow"
                         iconSize: root.buttonIconSize + 6
                         fill: 1
-                        padding: 8
+                        padding: Appearance.spacing.sm
 
                         MouseArea {
                             anchors.fill: parent
@@ -601,7 +601,7 @@ AbstractBackgroundWidget {
                             right: parent.right
                             top: parent.top
                             bottom: parent.bottom
-                            leftMargin: 16
+                            leftMargin: Appearance.spacing.lg
                             rightMargin: 14
                         }
                         spacing: -10
@@ -676,7 +676,7 @@ AbstractBackgroundWidget {
                                     text: root.currentPlayer?.isPlaying ? "pause" : "play_arrow"
                                     iconSize: root.buttonIconSize + 12
                                     fill: 1
-                                    padding: 8
+                                    padding: Appearance.spacing.sm
 
                                     MouseArea {
                                         anchors.fill: parent
@@ -735,8 +735,8 @@ AbstractBackgroundWidget {
 
                     Lyrics {
                         anchors.fill: parent
-                        anchors.leftMargin: 16
-                        anchors.rightMargin: 16
+                        anchors.leftMargin: Appearance.spacing.lg
+                        anchors.rightMargin: Appearance.spacing.lg
                         textAlignment: Text.AlignHCenter
                         textColor: Appearance.colors.colOnPrimaryContainer
                         activeColor: Appearance.colors.colPrimary
@@ -770,11 +770,11 @@ AbstractBackgroundWidget {
                         anchors {
                             fill: parent
                             leftMargin: 14
-                            rightMargin: 16
+                            rightMargin: Appearance.spacing.lg
                             topMargin: 14
                             bottomMargin: 14
                         }
-                        spacing: 12
+                        spacing: Appearance.spacing.md
 
                         Rectangle {
                             id: labelArt

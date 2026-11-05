@@ -32,14 +32,13 @@ import qs.modules.common.widgets
 import qs.modules.common.functions
 import "modules/ii/videoEditor/VideoExport.js" as VideoExport
 
-ApplicationWindow {
+TranslucentAppWindow {
     id: root
     visible: true
     width: 980
     height: 700
     minimumWidth: 760
     minimumHeight: 520
-    color: "transparent"
     // Fixed, not translated: the blur rule in rules.lua matches on it
     title: "Video editor"
 
@@ -213,9 +212,8 @@ ApplicationWindow {
     }
 
     // ── Layout ─────────────────────────────────────────────────────
-    Rectangle {
+    Item {
         anchors.fill: parent
-        color: Appearance.colors.colLayer0
 
         ColumnLayout {
             anchors.fill: parent
@@ -223,28 +221,29 @@ ApplicationWindow {
 
             Toolbar {
                 Layout.alignment: Qt.AlignHCenter
-                Layout.topMargin: 12
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
+                Layout.topMargin: Appearance.spacing.md
+                Layout.leftMargin: Appearance.spacing.md
+                Layout.rightMargin: Appearance.spacing.md
                 enableShadow: false
                 spacing: 2
 
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: player.playbackState === MediaPlayer.PlayingState ? "pause" : "play_arrow"
                     tip: Translation.tr("Play / pause")
                     enabled: root.ready
                     onClicked: root.togglePlay()
                 }
                 StyledText {
-                    Layout.leftMargin: 4
-                    Layout.rightMargin: 4
+                    Layout.leftMargin: Appearance.spacing.xs
+                    Layout.rightMargin: Appearance.spacing.xs
                     text: VideoExport.formatTime(root.pos()) + " / " + VideoExport.formatTime(root.duration)
+                    font.features: ({ "tnum": 1 })
                     font.pixelSize: Appearance.font.pixelSize.small
                     color: Appearance.colors.colSubtext
                 }
-                Divider {}
+                ToolbarDivider {}
 
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "crop"
                     label: root.cropped ? Translation.tr("Crop") : ""
                     tip: Translation.tr("Crop the picture")
@@ -252,7 +251,7 @@ ApplicationWindow {
                     enabled: root.ready && !root.exporting
                     onClicked: root.cropMode = !root.cropMode
                 }
-                TopButton {
+                ToolbarSymbolButton {
                     visible: root.cropped
                     symbol: "crop_free"
                     tip: Translation.tr("Remove the crop")
@@ -260,7 +259,7 @@ ApplicationWindow {
                     onClicked: root.resetCrop()
                 }
                 // Cycles through the speeds
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "speed"
                     label: root.speed + "x"
                     tip: Translation.tr("Speed")
@@ -268,7 +267,7 @@ ApplicationWindow {
                     enabled: root.ready && !root.exporting
                     onClicked: root.speed = root.speeds[(root.speeds.indexOf(root.speed) + 1) % root.speeds.length]
                 }
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: root.mute ? "volume_off" : "volume_up"
                     tip: !root.hasAudio ? Translation.tr("This video has no sound")
                         : root.mute ? Translation.tr("Sound removed") : Translation.tr("Keep the sound")
@@ -276,9 +275,9 @@ ApplicationWindow {
                     enabled: root.ready && root.hasAudio && root.format === "mp4" && !root.exporting
                     onClicked: root.mute = !root.mute
                 }
-                Divider {}
+                ToolbarDivider {}
 
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "movie"
                     label: "MP4"
                     tip: Translation.tr("Export as a video")
@@ -286,7 +285,7 @@ ApplicationWindow {
                     enabled: !root.exporting
                     onClicked: root.format = "mp4"
                 }
-                TopButton {
+                ToolbarSymbolButton {
                     symbol: "gif_box"
                     label: "GIF"
                     tip: Translation.tr("Export as a GIF (no sound)")
@@ -294,7 +293,7 @@ ApplicationWindow {
                     enabled: !root.exporting
                     onClicked: root.format = "gif"
                 }
-                Divider {}
+                ToolbarDivider {}
 
                 RippleButton {
                     implicitWidth: exportRow.implicitWidth + 28
@@ -329,7 +328,7 @@ ApplicationWindow {
             Rectangle {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                Layout.margins: 12
+                Layout.margins: Appearance.spacing.md
                 radius: Appearance.rounding.normal
                 color: Appearance.colors.colLayer1
                 clip: true
@@ -344,7 +343,7 @@ ApplicationWindow {
                 VideoOutput {
                     id: video
                     anchors.fill: parent
-                    anchors.margins: 8
+                    anchors.margins: Appearance.spacing.sm
                     fillMode: VideoOutput.PreserveAspectFit
 
                     MouseArea {
@@ -444,8 +443,8 @@ ApplicationWindow {
             // Timeline
             Item {
                 Layout.fillWidth: true
-                Layout.leftMargin: 12
-                Layout.rightMargin: 12
+                Layout.leftMargin: Appearance.spacing.md
+                Layout.rightMargin: Appearance.spacing.md
                 Layout.preferredHeight: 84
                 visible: root.ready
 
@@ -454,8 +453,8 @@ ApplicationWindow {
                     anchors.fill: parent
                     anchors.topMargin: 6
                     anchors.bottomMargin: 6
-                    anchors.leftMargin: 8
-                    anchors.rightMargin: 8
+                    anchors.leftMargin: Appearance.spacing.sm
+                    anchors.rightMargin: Appearance.spacing.sm
                     radius: Appearance.rounding.small
                     color: Appearance.colors.colLayer1
                     clip: true
@@ -537,9 +536,9 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.leftMargin: 20
                 Layout.rightMargin: 20
-                Layout.bottomMargin: 12
+                Layout.bottomMargin: Appearance.spacing.md
                 Layout.topMargin: 2
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 StyledText {
                     text: root.ready ? Translation.tr("Result: %1").arg(root.outInfo) : ""
@@ -592,46 +591,5 @@ ApplicationWindow {
                 }
             }
         }
-    }
-
-    component Divider: Rectangle {
-        implicitWidth: 1
-        implicitHeight: 22
-        Layout.alignment: Qt.AlignVCenter
-        Layout.leftMargin: 4
-        Layout.rightMargin: 4
-        color: Appearance.colors.colOutlineVariant
-    }
-
-    component TopButton: RippleButton {
-        id: topButton
-        // Not "icon": the button already has a final property of that name
-        property string symbol
-        property string tip
-        property string label: ""
-        implicitWidth: label.length > 0 ? 40 + labelText.implicitWidth + 4 : 40
-        implicitHeight: 40
-        buttonRadius: Appearance.rounding.full
-        opacity: enabled ? 1 : 0.4
-        contentItem: Row {
-            anchors.centerIn: parent
-            spacing: 2
-            MaterialSymbol {
-                anchors.verticalCenter: parent.verticalCenter
-                text: topButton.symbol
-                fill: topButton.toggled ? 1 : 0
-                iconSize: Appearance.font.pixelSize.larger
-                color: topButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-            }
-            StyledText {
-                id: labelText
-                visible: topButton.label.length > 0
-                anchors.verticalCenter: parent.verticalCenter
-                text: topButton.label
-                font.pixelSize: Appearance.font.pixelSize.small
-                color: topButton.toggled ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
-            }
-        }
-        StyledToolTip { text: topButton.tip }
     }
 }

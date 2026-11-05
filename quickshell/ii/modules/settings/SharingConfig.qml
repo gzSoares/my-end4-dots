@@ -48,7 +48,7 @@ ContentPage {
 
     component Intro: StyledText {
         Layout.fillWidth: true
-        Layout.bottomMargin: 4
+        Layout.bottomMargin: Appearance.spacing.xs
         color: Appearance.colors.colSubtext
         font.pixelSize: Appearance.font.pixelSize.smaller
         wrapMode: Text.WordWrap
@@ -88,7 +88,7 @@ ContentPage {
             anchors.fill: parent
             anchors.leftMargin: 14
             anchors.rightMargin: 6
-            spacing: 12
+            spacing: Appearance.spacing.md
 
             MaterialSymbol {
                 text: copyRow.iconName
@@ -102,7 +102,7 @@ ContentPage {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     StyledText {
                         text: copyRow.label
@@ -322,7 +322,7 @@ ContentPage {
         ColumnLayout {
             Layout.fillWidth: true
             visible: FileSharing.settingUp
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             StyledIndeterminateProgressBar {
                 Layout.fillWidth: true
@@ -554,8 +554,8 @@ ContentPage {
         ColumnLayout {
             visible: root.changingPassword || FileSharing.passwordMissing
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            spacing: 8
+            Layout.topMargin: Appearance.spacing.xs
+            spacing: Appearance.spacing.sm
 
             MaterialTextField {
                 id: newPasswordField
@@ -583,7 +583,7 @@ ContentPage {
             }
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Item {
                     Layout.fillWidth: true
@@ -617,7 +617,7 @@ ContentPage {
                     contentItem: RowLayout {
                         id: suggestContent
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             text: "casino"
                             iconSize: 14
@@ -641,7 +641,7 @@ ContentPage {
                     contentItem: RowLayout {
                         id: savePasswordContent
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             text: FileSharing.busyAction === "password" ? "hourglass_top" : "lock_reset"
                             iconSize: 14
@@ -659,7 +659,7 @@ ContentPage {
 
         StyledText {
             Layout.fillWidth: true
-            Layout.topMargin: 4
+            Layout.topMargin: Appearance.spacing.xs
             wrapMode: Text.WordWrap
             font.pixelSize: Appearance.font.pixelSize.smaller
             color: Appearance.colors.colSubtext
@@ -703,7 +703,7 @@ ContentPage {
                     anchors.fill: parent
                     anchors.leftMargin: 14
                     anchors.rightMargin: 6
-                    spacing: 12
+                    spacing: Appearance.spacing.md
 
                     MaterialSymbol {
                         text: shareRow.missing ? "folder_off" : "folder"
@@ -779,8 +779,8 @@ ContentPage {
 
         RowLayout {
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            spacing: 8
+            Layout.topMargin: Appearance.spacing.xs
+            spacing: Appearance.spacing.sm
 
             // Nothing is shared on its own. While no folder is served, the
             // Public folder is one click away, unless Files already named one.
@@ -867,7 +867,7 @@ ContentPage {
                 anchors.fill: parent
                 anchors.leftMargin: 14
                 anchors.rightMargin: 6
-                spacing: 12
+                spacing: Appearance.spacing.md
 
                 MaterialSymbol {
                     text: "computer"
@@ -912,8 +912,8 @@ ContentPage {
         ColumnLayout {
             visible: root.renaming
             Layout.fillWidth: true
-            Layout.topMargin: 4
-            spacing: 8
+            Layout.topMargin: Appearance.spacing.xs
+            spacing: Appearance.spacing.sm
 
             MaterialTextField {
                 id: renameField
@@ -941,7 +941,7 @@ ContentPage {
             }
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 Item {
                     Layout.fillWidth: true
@@ -970,7 +970,7 @@ ContentPage {
                     onClicked: FileSharing.rename(renameField.text)
                     contentItem: RowLayout {
                         anchors.centerIn: parent
-                        spacing: 4
+                        spacing: Appearance.spacing.xs
                         MaterialSymbol {
                             text: FileSharing.busyAction === "rename" ? "hourglass_top" : "check"
                             iconSize: 14

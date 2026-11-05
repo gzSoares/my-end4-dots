@@ -739,7 +739,7 @@ ContentPage {
             // ── Per Workspace — centered in its own row ───────────────────────
             Item {
                 Layout.fillWidth: true
-                Layout.topMargin: 16
+                Layout.topMargin: Appearance.spacing.lg
                 implicitHeight: perWsCard.implicitHeight
 
                 MouseArea {
@@ -894,8 +894,8 @@ ContentPage {
 
                     RowLayout {
                         Layout.fillWidth: true
-                        Layout.topMargin: 8
-                        spacing: 8
+                        Layout.topMargin: Appearance.spacing.sm
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol { text: "grid_view"; iconSize: 16; color: Appearance.colors.colSubtext }
                         StyledText {
                             text: Translation.tr("Workspace Layouts")

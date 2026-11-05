@@ -12,7 +12,7 @@ ColumnLayout {
     default property alias contentData: sectionContent.data
 
     Layout.fillWidth: true
-    Layout.topMargin: 4
+    Layout.topMargin: Appearance.spacing.xs
     spacing: 2
 
     RowLayout {

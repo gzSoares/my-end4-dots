@@ -366,7 +366,7 @@ Rectangle {
                 // ── Key/mouse field ───────────────────────────────────────────
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     visible: !root._isMouseMode
                     StyledText {
                         text: Translation.tr("Key")
@@ -384,7 +384,7 @@ Rectangle {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     visible: root._isMouseMode
                     StyledText {
                         text: Translation.tr("Button")
@@ -421,7 +421,7 @@ Rectangle {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     visible: !root._isMouseMode
                     StyledText { text: Translation.tr("Category"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                     StyledComboBox {
@@ -454,7 +454,7 @@ Rectangle {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     StyledText { text: Translation.tr("Action"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                     StyledComboBox {
                         id: actionCombo
@@ -517,7 +517,7 @@ Rectangle {
                 Component {
                     id: cmdComp
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText { text: Translation.tr("Command"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                         MaterialTextField {
                             Layout.fillWidth: true
@@ -531,7 +531,7 @@ Rectangle {
                 Component {
                     id: textComp
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText { text: Translation.tr("Argument"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                         MaterialTextField {
                             Layout.fillWidth: true
@@ -544,7 +544,7 @@ Rectangle {
                 Component {
                     id: optTextComp
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText { text: Translation.tr("Name"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                         MaterialTextField {
                             Layout.fillWidth: true
@@ -561,7 +561,7 @@ Rectangle {
                         spacing: 6
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText { text: Translation.tr("Workspace"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                             StyledComboBox {
                                 Layout.fillWidth: true
@@ -581,7 +581,7 @@ Rectangle {
                         }
                         RowLayout {
                             Layout.fillWidth: true
-                            spacing: 8
+                            spacing: Appearance.spacing.sm
                             StyledText { text: Translation.tr("Custom"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                             MaterialTextField {
                                 Layout.fillWidth: true
@@ -596,7 +596,7 @@ Rectangle {
                 Component {
                     id: fsComp
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText { text: Translation.tr("Mode"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                         StyledComboBox {
                             Layout.fillWidth: true
@@ -654,7 +654,7 @@ Rectangle {
                 Component {
                     id: groupDirComp
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText { text: Translation.tr("Direction"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                         StyledComboBox {
                             Layout.fillWidth: true
@@ -675,7 +675,7 @@ Rectangle {
                 Component {
                     id: dpmsComp
                     RowLayout {
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         StyledText { text: Translation.tr("Action"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                         StyledComboBox {
                             Layout.fillWidth: true
@@ -696,7 +696,7 @@ Rectangle {
                 // ── Bind type ────────────────────────────────────────────────
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     visible: !root._isMouseMode
                     StyledText { text: Translation.tr("Type"); Layout.preferredWidth: 90; color: Appearance.colors.colOnLayer1; font.pixelSize: Appearance.font.pixelSize.small }
                     StyledComboBox {
@@ -725,8 +725,8 @@ Rectangle {
                     border.color: Appearance.colors.colError
                     RowLayout {
                         anchors.fill: parent
-                        anchors.margins: 8
-                        spacing: 8
+                        anchors.margins: Appearance.spacing.sm
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol { text: "warning"; iconSize: 18; color: Appearance.colors.colError }
                         StyledText {
                             id: warnText
@@ -742,8 +742,8 @@ Rectangle {
                 // ── Action buttons ───────────────────────────────────────────
                 RowLayout {
                     Layout.fillWidth: true
-                    Layout.topMargin: 8
-                    spacing: 8
+                    Layout.topMargin: Appearance.spacing.sm
+                    spacing: Appearance.spacing.sm
 
                     Item { Layout.fillWidth: true }
 

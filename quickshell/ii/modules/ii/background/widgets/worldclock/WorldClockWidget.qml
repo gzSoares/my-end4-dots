@@ -110,7 +110,7 @@ AbstractBackgroundWidget {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     MaterialSymbol {
                         iconSize: Appearance.font.pixelSize.hugeass
@@ -306,7 +306,7 @@ AbstractBackgroundWidget {
             // 4x1
             RowLayout {
                 anchors { fill: parent; margins: 0 }
-                spacing: 12
+                spacing: Appearance.spacing.md
                 visible: sizeMode === "4x1"
 
                 Repeater {

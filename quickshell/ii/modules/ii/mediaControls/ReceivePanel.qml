@@ -121,12 +121,12 @@ Item {
         ColumnLayout {
             id: col
             anchors.fill: parent
-            anchors.margins: 12
+            anchors.margins: Appearance.spacing.md
             spacing: 6
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     text: "download"
@@ -181,7 +181,7 @@ Item {
             Component {
                 id: waitingComp
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     StyledText {
                         Layout.fillWidth: true
@@ -222,7 +222,7 @@ Item {
             Component {
                 id: receivingComp
                 ColumnLayout {
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                     Item { Layout.fillHeight: true }
                     StyledText {
                         Layout.fillWidth: true
@@ -247,12 +247,12 @@ Item {
             Component {
                 id: doneComp
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     Item { Layout.fillHeight: true }
                     RowLayout {
                         Layout.alignment: Qt.AlignHCenter
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "check_circle"
                             iconSize: Appearance.font.pixelSize.huge
@@ -290,10 +290,10 @@ Item {
             Component {
                 id: errorComp
                 ColumnLayout {
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
                         MaterialSymbol {
                             text: "error"
                             iconSize: Appearance.font.pixelSize.larger

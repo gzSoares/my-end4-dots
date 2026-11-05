@@ -118,7 +118,7 @@ FocusScope {
             left: parent.left
             right: parent.right
             bottom: parent.bottom
-            margins: 8
+            margins: Appearance.spacing.sm
         }
         height: Math.min(parent.height - 16, root.maxCardHeight)
         radius: Appearance.rounding.normal
@@ -141,13 +141,13 @@ FocusScope {
         ColumnLayout {
             id: contentColumn
             anchors.fill: parent
-            anchors.margins: 12
+            anchors.margins: Appearance.spacing.md
             spacing: 10
 
             // Header Row
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 MaterialSymbol {
                     text: root.icon
@@ -180,7 +180,7 @@ FocusScope {
                 RowLayout {
                     id: headerActionsRow
                     visible: children.length > 0
-                    spacing: 8
+                    spacing: Appearance.spacing.sm
                 }
 
                 RippleButton {

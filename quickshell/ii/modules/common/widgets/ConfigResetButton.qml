@@ -21,7 +21,7 @@ RippleButton {
     contentItem: RowLayout {
         id: resetRow
         anchors.centerIn: parent
-        spacing: 4
+        spacing: Appearance.spacing.xs
         MaterialSymbol {
             text: "restart_alt"
             iconSize: Appearance.font.pixelSize.small

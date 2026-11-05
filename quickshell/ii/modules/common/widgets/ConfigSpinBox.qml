@@ -15,8 +15,8 @@ RowLayout {
     property alias textFromValue: spinBoxWidget.textFromValue
     property alias valueFromText: spinBoxWidget.valueFromText
     spacing: 10
-    Layout.leftMargin: 8
-    Layout.rightMargin: 8
+    Layout.leftMargin: Appearance.spacing.sm
+    Layout.rightMargin: Appearance.spacing.sm
 
     RowLayout {
         spacing: 10

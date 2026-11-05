@@ -13,7 +13,7 @@ ColumnLayout {
     readonly property list<var> appPwNodes: isSink ? Audio.outputAppNodes : Audio.inputAppNodes
     readonly property list<var> devices: isSink ? Audio.outputDevices : Audio.inputDevices
     readonly property bool hasApps: appPwNodes.length > 0
-    spacing: 16
+    spacing: Appearance.spacing.lg
 
     DialogSectionListView {
         Layout.fillHeight: true
@@ -68,13 +68,13 @@ ColumnLayout {
         Layout.bottomMargin: -16
         Layout.leftMargin: -Appearance.rounding.large
         Layout.rightMargin: -Appearance.rounding.large
-        topMargin: 12
-        bottomMargin: 12
+        topMargin: Appearance.spacing.md
+        bottomMargin: Appearance.spacing.md
         leftMargin: 20
         rightMargin: 20
 
         clip: true
-        spacing: 4
+        spacing: Appearance.spacing.xs
         animateAppearance: false
     }
 

@@ -96,11 +96,11 @@ AbstractBackgroundWidget {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     StyledText {
                         Layout.topMargin: -4
-                        Layout.leftMargin: 8
+                        Layout.leftMargin: Appearance.spacing.sm
                         font.pixelSize: Appearance.font.pixelSize.huge
                         font.weight: Font.Medium
                         color: Appearance.colors.colOnPrimaryContainer
@@ -111,7 +111,7 @@ AbstractBackgroundWidget {
                     ToolbarPairedFab {
 
                         anchors.verticalCenter: undefined
-                        Layout.rightMargin: 4
+                        Layout.rightMargin: Appearance.spacing.xs
                         Layout.alignment: Qt.AlignVCenter
                         baseSize: 38
                         iconText: "add"
@@ -161,12 +161,12 @@ AbstractBackgroundWidget {
                                 anchors {
                                     left: parent.left; right: parent.right
                                     verticalCenter: parent.verticalCenter
-                                    leftMargin: 4; rightMargin: 12
+                                    leftMargin: Appearance.spacing.xs; rightMargin: 12
                                 }
-                                spacing: 4
+                                spacing: Appearance.spacing.xs
 
                                 Rectangle {
-                                    Layout.leftMargin: 8
+                                    Layout.leftMargin: Appearance.spacing.sm
                                     Layout.preferredWidth: 26
                                     Layout.preferredHeight: 26
                                     radius: Appearance.rounding.full
@@ -236,7 +236,7 @@ AbstractBackgroundWidget {
 
                 RowLayout {
                     Layout.fillWidth: true
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
 
                     Rectangle {
                         radius: Appearance.rounding.full
@@ -259,7 +259,7 @@ AbstractBackgroundWidget {
                     ToolbarPairedFab {
 
                         anchors.verticalCenter: undefined
-                        Layout.rightMargin: 4
+                        Layout.rightMargin: Appearance.spacing.xs
                         Layout.alignment: Qt.AlignVCenter
                         baseSize: 38
                         iconText: "save"
@@ -276,7 +276,7 @@ AbstractBackgroundWidget {
                     StyledTextArea {
                         id: editTextArea
                         anchors.fill: parent
-                        anchors.margins: 8
+                        anchors.margins: Appearance.spacing.sm
                         text: root.editingText
                         wrapMode: TextArea.Wrap
                         placeholderText: "Type your task..."

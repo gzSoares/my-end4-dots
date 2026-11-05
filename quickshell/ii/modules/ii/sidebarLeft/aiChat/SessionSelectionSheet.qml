@@ -168,7 +168,7 @@ SheetBase {
     // Mode switcher tabs
     RowLayout {
         Layout.fillWidth: true
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         RippleButton {
             Layout.fillWidth: true
@@ -245,7 +245,7 @@ SheetBase {
         visible: root.mode === "save"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         StyledText {
             text: Translation.tr("Enter a name for this session:")
@@ -255,7 +255,7 @@ SheetBase {
 
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             SheetSearchField {
                 id: saveNameField
@@ -285,7 +285,7 @@ SheetBase {
                 contentItem: RowLayout {
                     id: saveConfirmRow
                     anchors.centerIn: parent
-                    spacing: 4
+                    spacing: Appearance.spacing.xs
                     MaterialSymbol {
                         text: "save"
                         iconSize: Appearance.font.pixelSize.normal
@@ -307,7 +307,7 @@ SheetBase {
             font.weight: Font.DemiBold
             color: Appearance.colors.colSubtext
             visible: Ai.savedChats.length > 0
-            Layout.topMargin: 4
+            Layout.topMargin: Appearance.spacing.xs
         }
 
         StyledListView {
@@ -316,7 +316,7 @@ SheetBase {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            spacing: 4
+            spacing: Appearance.spacing.xs
 
             model: ScriptModel {
                 values: root.chatNames
@@ -342,7 +342,7 @@ SheetBase {
                             leftMargin: 10
                             rightMargin: 10
                         }
-                        spacing: 8
+                        spacing: Appearance.spacing.sm
 
                         MaterialSymbol {
                             text: "history"
@@ -386,7 +386,7 @@ SheetBase {
         visible: root.mode === "load"
         Layout.fillWidth: true
         Layout.fillHeight: true
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         SheetSearchField {
             id: searchField
@@ -400,7 +400,7 @@ SheetBase {
             Layout.fillWidth: true
             Layout.fillHeight: true
             clip: true
-            spacing: 4
+            spacing: Appearance.spacing.xs
             visible: root.filteredChats.length > 0 && !root.confirmingLoad
 
             model: ScriptModel {
@@ -429,7 +429,7 @@ SheetBase {
                     anchors {
                         left: parent.left
                         right: deleteButton.left
-                        rightMargin: 4
+                        rightMargin: Appearance.spacing.xs
                         top: parent.top
                         bottom: parent.bottom
                     }
@@ -442,8 +442,8 @@ SheetBase {
                     contentItem: RowLayout {
                         anchors {
                             fill: parent
-                            leftMargin: 12
-                            rightMargin: 12
+                            leftMargin: Appearance.spacing.md
+                            rightMargin: Appearance.spacing.md
                         }
                         spacing: 10
 
@@ -515,7 +515,7 @@ SheetBase {
             Layout.fillWidth: true
             Layout.fillHeight: true
             Layout.alignment: Qt.AlignCenter
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             Item { Layout.fillHeight: true }
 
@@ -538,7 +538,7 @@ SheetBase {
             visible: root.confirmingLoad
             Layout.fillWidth: true
             Layout.fillHeight: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             RowLayout {
                 Layout.fillWidth: true
@@ -576,7 +576,7 @@ SheetBase {
 
             RowLayout {
                 Layout.fillWidth: true
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 SheetPromptButton {
                     iconName: "close"

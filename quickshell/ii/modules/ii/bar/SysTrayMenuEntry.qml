@@ -24,7 +24,7 @@ RippleButton {
     enabled: !menuEntry.isSeparator
     opacity: 1
 
-    horizontalPadding: 12
+    horizontalPadding: Appearance.spacing.md
     implicitWidth: contentItem.implicitWidth + horizontalPadding * 2
     implicitHeight: menuEntry.isSeparator ? 1 : 36
     Layout.topMargin: menuEntry.isSeparator ? 4 : 0
@@ -58,7 +58,7 @@ RippleButton {
             leftMargin: root.horizontalPadding
             rightMargin: root.horizontalPadding
         }
-        spacing: 8
+        spacing: Appearance.spacing.sm
         visible: !root.menuEntry.isSeparator
 
         // Interaction: checkbox or radio button

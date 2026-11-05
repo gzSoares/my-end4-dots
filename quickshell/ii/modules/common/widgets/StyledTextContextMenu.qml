@@ -175,8 +175,8 @@ Menu {
         implicitWidth: 204
         implicitHeight: 34
         padding: 0
-        leftPadding: 8
-        rightPadding: 8
+        leftPadding: Appearance.spacing.sm
+        rightPadding: Appearance.spacing.sm
         topPadding: 0
         bottomPadding: 0
 
@@ -239,10 +239,10 @@ Menu {
 
     component StyledContextMenuSeparator: MenuSeparator {
         implicitHeight: 9
-        topPadding: 4
-        bottomPadding: 4
-        leftPadding: 4
-        rightPadding: 4
+        topPadding: Appearance.spacing.xs
+        bottomPadding: Appearance.spacing.xs
+        leftPadding: Appearance.spacing.xs
+        rightPadding: Appearance.spacing.xs
         contentItem: Rectangle {
             implicitHeight: 1
             color: Appearance.colors.colLayer0Border

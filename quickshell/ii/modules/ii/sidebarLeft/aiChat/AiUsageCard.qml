@@ -220,15 +220,15 @@ Rectangle {
             left: parent.left
             right: parent.right
             verticalCenter: parent.verticalCenter
-            leftMargin: 12
-            rightMargin: 12
+            leftMargin: Appearance.spacing.md
+            rightMargin: Appearance.spacing.md
         }
-        spacing: 8
+        spacing: Appearance.spacing.sm
 
         // Header Row
         RowLayout {
             Layout.fillWidth: true
-            spacing: 8
+            spacing: Appearance.spacing.sm
 
             CustomIcon {
                 id: cIcon
@@ -379,7 +379,7 @@ Rectangle {
                     GeminiUsage.getData();
                 }
 
-                spacing: 8
+                spacing: Appearance.spacing.sm
 
                 UsageMeter {
                     label: Translation.tr("Session")

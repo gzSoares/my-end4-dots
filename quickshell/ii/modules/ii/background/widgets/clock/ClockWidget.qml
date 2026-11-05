@@ -164,7 +164,7 @@ AbstractBackgroundWidget {
         Behavior on opacity {
             animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
         }
-        spacing: 4
+        spacing: Appearance.spacing.xs
         MaterialSymbol {
             id: statusIconWidget
             anchors.verticalCenter: statusTextRow.verticalCenter

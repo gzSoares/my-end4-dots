@@ -21,8 +21,8 @@ import qs.modules.common.widgets
 RowLayout {
     id: root
     spacing: 10
-    Layout.leftMargin: 8
-    Layout.rightMargin: 8
+    Layout.leftMargin: Appearance.spacing.sm
+    Layout.rightMargin: Appearance.spacing.sm
 
     property string text: ""
     property string buttonIcon: ""
@@ -188,7 +188,7 @@ RowLayout {
                 }
 
                 y: parent.height + 4
-                margins: 8
+                margins: Appearance.spacing.sm
                 padding: 10
                 enter: Transition { PropertyAnimation { properties: "opacity"; to: 1; duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
                 exit:  Transition { PropertyAnimation { properties: "opacity"; to: 0; duration: Appearance.animation.elementMoveFast.duration; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animation.elementMoveFast.bezierCurve } }
@@ -357,8 +357,8 @@ RowLayout {
             // character code needs just enough for itself and the cursor. The
             // insets hold room for a floating label there is none of, and
             // dropping them lets the drawn box fill the control it is given.
-            leftPadding: 8
-            rightPadding: 8
+            leftPadding: Appearance.spacing.sm
+            rightPadding: Appearance.spacing.sm
             topInset: 0
             bottomInset: 0
             Layout.preferredHeight: pickButton.height
