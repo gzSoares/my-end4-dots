@@ -1,18 +1,12 @@
-=== scrolloverview build @ 2026-10-04 20:06:59 ===
-Hyprland:      (hyprctl unavailable)
-pkg-config:    hyprland 0.56.2
-Plugin commit: 9c1f89f
----
-rm -f ./scrolloverview.so .build/PluginVersion.hpp
 sh scripts/generate-plugin-version.sh .build/PluginVersion.hpp .
-g++ -shared -fPIC -fno-gnu-unique -I.build main.cpp Config.cpp DropIndicator.cpp NativeDrag.cpp OverviewGesture.cpp OverviewManager.cpp OverviewPassElement.cpp OverviewRender.cpp Window.cpp scrollOverview.cpp -o scrolloverview.so -g `pkg-config --cflags pixman-1 libdrm hyprland pangocairo libinput libudev wayland-server xkbcommon 'lua5.4 >= 5.4' gdk-pixbuf-2.0` `pkg-config --libs gdk-pixbuf-2.0` -std=c++2b -Wno-narrowing
+g++ -shared -fPIC -fno-gnu-unique -I.build main.cpp Config.cpp DropIndicator.cpp NativeDrag.cpp OffscreenCapture.cpp ScrollingCompatibility.cpp WorkspaceClip.cpp OverviewGesture.cpp OverviewManager.cpp OverviewPassElement.cpp OverviewRender.cpp Window.cpp scrollOverview.cpp -o scrolloverview.so -g `pkg-config --cflags pixman-1 libdrm hyprland pangocairo libinput libudev wayland-server xkbcommon 'lua5.4 >= 5.4' gdk-pixbuf-2.0` `pkg-config --libs gdk-pixbuf-2.0` -std=c++2b -Wno-narrowing
 Config.cpp: In function ‘void ScrollOverview::Config::registerGesture(TGestureRegistrar, TGestureKeyword)’:
-Config.cpp:382:34: warning: ‘bool HyprlandAPI::addConfigKeyword(void*, const std::string&, Hyprlang::PCONFIGHANDLERFUNC, Hyprlang::SHandlerOptions)’ is deprecated [-Wdeprecated-declarations]
-  382 |     HyprlandAPI::addConfigKeyword(SCROLLOVERVIEW_HANDLE, "scrolloverview-gesture", gestureKeyword, {});
+Config.cpp:383:34: warning: ‘bool HyprlandAPI::addConfigKeyword(void*, const std::string&, Hyprlang::PCONFIGHANDLERFUNC, Hyprlang::SHandlerOptions)’ is deprecated [-Wdeprecated-declarations]
+  383 |     HyprlandAPI::addConfigKeyword(SCROLLOVERVIEW_HANDLE, "scrolloverview-gesture", gestureKeyword, {});
       |     ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-In file included from globals.hpp:3,
+In file included from globals.hpp:4,
                  from Config.hpp:3,
                  from Config.cpp:1:
-/usr/include/hyprland/src/plugins/PluginAPI.hpp:151:33: note: declared here
-  151 |     APICALL [[deprecated]] bool addConfigKeyword(HANDLE handle, const std::string& name, Hyprlang::PCONFIGHANDLERFUNC fn, Hyprlang::SHandlerOptions opts);
+/usr/include/hyprland/src/plugins/PluginAPI.hpp:153:33: note: declared here
+  153 |     APICALL [[deprecated]] bool addConfigKeyword(HANDLE handle, const std::string& name, Hyprlang::PCONFIGHANDLERFUNC fn, Hyprlang::SHandlerOptions opts);
       |                                 ^~~~~~~~~~~~~~~~
