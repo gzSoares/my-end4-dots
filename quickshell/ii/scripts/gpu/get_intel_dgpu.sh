@@ -47,7 +47,8 @@ if command -v lspci >/dev/null 2>&1; then
   desc="$(LC_ALL=C lspci -s "$bdf" 2>/dev/null || true)"
   if [[ -n "$desc" ]]; then
     # Extract Arc model (A770, A750, etc.)
-    if [[ "$desc" =~ Arc[^(]+ ]]; then
+    re_arc='Arc[^(]+'
+    if [[ "$desc" =~ $re_arc ]]; then
       gpu_name=$(echo "${BASH_REMATCH[0]}" | xargs)
     elif [[ "$desc" =~ \[([^\]]*Arc[^\]]*)\] ]]; then
       gpu_name="${BASH_REMATCH[1]}"

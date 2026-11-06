@@ -87,9 +87,10 @@ if command -v lspci >/dev/null 2>&1; then
   desc="$(LC_ALL=C lspci -s "$bdf" 2>/dev/null || true)"
   if [[ -n "$desc" ]]; then
     # Extract Radeon Graphics or similar
+    re_radeon='Radeon[^(]+'
     if [[ "$desc" =~ \[([^\]]*Radeon[^\]]*)\] ]]; then
       gpu_name="${BASH_REMATCH[1]}"
-    elif [[ "$desc" =~ Radeon[^(]+ ]]; then
+    elif [[ "$desc" =~ $re_radeon ]]; then
       gpu_name="${BASH_REMATCH[0]}"
     fi
   fi

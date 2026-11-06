@@ -82,7 +82,7 @@
       "user": "windows",
       "domain": "",
       "group": "",
-      "display": "fit",
+      "display": "custom",
       "width": 1920,
       "height": 1080,
       "multimon": false,
@@ -96,7 +96,7 @@
       "gateway": "",
       "gatewayUser": "",
       "extraArgs": "",
-      "lastConnected": 0,
+      "lastConnected": 1794005970,
       "source": "remmina:/home/geazi/.local/share/remmina/group_rdp_windows11_127-0-0-1.remmina",
       "id": "222071e6539a"
     }

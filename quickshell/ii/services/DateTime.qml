@@ -74,9 +74,11 @@ Singleton {
     }
 
     Timer {
-        interval: 10
+        // Uptime is shown in minutes, so once a minute is enough (it was 10 ms = 100x/s).
+        interval: 60000
         running: true
         repeat: true
+        triggeredOnStart: true
         onTriggered: {
             fileUptime.reload();
             const textUptime = fileUptime.text();

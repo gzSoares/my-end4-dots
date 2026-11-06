@@ -48,7 +48,8 @@ if command -v lspci >/dev/null 2>&1; then
   desc="$(LC_ALL=C lspci -s "$bdf" 2>/dev/null || true)"
   if [[ -n "$desc" ]]; then
     # Extract graphics name (Iris Xe, UHD Graphics, etc.)
-    if [[ "$desc" =~ (Iris[^(]+|UHD Graphics[^(]*) ]]; then
+    re_name='(Iris[^](]+|UHD Graphics[^](]*)'
+    if [[ "$desc" =~ $re_name ]]; then
       gpu_name=$(echo "${BASH_REMATCH[0]}" | xargs)
     fi
   fi
