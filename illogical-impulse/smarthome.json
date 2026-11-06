@@ -1,0 +1,13 @@
+{
+  "syncWallpaper": false,
+  "devices": [
+    {
+      "name": "EWS 409",
+      "id": "eb418fd3e6000c2ac5vlnb",
+      "key": "Xj6Xlo8l&QgnN*w+",
+      "ip": "192.168.0.4",
+      "version": 3.3
+    }
+  ],
+  "importedFrom": "/home/geazi/.config/tinytuya/devices.json"
+}

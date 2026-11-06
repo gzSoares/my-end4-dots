@@ -9,11 +9,6 @@
 -- hl.env("GLFW_IM_MODULE", "ibus")
 -- hl.env("INPUT_METHOD", "fcitx")
 
--- Wayland
--- Tearing
--- hl.env("WLR_DRM_NO_ATOMIC", "1")
--- hl.env("WLR_NO_HARDWARE_CURSORS", "1")
-
 -- Editor
 -- hl.env("EDITOR", "vim")
 
@@ -32,13 +27,21 @@ hl.config({
     },
 })
 
-hl.env("LIBVA_DRIVER_NAME", "nvidia")
 hl.env("XDG_SESSION_TYPE", "wayland")
-hl.env("__GLX_VENDOR_LIBRARY_NAME", "nvidia")
-hl.env("WLR_NO_HARDWARE_CURSORS", "1")
-hl.env("GEMINI_API_KEY", "AQ.Ab8RN6IObVo6AcZYxvdHu4aFZUiWOPctQl0AcLVOKMwmpvNdqw")
-hl.env("DEEPSEEK_API_KEY", "sk-595760eb6f2b4f64b0227cdf5866de8e")
-hl.env("OPENROUTER_API_KEY", "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")
-hl.env("HERMES_API_KEY", "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")
+
+-- Removed (hybrid Intel + MX450 laptop):
+--   LIBVA_DRIVER_NAME=nvidia and __GLX_VENDOR_LIBRARY_NAME=nvidia forced every
+--   app to render/decode video on the MX450 while the screen is driven by the
+--   Intel GPU, so each frame had to be copied between GPUs (and the dGPU never
+--   slept). Use `prime-run <app>` for the apps that should run on the NVIDIA.
+--   WLR_NO_HARDWARE_CURSORS is a wlroots variable; Hyprland ignores it.
+
+-- Hermes (non-secret settings)
 hl.env("HERMES_URL", "http://127.0.0.1:8642")
 hl.env("HERMES_MODEL", "hermes-agent")
+
+-- API keys live in custom/secrets.lua, which is NOT committed (see .gitignore).
+local ok, err = pcall(require, "custom.secrets")
+if not ok and not tostring(err):match("module .- not found") then
+    print("[custom/env.lua] custom/secrets.lua errored: " .. tostring(err))
+end

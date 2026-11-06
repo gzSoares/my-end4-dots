@@ -1,3 +1,4 @@
+import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.services
@@ -15,7 +16,17 @@ RippleButton {
     property var tasksForDay: []
     property bool hasEvents: false
     property var eventsForDay: []
+    property var date: null          // full Date of this cell (null for the weekday header)
     readonly property int todoMargin: 5
+
+    // Left click: open the Agenda app on this day. Right click: quick popup with the day's items.
+    function openInAgenda() {
+        if (!button.date)
+            return;
+        Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "agenda", "openDate", Qt.formatDate(button.date, "yyyy-MM-dd")]);
+        GlobalStates.sidebarLeftOpen = false;
+        GlobalStates.sidebarRightOpen = false;
+    }
 
     Layout.fillWidth: true
     Layout.fillHeight: false
@@ -183,13 +194,20 @@ RippleButton {
             MouseArea {
                 anchors.fill: parent
                 hoverEnabled: false
-                onClicked: {
-                    if (button.tasksForDay.length > 0 || button.eventsForDay.length > 0) {
-                        if (dayPopUp.opened)
-                            dayPopUp.close();
-                        else
-                            dayPopUp.open();
+                enabled: button.date !== null
+                cursorShape: Qt.PointingHandCursor
+                acceptedButtons: Qt.LeftButton | Qt.RightButton
+                onClicked: mouse => {
+                    if (mouse.button === Qt.RightButton) {
+                        if (button.tasksForDay.length > 0 || button.eventsForDay.length > 0) {
+                            if (dayPopUp.opened)
+                                dayPopUp.close();
+                            else
+                                dayPopUp.open();
+                        }
+                        return;
                     }
+                    button.openInAgenda();
                 }
             }
 

@@ -1,7 +1,15 @@
 -- ######## Window rules ########
 
--- Disable blur for xwayland context menus
+-- Blur off by default (xwayland menus glitch with it); the apps listed right
+-- below opt back in. Later rules win, so keep the opt-ins under this line.
 hl.window_rule({match = {class = ".*", title = ".*"}, no_blur = true })
+
+-- Quickshell windows (settings, screenshot/video editor, recorder) are translucent
+hl.window_rule({match = {class = "^(org.quickshell)$"}, no_blur = false})
+
+-- Apps that get blur: add the class of whatever you want here
+-- (see it with: hyprctl clients | grep class)
+hl.window_rule({match = {class = "^(kitty|foot|Alacritty|org.kde.dolphin|org.kde.konsole)$"}, no_blur = false})
 
 -- Floating dialogs (consolidated: center + float + size where applicable)
 hl.window_rule({match = {title = "^(Open File)(.*)$" },                      center = true, float = true})

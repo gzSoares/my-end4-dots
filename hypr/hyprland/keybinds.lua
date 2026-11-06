@@ -287,7 +287,8 @@ hl.bind("CTRL + SUPER + SHIFT + ALT + W", hl.dsp.exec_cmd(officeSoftware), {desc
 hl.bind("SUPER + X", hl.dsp.exec_cmd(textEditor), {description = "Text editor"} )
 hl.bind("CTRL + SUPER + V", hl.dsp.exec_cmd(volumeMixer), {description = "Volume mixer"} )
 hl.bind("SUPER + I", hl.dsp.exec_cmd(settingsApp), {description = "Settings app"} )
-hl.bind("CTRL + SHIFT + Escape", hl.dsp.exec_cmd(taskManager), {description = "Task manager"} )
+--hl.bind("CTRL + SHIFT + Escape", hl.dsp.exec_cmd(taskManager), {description = "Task manager"} )
+hl.bind("CTRL + SHIFT + Escape", hl.dsp.exec_cmd("qs -c ii ipc call sysmonitor toggle"), {description = "System Monitor"} )
 
 --##! Utilities
 --# Screenshot, Record, OCR, Color picker, Clipboard history

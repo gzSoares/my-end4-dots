@@ -24,6 +24,12 @@ import qs.modules.ii.overlay
 import qs.modules.ii.verticalBar
 import qs.modules.ii.wallpaperSelector
 import qs.modules.spotlight
+import qs.modules.sysmonitor
+import qs.modules.audiomixer
+import qs.modules.containers
+import qs.modules.agenda
+import qs.modules.smarthome
+import qs.modules.remote
 
 Scope {
     PanelLoader { extraCondition: !Config.options.bar.vertical; component: Bar {} }
@@ -54,4 +60,11 @@ Scope {
     PanelLoader { component: Spotlight {} }
     PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
     PanelLoader { component: WallpaperSelector {} }
+
+    SysMonitor {}
+    AudioMixer {}
+    ContainersApp {}
+    AgendaApp {}
+    SmartHomeApp {}
+    RemoteApp {}
 }

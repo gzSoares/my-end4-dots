@@ -56,6 +56,8 @@ hl.layer_rule({
     ignore_alpha = 0.3,
 })
 
+hl.window_rule({ match = { class = "^(kitty|foot|Alacritty|org.kde.dolphin|org.kde.konsole)$" }, no_blur = false })
+
 -- Phone tab (scrcpy windows the left sidebar embeds or opens)
 hl.window_rule({match = {title = "^(ii-phone-unlock)$" },                    float = true})
 -- Apps opened from the Phone tab (Android Apps): one scrcpy window per app,

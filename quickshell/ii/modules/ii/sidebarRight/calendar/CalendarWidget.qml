@@ -18,6 +18,20 @@ Item {
     // width: calendarColumn.width
     implicitHeight: calendarColumn.height + 10 * 2
 
+    // Full Date for a grid cell. Cells outside the viewed month (today === -1)
+    // belong to the previous month (high day numbers) or the next one (low numbers).
+    function cellDate(cell) {
+        if (!cell || cell.day === undefined)
+            return null;
+        const d = parseInt(cell.day);
+        if (isNaN(d))
+            return null;
+        let m = viewingDate.getMonth();
+        if (cell.today === -1)
+            m += (d > 15 ? -1 : 1);
+        return new Date(viewingDate.getFullYear(), m, d);
+    }
+
     // Snap the view back to the current month each time the right sidebar
     // closes, so reopening it always lands on today rather than wherever
     // the user scrolled to last time. Cheap (just resets an int).
@@ -169,6 +183,7 @@ Item {
                         property var cellData: calendarLayout[modelData][index]
                         day: cellData.day
                         isToday: cellData.today
+                        date: cellDate(cellData)
                         hasTasks: Todo.list.length >= 0 && cellData.year !== undefined && Todo.hasTasksForDate(cellData.year, cellData.month, cellData.monthDay)
                         tasksForDay: Todo.list.length >= 0 && cellData.year !== undefined ? Todo.getTasksForDate(cellData.year, cellData.month, cellData.monthDay) : []
                         hasEvents: CalendarEvents.eventsByDate && cellData.year !== undefined && CalendarEvents.hasEventsForDate(cellData.year, cellData.month, cellData.monthDay)

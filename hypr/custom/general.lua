@@ -1,21 +1,9 @@
--- Your own general overrides.
---
--- Sourced after the shipped config, so anything set here wins. This file is
--- written once when Mainstream is installed and never touched again, which is
--- what makes it safe to edit.
---
--- Plugin loading and plugin settings used to live here and have moved to
--- hyprland/plugins.lua, because they are the project's own machinery rather
--- than anybody's overrides, and kept here they only ever reached new installs.
---
--- Example:
---   hl.config({ general = { gaps_in = 6 } })
-
--- BEGIN keyboard-layouts (managed by Settings)
 hl.config({ input = { kb_layout = "br", kb_variant = "" } })
--- END keyboard-layouts
 
-hl.config({ decoration = { blur = { size = 14, passes = 3 } } })
+-- Blur: size 14 / passes 3 was very expensive at 2560x1440@170 (every blurred
+-- surface re-samples the background dozens of times per pixel, 170x a second).
+-- size 7 / passes 2 looks almost the same and costs a fraction of it.
+hl.config({ decoration = { blur = { size = 7, passes = 2 } } })
 
 hl.config({
   render = {

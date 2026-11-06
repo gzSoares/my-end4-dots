@@ -3,6 +3,7 @@ import qs.modules.common.functions
 import qs.services
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 
 MouseArea {
     id: root
@@ -12,7 +13,7 @@ MouseArea {
     implicitHeight: Appearance.sizes.baseBarHeight
     hoverEnabled: !Config.options.bar.tooltips.clickToShow
     acceptedButtons: Qt.LeftButton
-    onClicked: Session.launchTaskManager()
+    onClicked: Quickshell.execDetached(["qs", "-c", "ii", "ipc", "call", "sysmonitor", "toggle"])
 
     RowLayout {
         id: rowLayout
