@@ -23,6 +23,9 @@ Singleton {
     property string status: "idle"
     property var slots: []
 
+    // Seconds the lyrics run ahead of the player's own position
+    readonly property real lead: 0.25
+
     readonly property int before: 10
     readonly property int after:  10
     readonly property int total:  21
@@ -89,7 +92,9 @@ Singleton {
     }
 
     function syncToPosition() {
-        const pos = root.activePlayer?.position ?? 0
+        // A line is shown a little before it is sung: the position arrives a
+        // moment late, and the line takes a moment to move into place.
+        const pos = (root.activePlayer?.position ?? 0) + root.lead
         let idx = -1
         for (let i = 0; i < root.lyricsLines.length; i++) {
             if (root.lyricsLines[i].time <= pos) idx = i
@@ -178,13 +183,19 @@ Singleton {
         onTriggered: if (!settleTimer.running) root.lookUp()
     }
 
+    // The player's position is only read again when asked to be (it does not
+    // arrive by itself), so asking here is what keeps the lyrics in step;
+    // waiting for another view to ask left them up to a second behind.
     Timer {
         id: syncTimer
-        interval: 300
+        interval: 200
         repeat: true
         running: root.shown && root.status === "ok" && root.lyricsLines.length > 0
             && (root.activePlayer?.isPlaying ?? false)
-        onTriggered: root.syncToPosition()
+        onTriggered: {
+            root.activePlayer?.positionChanged()
+            root.syncToPosition()
+        }
     }
 
     // A seek while paused moves the lyrics too.

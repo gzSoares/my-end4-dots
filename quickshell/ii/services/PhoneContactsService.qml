@@ -5,6 +5,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Hyprland
+import qs
 import qs.modules.common
 import qs.modules.common.functions
 import qs.services
@@ -95,6 +96,10 @@ Singleton {
             KdeConnectService.dispatchActionFeedback(Translation.tr("ADB is not reachable. Enable Wireless Debugging / USB Debugging."), false)
             return
         }
+        if (Config.options?.phone?.contacts?.callDirectly ?? true) {
+            PhoneCallService.dial(number)
+            return
+        }
         root._startIntent("android.intent.action.DIAL", "tel:" + encodeURIComponent(number),
             Translation.tr("Opening dialer for %1…").arg(number))
     }
@@ -129,14 +134,14 @@ Singleton {
 
     /** Opens the chat in WhatsApp Web. When a window already showing WhatsApp
      *  exists it is focused and sent to the chat's address, rather than the
-     *  browser opening one more window (and WhatsApp Web insisting it is
-     *  already open somewhere else). With no such window, or no `wtype` to
-     *  drive it, the default browser opens the link. */
+     *  browser opening one more tab (and WhatsApp Web insisting it is already
+     *  open somewhere else). */
     function openWhatsApp(number: string): void {
         root.openWhatsAppWithText(number, "")
     }
 
-    /** Same, with `text` already typed into the message box of the chat. */
+    /** Same, with `text` typed into the chat's message box and, unless turned
+     *  off in the settings, sent. */
     function openWhatsAppWithText(number: string, text: string): void {
         const n = root.whatsappNumber(number)
         if (n.length === 0) return
@@ -144,25 +149,20 @@ Singleton {
         const url = "https://web.whatsapp.com/send?phone=" + n
             + (message.length > 0 ? "&text=" + encodeURIComponent(message) : "")
 
+        // An open sidebar holds the keyboard (its focus grab), so keystrokes
+        // meant for the browser landed in the sidebar's own message box. Let
+        // it go unless it is pinned, which does not take the keyboard.
+        if (!GlobalStates.sidebarLeftPinned) GlobalStates.sidebarLeftOpen = false
+
         const existing = (HyprlandData.windowList || []).find(w =>
             w && String(w.title || "").startsWith("WhatsApp") && w.address)
-        if (existing) {
-            Hyprland.dispatch(`hl.dsp.focus({window = "address:${existing.address}"})`)
-            // Waits for the focus to land, selects the address bar, pastes the
-            // link and presses Enter. Pasting instead of typing: typed
-            // characters raced the address bar taking focus, and whatever
-            // arrived early landed in the page or in a browser search. The
-            // link reaches the script as an argument, never inside the
-            // command text. Without wtype or wl-copy the browser just opens it.
-            Quickshell.execDetached(["bash", "-c",
-                'command -v wtype >/dev/null && command -v wl-copy >/dev/null || { xdg-open "$1"; exit 0; }; '
-                + 'printf %s "$1" | wl-copy; '
-                + 'sleep 0.5; wtype -M ctrl -k l -m ctrl; sleep 0.4; '
-                + 'wtype -M ctrl -k v -m ctrl; sleep 0.25; wtype -k Return',
-                "_", url])
-        } else {
-            Quickshell.execDetached(["xdg-open", url])
-        }
+        const autoSend = message.length > 0 && (Config.options?.phone?.contacts?.whatsappAutoSend ?? true)
+        const delay = Math.max(1, Number(Config.options?.phone?.contacts?.whatsappSendDelay ?? 6))
+        // The script checks that WhatsApp is the focused window before every
+        // keystroke, and falls back to opening the link in the browser
+        Quickshell.execDetached(["bash",
+            FileUtils.trimFileProtocol(Quickshell.shellPath("scripts/phone/whatsapp-send.sh")),
+            url, autoSend ? "1" : "0", String(delay), existing ? String(existing.address) : ""])
         KdeConnectService.dispatchActionFeedback(Translation.tr("Opening WhatsApp for %1…").arg(number), true)
     }
 

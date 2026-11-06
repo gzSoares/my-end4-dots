@@ -112,7 +112,7 @@ RowLayout {
             // corner Qt paints in C++ at the extra small scale and offers no
             // property for. Matching it by value is what lets the swatch, the
             // field and the button read as one control instead of three.
-            radius: 4
+            radius: Appearance.rounding.fit(4)
             color: root.displayValue
             // Half a pixel, so the outline reads as a hairline holding the
             // swatch in rather than a line drawn around it.

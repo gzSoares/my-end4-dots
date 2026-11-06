@@ -65,7 +65,7 @@ Item {
         implicitWidth: root.showDescription ? contentRow.implicitWidth + padding * 2 : implicitHeight
         clip: true
 
-        topLeftRadius: 6
+        topLeftRadius: Appearance.rounding.fit(6)
         bottomLeftRadius: implicitHeight - topLeftRadius
         bottomRightRadius: bottomLeftRadius
         topRightRadius: bottomLeftRadius

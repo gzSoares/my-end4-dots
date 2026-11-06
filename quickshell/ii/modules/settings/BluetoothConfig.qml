@@ -148,7 +148,7 @@ Item {
                         Layout.alignment: Qt.AlignHCenter
                         implicitWidth: 72
                         implicitHeight: 72
-                        radius: 36
+                        radius: Appearance.rounding.fit(36)
                         color: Appearance.colors.colLayer3
 
                         MaterialSymbol {

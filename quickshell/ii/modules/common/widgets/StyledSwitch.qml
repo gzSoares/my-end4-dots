@@ -28,7 +28,7 @@ Switch {
     background: Rectangle {
         width: parent.width
         height: parent.height
-        radius: Appearance?.rounding.full ?? 9999
+        radius: Math.min(height / 2, Appearance?.rounding.full ?? 9999)
         color: root.checked ? root.activeColor : root.inactiveColor
         border.width: 2 * root.scale
         border.color: root.checked ? root.activeColor : Appearance.m3colors.m3outline

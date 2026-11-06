@@ -257,6 +257,8 @@ Singleton {
             notif.dismiss()
         })
         root.discardAll();
+        // Phone notifications also leave the left sidebar's Phone tab and the phone itself
+        KdeConnectService.discardAllNotifications();
     }
 
     function cancelTimeout(id) {

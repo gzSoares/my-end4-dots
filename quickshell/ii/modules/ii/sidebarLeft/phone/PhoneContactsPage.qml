@@ -199,7 +199,7 @@ Rectangle {
                                         }
                                         onClicked: PhoneContactsService.openDialer(modelData.value)
                                         StyledToolTip {
-                                            text: Translation.tr("Open dialer on phone")
+                                            text: (Config.options?.phone?.contacts?.callDirectly ?? true) ? Translation.tr("Call") : Translation.tr("Open dialer on phone")
                                         }
                                     }
 
@@ -587,7 +587,7 @@ Rectangle {
                                             id: favAvatarBox
                                             Layout.preferredWidth: 38
                                             Layout.preferredHeight: 38
-                                            radius: 19
+                                            radius: Appearance.rounding.fit(19)
                                             color: Appearance.colors.colPrimary
                                             clip: true
 
@@ -798,7 +798,7 @@ Rectangle {
                                     id: listAvatarBox
                                     Layout.preferredWidth: 38
                                     Layout.preferredHeight: 38
-                                    radius: 19
+                                    radius: Appearance.rounding.fit(19)
                                     color: Appearance.colors.colPrimaryContainer
                                     clip: true
 
@@ -945,5 +945,14 @@ Rectangle {
                 }
             }
         }
+    }
+
+    // The call placed from here stays in reach while the list is open
+    PhoneCallCard {
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: Appearance.spacing.md
+        z: 10
     }
 }

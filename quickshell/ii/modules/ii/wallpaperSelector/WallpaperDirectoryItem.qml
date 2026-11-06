@@ -162,7 +162,7 @@ MouseArea {
             }
             width: 26
             height: 26
-            radius: 13
+            radius: Appearance.rounding.fit(13)
             color: Appearance.colors.colPrimary
 
             MaterialSymbol {
@@ -184,7 +184,7 @@ MouseArea {
             }
             width: 26
             height: 26
-            radius: 13
+            radius: Appearance.rounding.fit(13)
             color: "#99000000"
 
             MaterialSymbol {

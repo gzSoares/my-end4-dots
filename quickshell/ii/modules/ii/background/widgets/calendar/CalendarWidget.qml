@@ -122,7 +122,7 @@ AbstractBackgroundWidget {
 
         implicitWidth: 28
         implicitHeight: 28
-        radius: 14
+        radius: Appearance.rounding.fit(14)
         color: isToday ? Appearance.colors.colPrimary : "transparent"
 
         StyledText {
@@ -286,7 +286,7 @@ AbstractBackgroundWidget {
                             Rectangle {
                                 anchors.centerIn: parent
                                 width: 28; height: 28
-                                radius: 14
+                                radius: Appearance.rounding.fit(14)
                                 color: modelData.isToday ? Appearance.colors.colPrimary : "transparent"
 
                                 StyledText {

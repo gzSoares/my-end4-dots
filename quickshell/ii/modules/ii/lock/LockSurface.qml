@@ -216,7 +216,7 @@ MouseArea {
                         }
                         width: badgeText.visible ? Math.max(badgeText.implicitWidth + 4, 16) : 10
                         height: badgeText.visible ? Math.max(badgeText.implicitHeight + 2, 16) : 10
-                        radius: height / 2
+                        radius: Math.min(height / 2, Appearance.rounding.full)
                         color: Appearance.colors.colError
                         z: 10
                         
@@ -502,7 +502,7 @@ MouseArea {
                 maskSource: Rectangle {
                     width: passwordBox.width - 8
                     height: passwordBox.height
-                    radius: height / 2
+                    radius: Math.min(height / 2, Appearance.rounding.full)
                 }
             }
 

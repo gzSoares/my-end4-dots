@@ -68,7 +68,7 @@ Rectangle {
         implicitHeight: 36
         Rectangle {
             anchors.fill: parent
-            radius: 18
+            radius: Appearance.rounding.fit(18)
             color: qrMouse.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
             Behavior on color {
                 animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
@@ -193,7 +193,7 @@ Rectangle {
                             id: securityBadge
                             width: securityRow.implicitWidth + 12
                             height: 20
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             color: Appearance.colors.colPrimary
                             opacity: 0.15
                         }
@@ -228,7 +228,7 @@ Rectangle {
                             id: openBadge
                             width: openRow.implicitWidth + 12
                             height: 20
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             color: Appearance.colors.colTertiary
                             opacity: 0.2
                         }
@@ -263,7 +263,7 @@ Rectangle {
                             id: freqBadge
                             width: freqText.implicitWidth + 12
                             height: 20
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             color: Appearance.colors.colOnLayer2
                             opacity: 0.1
                         }
@@ -316,7 +316,7 @@ Rectangle {
                 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 18
+                    radius: Appearance.rounding.fit(18)
                     color: disconnectMouseArea.containsMouse ? Appearance.colors.colErrorHover : Appearance.colors.colError
                     
                     Behavior on color {
@@ -348,7 +348,7 @@ Rectangle {
 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 18
+                    radius: Appearance.rounding.fit(18)
                     color: cancelMouseArea.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
 
                     Behavior on color {
@@ -380,7 +380,7 @@ Rectangle {
                 
                 Rectangle {
                     anchors.fill: parent
-                    radius: 18
+                    radius: Appearance.rounding.fit(18)
                     color: deleteMouseArea.containsMouse ? Appearance.colors.colErrorHover : Appearance.colors.colLayer3
                     
                     Behavior on color {
@@ -495,7 +495,7 @@ Rectangle {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
+                        radius: Appearance.rounding.fit(18)
                         color: expandedDisconnectMouse.containsMouse ? Appearance.colors.colErrorHover : Appearance.colors.colError
                         
                         Behavior on color {
@@ -532,7 +532,7 @@ Rectangle {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
+                        radius: Appearance.rounding.fit(18)
                         color: forgetMouseArea.containsMouse ? Appearance.colors.colErrorHover : Appearance.colors.colError
                         
                         Behavior on color {

@@ -12,7 +12,7 @@ RippleButton {
     property real size: 120
     readonly property real sizeFactor: size / 120
 
-    buttonRadius: (button.focus || button.down) ? size / 2 : Appearance.rounding.verylarge * sizeFactor
+    buttonRadius: (button.focus || button.down) ? Math.min(size / 2, Appearance.rounding.full) : Appearance.rounding.verylarge * sizeFactor
     colBackground: button.keyboardDown ? Appearance.colors.colSecondaryContainerActive : 
         button.focus ? Appearance.colors.colPrimary : 
         Appearance.colors.colSecondaryContainer

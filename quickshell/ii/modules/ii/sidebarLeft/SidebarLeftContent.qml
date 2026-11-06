@@ -10,6 +10,7 @@ import QtQuick.Layouts
 import Qt5Compat.GraphicalEffects
 import Qt.labs.synchronizer
 import "phone"
+import "discord"
 
 Item {
     id: root
@@ -161,6 +162,10 @@ Item {
         PageLoader {
             pageId: "phone"
             sourceComponent: Phone {}
+        },
+        PageLoader {
+            pageId: "discord"
+            sourceComponent: DiscordChat {}
         },
         PageLoader {
             pageId: "calendarTodo"

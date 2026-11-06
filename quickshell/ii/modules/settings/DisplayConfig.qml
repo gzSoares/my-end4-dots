@@ -3215,7 +3215,7 @@ except Exception:
                             Rectangle {
                                 implicitWidth: iccBadgeTxt.implicitWidth + 14
                                 implicitHeight: iccBadgeTxt.implicitHeight + 6
-                                radius: height / 2
+                                radius: Math.min(height / 2, Appearance.rounding.full)
                                 color: Appearance.colors.colLayer3
                                 border.width: 1
                                 border.color: Appearance.colors.colOutlineVariant
@@ -3313,7 +3313,7 @@ except Exception:
                                         Rectangle {
                                             anchors.centerIn: parent
                                             width: 8; height: 8
-                                            radius: 4
+                                            radius: Appearance.rounding.fit(4)
                                             color: monitorSection.monColor
                                             visible: iccProfileRow.isActive
                                         }

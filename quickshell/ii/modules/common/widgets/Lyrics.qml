@@ -51,7 +51,7 @@ Item {
     readonly property int reach: {
         const room = root.height;
         const line = size => size * 1.5 + linesColumn.spacing;
-        let used = line(Appearance.font.pixelSize.large);
+        let used = line(Appearance.font.pixelSize.huge);
         const centerIndex = Math.floor(linesColumn.maxLines / 2);
         for (let d = 1; d <= LyricsService.before; d++) {
             used += 2 * line(d === 1 ? Appearance.font.pixelSize.normal : Appearance.font.pixelSize.small);
@@ -121,7 +121,7 @@ Item {
 
         // Dynamic number of lines based on available height
         readonly property int maxLines: {
-            const lineHeight = Appearance.font.pixelSize.large * 1.5 + linesColumn.spacing;
+            const lineHeight = Appearance.font.pixelSize.huge * 1.5 + linesColumn.spacing;
             const smallLineHeight = Appearance.font.pixelSize.small * 1.5 + linesColumn.spacing;
             let lines = 1; // center line
             let used = lineHeight;
@@ -148,17 +148,17 @@ Item {
                 readonly property int centerIndex: Math.floor(linesColumn.maxLines / 2)
                 readonly property int dist: Math.abs(index - centerIndex)
                 font.pixelSize: {
-                    if (dist === 0) return Appearance.font.pixelSize.large
+                    if (dist === 0) return Appearance.font.pixelSize.huge
                     if (dist === 1) return Appearance.font.pixelSize.normal
                     if (dist === 2) return Appearance.font.pixelSize.small
                     return Appearance.font.pixelSize.smaller
                 }
-                font.weight: dist === 0 ? Font.DemiBold : Font.Normal
+                font.weight: dist === 0 ? Font.Bold : Font.Normal
                 opacity: {
                     if (dist === 0) return 1
-                    if (dist === 1) return 0.88
-                    if (dist === 2) return 0.72
-                    return 0.5
+                    if (dist === 1) return 0.62
+                    if (dist === 2) return 0.45
+                    return 0.32
                 }
                 color: dist === 0 ? root.activeColor : root.textColor
                 Behavior on opacity { NumberAnimation { duration: 250; easing.type: Easing.OutCubic } }

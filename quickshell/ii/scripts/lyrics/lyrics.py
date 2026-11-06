@@ -138,9 +138,17 @@ def fetch_lrclib(title: str, artist: str, duration: float) -> list:
             return _parse_lrc(record["syncedLyrics"])
     results = _get("search", {"track_name": title, "artist_name": artist}, user_agent)
     if isinstance(results, list):
-        record = next((r for r in results if _is_match(r, title, artist)), None)
-        if record:
-            return _parse_lrc(record["syncedLyrics"])
+        candidates = [r for r in results if _is_match(r, title, artist)]
+        if candidates:
+            # The same song comes in several versions (remaster, live, radio
+            # edit) whose lines sit at different times, so the first hit can
+            # run seconds off. Prefer the exact title, then the version whose
+            # length is closest to the one playing.
+            def rank(r):
+                exact = (r.get("trackName") or "").strip().lower() == title.strip().lower()
+                gap = abs(float(r.get("duration") or 0) - duration) if duration > 0 and r.get("duration") else 999
+                return (0 if exact else 1, gap)
+            return _parse_lrc(min(candidates, key=rank)["syncedLyrics"])
     return []
 
 

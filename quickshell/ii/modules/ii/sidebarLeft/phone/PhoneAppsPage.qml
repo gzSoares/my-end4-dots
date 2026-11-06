@@ -340,7 +340,7 @@ Rectangle {
                             Rectangle {
                                 Layout.preferredWidth: 10
                                 Layout.preferredHeight: 10
-                                radius: 5
+                                radius: Appearance.rounding.fit(5)
                                 color: Appearance.colors.colSuccess ?? "#4CAF50"
                             }
 

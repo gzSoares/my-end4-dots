@@ -225,6 +225,7 @@ TranslucentAppWindow {
                 Layout.leftMargin: Appearance.spacing.md
                 Layout.rightMargin: Appearance.spacing.md
                 enableShadow: false
+                colBackground: "transparent"   // buttons float straight over the window's blur
                 spacing: 2
 
                 ToolbarSymbolButton {

@@ -199,7 +199,7 @@ OverlayBackground {
 
                         implicitHeight: lineHeight
                         implicitWidth: lineHeight
-                        buttonRadius: height / 2
+                        buttonRadius: Math.min(height / 2, Appearance.rounding.full)
                         y: modelData.y
                         anchors.right: parent.right
                         anchors.rightMargin: 10

@@ -1126,6 +1126,8 @@ Singleton {
             }
         }
         root.notifications = []
+        // Same click empties the right sidebar's "Phone" section too
+        Notifications.discardPhoneNotifications()
     }
 
     function discardNotification(publicId) {

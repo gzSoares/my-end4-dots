@@ -71,6 +71,39 @@ Singleton {
         root._key(25);   // KEYCODE_VOLUME_DOWN
     }
 
+    /** Places a call from here: ADB starts it on the phone with no dialer in between. The
+     *  sound stays on the phone. The state is set at once so the call card shows; the first
+     *  poll can still say "idle" before the phone has gone off-hook, so idle is ignored for
+     *  a few seconds, and a call that never starts then closes the card by itself. */
+    function dial(number: string): void {
+        if (!number)
+            return;
+        if (!KdeConnectService.activeReachable) {
+            KdeConnectService.dispatchActionFeedback(Translation.tr("Phone is not connected or reachable"), false);
+            return;
+        }
+        if (!KdeConnectService.adbReachable) {
+            KdeConnectService.dispatchActionFeedback(Translation.tr("ADB is not reachable. Enable Wireless Debugging / USB Debugging."), false);
+            return;
+        }
+        if (root.callState !== "idle") {
+            KdeConnectService.dispatchActionFeedback(Translation.tr("A call is already in progress"), false);
+            return;
+        }
+        root._simulated = false;
+        root.number = number;
+        root.contactName = "";
+        root._graceUntil = Date.now() + 8000;
+        root._setState("talking");
+        KdeConnectService.withAdbTarget(targetArgs => {
+            Quickshell.execDetached(["adb"].concat(targetArgs || [])
+                .concat(["shell", "am", "start", "-a", "android.intent.action.CALL",
+                         "-d", "tel:" + encodeURIComponent(number)]));
+        });
+    }
+
+    property double _graceUntil: 0
+
     function _key(code) {
         Quickshell.execDetached(["adb"].concat(KdeConnectService.adbTargetArgs())
             .concat(["shell", "input", "keyevent", String(code)]));
@@ -109,6 +142,7 @@ Singleton {
         root.callState = next;
         root.stateSince = Date.now();
         if (next === "idle") {
+            root._graceUntil = 0;
             root.adbLive = false;
             root._simulated = false;
             root._failedPolls = 0;
@@ -156,7 +190,8 @@ Singleton {
             root._failedPolls = 0;
             switch (match[1]) {
             case "0":
-                root._setState("idle");
+                if (Date.now() >= root._graceUntil)
+                    root._setState("idle");
                 break;
             case "1":
                 root._setState("ringing");

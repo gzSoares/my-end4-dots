@@ -38,7 +38,10 @@ Rectangle {
 
     // Grows with the selected panel (a running session adds its facts and
     // controls), capped so notifications keep some room; past it, it scrolls.
-    readonly property real expandedHeight: Math.min(440, Math.max(282, (panelLoader.item?.contentHeight ?? 0) + 20))
+    // The floor is what the side rail (collapse button + three tabs) needs, so
+    // short panels leave no empty band below them.
+    readonly property real railHeight: collapseButton.height + tabBar.implicitHeight + 2 * Appearance.spacing.sm + Appearance.spacing.md
+    readonly property real expandedHeight: Math.min(440, Math.max(railHeight, (panelLoader.item?.contentHeight ?? 0) + 20))
     readonly property real collapsedHeight: collapsedRow.implicitHeight + 16
     readonly property bool collapsed: Persistent.states.sidebar.policies.phone.peripherals.collapsed
     readonly property int selectedTab: Math.max(0, Math.min(2, Persistent.states.sidebar.policies.phone.peripherals.tab))
@@ -253,7 +256,7 @@ Rectangle {
 
             NavigationRailTabArray {
                 id: tabBar
-                anchors.verticalCenter: parent.verticalCenter
+                anchors.bottom: parent.bottom
                 anchors.left: parent.left
                 currentIndex: root.selectedTab
                 Repeater {

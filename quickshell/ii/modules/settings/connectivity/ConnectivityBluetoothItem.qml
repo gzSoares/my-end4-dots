@@ -110,7 +110,7 @@ Rectangle {
                         
                         Rectangle {
                             anchors.fill: parent
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             color: root.isConnected ? Appearance.colors.colPrimary : Appearance.colors.colOnLayer2
                             opacity: root.isConnected ? 0.2 : 0.1
                         }
@@ -235,7 +235,7 @@ Rectangle {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
+                        radius: Appearance.rounding.fit(18)
                         color: pairMouseArea.containsMouse ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary
                         
                         Behavior on color {
@@ -276,7 +276,7 @@ Rectangle {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
+                        radius: Appearance.rounding.fit(18)
                         color: connectMouseArea.containsMouse ? Appearance.colors.colPrimaryHover : Appearance.colors.colPrimary
                         
                         Behavior on color {
@@ -318,7 +318,7 @@ Rectangle {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
+                        radius: Appearance.rounding.fit(18)
                         color: disconnectMouseArea.containsMouse ? Appearance.colors.colLayer3Hover : Appearance.colors.colLayer3
                         
                         Behavior on color {
@@ -359,7 +359,7 @@ Rectangle {
                     
                     Rectangle {
                         anchors.fill: parent
-                        radius: 18
+                        radius: Appearance.rounding.fit(18)
                         color: forgetMouseArea.containsMouse ? Appearance.colors.colErrorHover : Appearance.colors.colError
                         
                         Behavior on color {

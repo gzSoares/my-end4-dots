@@ -169,7 +169,7 @@ MouseArea { // Notification group area
                 buttonRadius: Appearance.rounding.full
                 colBackground: "transparent"
                 colBackgroundHover: Appearance.colors.colLayer2Hover
-                onClicked: Notifications.discardPhoneNotifications()
+                onClicked: KdeConnectService.discardAllNotifications()
                 contentItem: MaterialSymbol {
                     anchors.centerIn: parent
                     horizontalAlignment: Text.AlignHCenter

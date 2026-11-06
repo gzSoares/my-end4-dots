@@ -404,13 +404,13 @@ MouseArea {
                     onNavigateToDirectory: path => {
                         Wallpapers.setDirectory(path.length == 0 ? "/" : path);
                     }
-                    radius: height / 2
+                    radius: Math.min(height / 2, Appearance.rounding.full)
                 }
 
                 Rectangle {
                     implicitWidth: viewToggleRow.implicitWidth + 8
                     implicitHeight: 40
-                    radius: height / 2
+                    radius: Math.min(height / 2, Appearance.rounding.full)
                     color: Appearance.colors.colLayer1
 
                     Row {
@@ -428,7 +428,7 @@ MouseArea {
                                 required property var modelData
                                 implicitWidth: 36
                                 implicitHeight: 32
-                                buttonRadius: height / 2
+                                buttonRadius: Math.min(height / 2, Appearance.rounding.full)
                                 toggled: root.viewMode === viewButton.modelData.mode
                                 colBackgroundToggled: Appearance.colors.colSecondaryContainer
                                 colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
@@ -478,7 +478,7 @@ MouseArea {
                     required property var modelData
                     implicitHeight: 36
                     implicitWidth: chipContent.implicitWidth + 28
-                    buttonRadius: height / 2
+                    buttonRadius: Math.min(height / 2, Appearance.rounding.full)
                     toggled: Wallpapers.directory === Qt.resolvedUrl(chip.modelData.path)
                     colBackgroundToggled: Appearance.colors.colSecondaryContainer
                     colBackgroundToggledHover: Appearance.colors.colSecondaryContainerHover
@@ -593,7 +593,7 @@ MouseArea {
                     visible: root.itemCount > 0
                     implicitHeight: 40
                     implicitWidth: applyContent.implicitWidth + 32
-                    buttonRadius: height / 2
+                    buttonRadius: Math.min(height / 2, Appearance.rounding.full)
                     colBackground: Appearance.colors.colPrimary
                     colBackgroundHover: Appearance.colors.colPrimaryHover
                     colRipple: Appearance.colors.colPrimaryActive

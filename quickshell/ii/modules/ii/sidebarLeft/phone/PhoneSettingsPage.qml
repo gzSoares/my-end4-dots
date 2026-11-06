@@ -200,6 +200,22 @@ Item {
                     textField.onEditingFinished: Config.options.phone.contacts.whatsappAreaCode = textField.text.trim()
                     tooltip: Translation.tr("Added only to numbers saved without an area code (8 or 9 digits), so the WhatsApp chat opens. Your contacts are never changed.")
                 }
+                ToggleRow {
+                    symbol: "send"
+                    title: Translation.tr("Send WhatsApp messages automatically")
+                    help: Translation.tr("A message typed in a contact's message box is sent once WhatsApp Web has loaded the chat. Turn off to only have it waiting in the chat.")
+                    enabled: Config.options.phone.contacts.enabled
+                    checked: Config.options.phone.contacts.whatsappAutoSend
+                    onToggled: value => Config.options.phone.contacts.whatsappAutoSend = value
+                }
+                ToggleRow {
+                    symbol: "call"
+                    title: Translation.tr("Call directly from the contact list")
+                    help: Translation.tr("The call button dials the number at once and shows the call here, with hang up. Turn off to only open the dialer on the phone. The sound stays on the phone.")
+                    enabled: Config.options.phone.contacts.enabled
+                    checked: Config.options.phone.contacts.callDirectly
+                    onToggled: value => Config.options.phone.contacts.callDirectly = value
+                }
             }
 
             // ── Connection ──

@@ -271,7 +271,7 @@ ContentPage {
                 Rectangle {
                     id: avatarCircle
                     implicitWidth: 38; implicitHeight: 38
-                    radius: 19
+                    radius: Appearance.rounding.fit(19)
                     color: account.isCurrent ? Appearance.colors.colPrimary : Appearance.colors.colLayer3
                     layer.enabled: faceImage.status === Image.Ready
                     layer.effect: OpacityMask {

@@ -11,7 +11,7 @@ ComboBox {
     id: root
 
     property string buttonIcon: ""
-    property real buttonRadius: height / 2
+    property real buttonRadius: Math.min(height / 2, Appearance.rounding.full)
     property color colBackground: Appearance.colors.colSecondaryContainer
     property color colBackgroundHover: Appearance.colors.colSecondaryContainerHover
     property color colBackgroundActive: Appearance.colors.colSecondaryContainerActive

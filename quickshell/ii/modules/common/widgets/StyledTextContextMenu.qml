@@ -215,7 +215,7 @@ Menu {
                 visible: itemRoot.shortcutHint !== ""
                 implicitWidth: shortcutText.implicitWidth + 10
                 implicitHeight: 20
-                radius: 4
+                radius: Appearance.rounding.fit(4)
                 color: itemRoot.hovered ? Appearance.colors.colLayer2 : Appearance.colors.colLayer1
                 opacity: itemRoot.enabled ? 0.8 : 0.3
 

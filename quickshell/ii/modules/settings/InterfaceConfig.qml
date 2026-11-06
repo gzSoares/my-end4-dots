@@ -766,6 +766,50 @@ ContentPage {
                     ]
                 }
             }
+            ColumnLayout {
+                Layout.alignment: Qt.AlignTop
+                ContentSubsectionLabel {
+                    text: Translation.tr("Chat (Discord voice)")
+                }
+                ConfigSelectionArray {
+                    currentValue: Config.options.sidebar.discord.enable ? 1 : 0
+                    onSelected: newValue => {
+                        Config.options.sidebar.discord.enable = (newValue === 1);
+                    }
+                    options: [
+                        { displayName: Translation.tr("No"),  icon: "close", value: 0 },
+                        { displayName: Translation.tr("Yes"), icon: "check", value: 1 }
+                    ]
+                }
+            }
+        }
+
+        ContentSubsection {
+            visible: Config.options.sidebar.discord.enable
+            title: Translation.tr("Discord voice")
+
+            StyledText {
+                Layout.fillWidth: true
+                wrapMode: Text.Wrap
+                text: Translation.tr("Needs the official Discord app running. Create an app at discord.com/developers, add http://127.0.0.1 under OAuth2 > Redirects, add your account as a tester under App Testers, then paste its Client ID and Client Secret here. Discord asks you once to allow it. Only voice is used: no messages are read or sent, and your account token is never touched.")
+                font.pixelSize: Appearance.font.pixelSize.smaller
+                color: Appearance.colors.colSubtext
+            }
+            ConfigTextField {
+                text: Translation.tr("Client ID")
+                icon: "badge"
+                placeholderText: "123456789012345678"
+                inputText: Config.options.sidebar.discord.clientId
+                textField.onEditingFinished: Config.options.sidebar.discord.clientId = textField.text.trim()
+            }
+            ConfigTextField {
+                text: Translation.tr("Client Secret")
+                icon: "key"
+                placeholderText: Translation.tr("Kept in your local config only")
+                inputText: Config.options.sidebar.discord.clientSecret
+                textField.echoMode: TextInput.Password
+                textField.onEditingFinished: Config.options.sidebar.discord.clientSecret = textField.text.trim()
+            }
         }
 
         ContentSubsection {

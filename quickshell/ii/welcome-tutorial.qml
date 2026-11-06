@@ -832,7 +832,7 @@ ApplicationWindow {
                     visible: tile.status.length > 0
                     implicitWidth: statusText.implicitWidth + 14
                     implicitHeight: statusText.implicitHeight + 4
-                    radius: height / 2
+                    radius: Math.min(height / 2, Appearance.rounding.full)
                     color: tile.locked ? Appearance.colors.colLayer3 : Appearance.colors.colPrimaryContainer
                     StyledText {
                         id: statusText
@@ -1054,7 +1054,7 @@ ApplicationWindow {
                     visible: installCard.picks.length > 0
                     implicitWidth: Math.max(implicitHeight, countText.implicitWidth + 12)
                     implicitHeight: 22
-                    radius: height / 2
+                    radius: Math.min(height / 2, Appearance.rounding.full)
                     color: Appearance.colors.colPrimary
                     StyledText {
                         id: countText
@@ -1265,8 +1265,8 @@ ApplicationWindow {
             anchors.right: parent.right
             height: appWin.titleBarH
             color: "#F0F0F4"
-            topLeftRadius: 8
-            topRightRadius: 8
+            topLeftRadius: Appearance.rounding.fit(8)
+            topRightRadius: Appearance.rounding.fit(8)
             bottomLeftRadius: 0
             bottomRightRadius: 0
 
@@ -1353,7 +1353,7 @@ ApplicationWindow {
             anchors.rightMargin: Appearance.spacing.sm
             anchors.bottomMargin: Appearance.spacing.sm
             anchors.topMargin: 2
-            radius: 6
+            radius: Appearance.rounding.fit(6)
             color: ColorUtils.transparentize(Appearance.colors.colLayer2, 0.35)
             clip: true
 
@@ -1418,7 +1418,7 @@ ApplicationWindow {
             width: (hi - lo) * card.barSlotW + card.barSlotW - 2 * card.barIndicatorInset
             height: card.barSlotW - 2 * card.barIndicatorInset
             y: (card.barSlotH - height) / 2
-            radius: height / 2
+            radius: Math.min(height / 2, Appearance.rounding.full)
             color: Appearance.m3colors.m3primary
             opacity: 0.9
         }
@@ -2114,13 +2114,13 @@ ApplicationWindow {
                 y: thumb.height * modelData[1]
                 width: thumb.width * modelData[2]
                 height: thumb.height * modelData[3]
-                radius: 6
+                radius: Appearance.rounding.fit(6)
                 color: Appearance.colors.colLayer3Base
                 Rectangle {
                     width: parent.width
                     height: 14
-                    topLeftRadius: 6
-                    topRightRadius: 6
+                    topLeftRadius: Appearance.rounding.fit(6)
+                    topRightRadius: Appearance.rounding.fit(6)
                     color: Appearance.colors.colLayer2Base
                 }
             }
@@ -2204,7 +2204,7 @@ ApplicationWindow {
             anchors.fill: parent
             visible: (demo.trigger === "default" || demo.trigger === "scrolloverview") && demo.openT > 0
             source: desktopCopy
-            radius: 64
+            radius: Appearance.rounding.fit(64)
             opacity: demo.openT
         }
 
@@ -2259,7 +2259,7 @@ ApplicationWindow {
                             required property int index
                             width: gridPanel.parent.tileW
                             height: gridPanel.parent.tileH
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             color: Appearance.colors.colSurfaceContainerLow
                             border.width: index === 0 ? 2 : 0
                             border.color: Appearance.colors.colSecondary
@@ -2392,7 +2392,7 @@ ApplicationWindow {
         Rectangle {
             width: paper.width * 0.78
             height: paper.height * 0.2
-            radius: height / 2
+            radius: Math.min(height / 2, Appearance.rounding.full)
             x: paper.width * 0.4
             y: paper.height * 0.12
             rotation: -30
@@ -2897,7 +2897,7 @@ ApplicationWindow {
             id: paperBlur
             anchors.fill: parent
             source: bds.wallpaper
-            radius: 48
+            radius: Appearance.rounding.fit(48)
             cached: true
             visible: false
         }
@@ -3350,7 +3350,7 @@ ApplicationWindow {
             id: backdropBlur
             anchors.fill: parent
             source: stage.wallpaper
-            radius: 64
+            radius: Appearance.rounding.fit(64)
             cached: true
             visible: false
         }
@@ -4313,7 +4313,7 @@ ApplicationWindow {
                     Rectangle {
                         id: card2Mockup
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -4410,7 +4410,7 @@ ApplicationWindow {
                                                 Rectangle {
                                                     width: parent.width
                                                     height: card2.tileBarH
-                                                    radius: 4
+                                                    radius: Appearance.rounding.fit(4)
                                                     color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
                                                     Rectangle {
                                                         x: 4
@@ -4610,7 +4610,7 @@ ApplicationWindow {
                     Rectangle {
                         id: card6Mockup
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -4721,7 +4721,7 @@ ApplicationWindow {
                                                     Rectangle {
                                                         width: parent.width
                                                         height: card6.tileBarH
-                                                        radius: 4
+                                                        radius: Appearance.rounding.fit(4)
                                                         color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.5)
                                                         Rectangle {
                                                             x: 4
@@ -4891,7 +4891,7 @@ ApplicationWindow {
                                             maskSource: Rectangle {
                                                 width: thumbContainer.width
                                                 height: thumbContainer.height
-                                                radius: 6
+                                                radius: Appearance.rounding.fit(6)
                                             }
                                         }
                                     }
@@ -5450,7 +5450,7 @@ ApplicationWindow {
                     Rectangle {
                         id: deskMockup
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -5849,7 +5849,7 @@ readonly property var drawerApps: root.drawerApps
                     Rectangle {
                         id: mockup7
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -5928,7 +5928,7 @@ readonly property var drawerApps: root.drawerApps
                                     y: 3
                                     width: card4.appDropped ? parent.width - 6 : parent.width / 2 - 4
                                     height: parent.height - 6
-                                    radius: 4
+                                    radius: Appearance.rounding.fit(4)
                                     color: card4.demoWindowColor
                                     Behavior on width {
                                         NumberAnimation { duration: 320; easing.type: Easing.InOutQuad }
@@ -5940,8 +5940,8 @@ readonly property var drawerApps: root.drawerApps
                                         anchors.right: parent.right
                                         height: parent.height * 0.28
                                         color: card4.demoWindowBarColor
-                                        topLeftRadius: 4
-                                        topRightRadius: 4
+                                        topLeftRadius: Appearance.rounding.fit(4)
+                                        topRightRadius: Appearance.rounding.fit(4)
                                         bottomLeftRadius: 0
                                         bottomRightRadius: 0
                                         Rectangle {
@@ -5974,7 +5974,7 @@ readonly property var drawerApps: root.drawerApps
                                     y: 3
                                     width: parent.width / 2 - 4
                                     height: parent.height - 6
-                                    radius: 4
+                                    radius: Appearance.rounding.fit(4)
                                     color: card4.demoWindowColor
                                     opacity: card4.appDropped
                                         ? 0
@@ -5989,8 +5989,8 @@ readonly property var drawerApps: root.drawerApps
                                         anchors.right: parent.right
                                         height: parent.height * 0.28
                                         color: card4.demoWindowBarColor
-                                        topLeftRadius: 4
-                                        topRightRadius: 4
+                                        topLeftRadius: Appearance.rounding.fit(4)
+                                        topRightRadius: Appearance.rounding.fit(4)
                                         bottomLeftRadius: 0
                                         bottomRightRadius: 0
                                         Rectangle {
@@ -6021,7 +6021,7 @@ readonly property var drawerApps: root.drawerApps
                                     visible: parent.isTarget
                                     anchors.fill: parent
                                     anchors.margins: 3
-                                    radius: 5
+                                    radius: Appearance.rounding.fit(5)
                                     color: card4.demoWindowColor
                                     transformOrigin: Item.Center
                                     opacity: (parent.isTarget && card4.appDropped) ? 1.0 : 0.0
@@ -6035,8 +6035,8 @@ readonly property var drawerApps: root.drawerApps
                                         anchors.right: parent.right
                                         height: parent.height * 0.28
                                         color: card4.demoWindowBarColor
-                                        topLeftRadius: 5
-                                        topRightRadius: 5
+                                        topLeftRadius: Appearance.rounding.fit(5)
+                                        topRightRadius: Appearance.rounding.fit(5)
                                         bottomLeftRadius: 0
                                         bottomRightRadius: 0
                                         Rectangle {
@@ -6066,7 +6066,7 @@ readonly property var drawerApps: root.drawerApps
                                     visible: parent.isChromeTarget
                                     anchors.fill: parent
                                     anchors.margins: 3
-                                    radius: 5
+                                    radius: Appearance.rounding.fit(5)
                                     color: card4.demoWindowColor
                                     transformOrigin: Item.Center
                                     opacity: (parent.isChromeTarget && card4.chromeDropped) ? 1.0 : 0.0
@@ -6080,8 +6080,8 @@ readonly property var drawerApps: root.drawerApps
                                         anchors.right: parent.right
                                         height: parent.height * 0.28
                                         color: card4.demoWindowBarColor
-                                        topLeftRadius: 5
-                                        topRightRadius: 5
+                                        topLeftRadius: Appearance.rounding.fit(5)
+                                        topRightRadius: Appearance.rounding.fit(5)
                                         bottomLeftRadius: 0
                                         bottomRightRadius: 0
                                         Rectangle {
@@ -6494,7 +6494,7 @@ readonly property var drawerApps: root.drawerApps
                     Rectangle {
                         id: mockup8
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -6780,7 +6780,7 @@ readonly property var drawerApps: root.drawerApps
                     Rectangle {
                         id: mockup
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -6791,7 +6791,7 @@ readonly property var drawerApps: root.drawerApps
                             x: 10; y: 8
                             width: parent.width - 20
                             height: card3.barH - 6
-                            radius: height / 2
+                            radius: Math.min(height / 2, Appearance.rounding.full)
                             color: ColorUtils.transparentize(Appearance.colors.colLayer1, 0.35)
                         }
 
@@ -6899,8 +6899,8 @@ readonly property var drawerApps: root.drawerApps
                                 anchors.right: parent.right
                                 height: 30
                                 color: "#F0F0F4"
-                                topLeftRadius: 8
-                                topRightRadius: 8
+                                topLeftRadius: Appearance.rounding.fit(8)
+                                topRightRadius: Appearance.rounding.fit(8)
                                 bottomLeftRadius: 0
                                 bottomRightRadius: 0
 
@@ -6910,7 +6910,7 @@ readonly property var drawerApps: root.drawerApps
                                     anchors.leftMargin: 10
                                     width: 110
                                     height: parent.height - 8
-                                    radius: 5
+                                    radius: Appearance.rounding.fit(5)
                                     color: "#FFFFFF"
                                     border.color: "#D0D0D5"
                                     border.width: 1
@@ -7028,7 +7028,7 @@ readonly property var drawerApps: root.drawerApps
                                 Rectangle {
                                     width: parent.width
                                     height: 22
-                                    radius: 4
+                                    radius: Appearance.rounding.fit(4)
                                     color: "transparent"
                                     Row {
                                         anchors.left: parent.left
@@ -7322,7 +7322,7 @@ readonly property var drawerApps: root.drawerApps
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -7437,7 +7437,7 @@ readonly property var drawerApps: root.drawerApps
                                         y: (card5.barSlotH - height) / 2
                                         width: card5.barSlotW - 2 * card5.barIndicatorInset
                                         height: card5.barSlotW - 2 * card5.barIndicatorInset
-                                        radius: height / 2
+                                        radius: Math.min(height / 2, Appearance.rounding.full)
                                         color: Appearance.m3colors.m3primary
                                         opacity: 0.9
                                         z: 2
@@ -8181,7 +8181,7 @@ readonly property var drawerApps: root.drawerApps
 
                     Rectangle {
                         anchors.fill: parent
-                        radius: 14
+                        radius: Appearance.rounding.fit(14)
                         color: "#0e0e12"
                         border.color: ColorUtils.transparentize(Appearance.colors.colOutline, 0.6)
                         border.width: 1
@@ -8242,7 +8242,7 @@ readonly property var drawerApps: root.drawerApps
                                                 maskSource: Rectangle {
                                                     width: appWindow12.width
                                                     height: appWindow12.height
-                                                    radius: 10
+                                                    radius: Appearance.rounding.fit(10)
                                                 }
                                             }
                                         }
@@ -8273,7 +8273,7 @@ readonly property var drawerApps: root.drawerApps
                                 layer.effect: DropShadow {
                                     horizontalOffset: 0
                                     verticalOffset: 8
-                                    radius: 26
+                                    radius: Appearance.rounding.fit(26)
                                     samples: 53
                                     color: "#cc000000"
                                 }

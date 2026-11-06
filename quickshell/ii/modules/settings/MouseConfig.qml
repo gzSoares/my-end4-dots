@@ -712,7 +712,7 @@ ContentPage {
                                     y: 2
                                     width: 28
                                     height: 52
-                                    radius: 14
+                                    radius: Appearance.rounding.fit(14)
                                     color: !root.naturalScroll ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
                                     border.width: 1
                                     border.color: !root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
@@ -1006,7 +1006,7 @@ ContentPage {
                                     y: 2
                                     width: 28
                                     height: 52
-                                    radius: 14
+                                    radius: Appearance.rounding.fit(14)
                                     color: root.naturalScroll ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
                                     border.width: 1
                                     border.color: root.naturalScroll ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
@@ -1359,7 +1359,7 @@ ContentPage {
                                     y: 2
                                     width: 52
                                     height: 50
-                                    radius: 6
+                                    radius: Appearance.rounding.fit(6)
                                     color: !root.naturalScrollTP ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
                                     border.width: 1
                                     border.color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
@@ -1387,7 +1387,7 @@ ContentPage {
                                         y: 24
                                         width: 10
                                         height: 13
-                                        radius: 5
+                                        radius: Appearance.rounding.fit(5)
                                         color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                                         opacity: 0.75
                                     }
@@ -1397,7 +1397,7 @@ ContentPage {
                                         y: 24
                                         width: 10
                                         height: 13
-                                        radius: 5
+                                        radius: Appearance.rounding.fit(5)
                                         color: !root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                                         opacity: 0.75
                                     }
@@ -1666,7 +1666,7 @@ ContentPage {
                                     y: 2
                                     width: 52
                                     height: 50
-                                    radius: 6
+                                    radius: Appearance.rounding.fit(6)
                                     color: root.naturalScrollTP ? Qt.rgba(Appearance.colors.colPrimary.r, Appearance.colors.colPrimary.g, Appearance.colors.colPrimary.b, 0.18) : Appearance.colors.colLayer3
                                     border.width: 1
                                     border.color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colOutlineVariant
@@ -1685,7 +1685,7 @@ ContentPage {
                                         y: 8
                                         width: 10
                                         height: 13
-                                        radius: 5
+                                        radius: Appearance.rounding.fit(5)
                                         color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                                         opacity: 0.75
                                     }
@@ -1695,7 +1695,7 @@ ContentPage {
                                         y: 8
                                         width: 10
                                         height: 13
-                                        radius: 5
+                                        radius: Appearance.rounding.fit(5)
                                         color: root.naturalScrollTP ? Appearance.colors.colPrimary : Appearance.colors.colSubtext
                                         opacity: 0.75
                                     }

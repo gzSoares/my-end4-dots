@@ -15,6 +15,7 @@ Singleton {
         { id: "ai", icon: "neurology", name: Translation.tr("AI Assistant"), enabled: Config.options.policies.ai !== 0 },
         { id: "calendarTodo", icon: "calendar_month", name: Translation.tr("Calendar / ToDo"), enabled: Config.options.sidebar.calendarTodo?.enable ?? false },
         { id: "phone", icon: "smartphone", name: Translation.tr("Phone"), enabled: Config.options.policies.phone !== 0 },
+        { id: "discord", icon: "headset_mic", name: Translation.tr("Chat"), enabled: Config.options.sidebar.discord?.enable ?? false },
         { id: "media", icon: "music_note", name: Translation.tr("Media"), enabled: Config.options.sidebar.media.enable },
         { id: "translator", icon: "translate", name: Translation.tr("Translator"), enabled: Config.options.sidebar.translator.enable },
         { id: "anime", icon: "bookmark_heart", name: Translation.tr("Anime"), enabled: Config.options.policies.weeb !== 0 }

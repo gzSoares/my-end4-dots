@@ -448,8 +448,10 @@ Item {
                     visible: root.showLyrics && parent.height >= 24
                     active: root.shown
                     textAlignment: Text.AlignHCenter
-                    textColor: root.blendedColors.colOnLayer0
-                    activeColor: root.blendedColors.colPrimary
+                    // The line being sung is the brightest thing here; the rest
+                    // recede in the quieter text colour
+                    textColor: root.blendedColors.colSubtext
+                    activeColor: root.blendedColors.colOnLayer0
                     dimColor: root.blendedColors.colSubtext
                     indicatorColor: root.artDominantColor
                     indicatorShapeColor: root.blendedColors.colPrimary
@@ -557,7 +559,7 @@ Item {
                         implicitHeight: root.playSize
                         enabled: MprisController.canTogglePlaying
                         // Rounded square while playing, a pill at rest
-                        buttonRadius: root.isPlaying ? Appearance.rounding.large : root.playSize / 2
+                        buttonRadius: root.isPlaying ? Appearance.rounding.large : Math.min(root.playSize / 2, Appearance.rounding.full)
                         colBackground: root.isPlaying ? root.blendedColors.colPrimary : root.blendedColors.colSecondaryContainer
                         colBackgroundHover: root.isPlaying ? root.blendedColors.colPrimaryHover : root.blendedColors.colSecondaryContainerHover
                         colRipple: root.isPlaying ? root.blendedColors.colPrimaryActive : root.blendedColors.colSecondaryContainerActive

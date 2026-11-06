@@ -249,7 +249,7 @@ Item {
         // segments of one stadium and become chips sharing a container, so
         // they round on every corner instead of only at the ends.
         property bool wrapped: false
-        readonly property real endRadius: implicitHeight / 2
+        readonly property real endRadius: Math.min(implicitHeight / 2, Appearance.rounding.full)
         property real leftRadius: tok.wrapped ? Appearance.rounding.small : (tok.roundLeft ? endRadius : Appearance.rounding.unsharpenmore)
         property real rightRadius: tok.wrapped ? Appearance.rounding.small : (tok.roundRight ? endRadius : Appearance.rounding.unsharpenmore)
         Behavior on leftRadius { animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this) }

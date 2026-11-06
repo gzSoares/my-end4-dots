@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Hyprland
 import qs.modules.common.functions
 pragma Singleton
 pragma ComponentBehavior: Bound
@@ -1134,17 +1135,68 @@ Singleton {
         readonly property color borderColor: root.colors.colOutlineVariant
     }
 
+    // Corner roundness (Settings > Decorations) is Hyprland's decoration:rounding.
+    // Every radius below follows it, so one slider shapes the windows, the
+    // panels and the buttons alike. It is asked of the compositor at start,
+    // after a config reload and shortly after the Decorations page writes.
+    property int _hyprRounding: -1
+    readonly property int cornerRoundness: _hyprRounding >= 0 ? _hyprRounding : windowRoundingStock
+    // The radius the tokens were drawn for, and what the scale is taken from
+    readonly property int windowRoundingStock: 18
+    // Control roundness (Window shape) shapes every radius in the shell, in
+    // the same px as Corner roundness; -1 follows Corner roundness. The app
+    // windows keep Corner roundness alone (rounding.windowRounding).
+    readonly property real shellRoundness: Config.options.appearance.controlRoundness >= 0
+        ? Config.options.appearance.controlRoundness : cornerRoundness
+    readonly property real roundingScale: shellRoundness / windowRoundingStock
+
+    Process {
+        id: roundingProc
+        command: ["hyprctl", "getoption", "-j", "decoration:rounding"]
+        running: true
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const o = JSON.parse(text);
+                    if (Number.isFinite(o.int) && o.int >= 0) root._hyprRounding = o.int;
+                } catch (e) { /* keep the last value */ }
+            }
+        }
+    }
+    Timer {
+        id: roundingRefetch
+        interval: 350
+        onTriggered: if (!roundingProc.running) roundingProc.running = true
+    }
+    Connections {
+        target: Hyprland
+        function onRawEvent(event) {
+            if (event.name === "configreloaded") roundingRefetch.restart();
+        }
+    }
+    Connections {
+        target: Config.options.appearance
+        function onDecorationRevChanged() { roundingRefetch.restart(); }
+    }
+
     rounding: QtObject {
-        property int unsharpen: 2
-        property int unsharpenmore: 6
-        property int verysmall: 8
-        property int small: 12
-        property int normal: 17
-        property int large: 23
-        property int verylarge: 30
-        property int full: 9999
+        // Scaled from the stock sizes; a corner never rounds down to nothing
+        // unless the corners are off altogether
+        function fit(n) { return n > 0 && root.roundingScale > 0 ? Math.max(1, Math.round(n * root.roundingScale)) : 0 }
+        property int unsharpen: fit(2)
+        property int unsharpenmore: fit(6)
+        property int verysmall: fit(8)
+        property int small: fit(12)
+        property int normal: fit(17)
+        property int large: fit(23)
+        property int verylarge: fit(30)
+        // What used to be a pill: buttons, chips, tabs and switches. It follows
+        // the roundness like everything else, so at 10 px they are rounded
+        // squares and only a high roundness brings the pills back.
+        // Window shape > Control roundness sets it on its own; -1 follows.
+        property int full: fit(12)
         property int screenRounding: large
-        property int windowRounding: 18
+        property int windowRounding: root.cornerRoundness
         // Sidebars follow the "Widget pills" slider (Bar > Shape), the same
         // bar.widgetRadius that barWidget reads, so one slider moves both.
         readonly property real sidebar: barWidget

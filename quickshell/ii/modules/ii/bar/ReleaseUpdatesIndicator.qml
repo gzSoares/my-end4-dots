@@ -68,7 +68,7 @@ MouseArea {
             }
             implicitWidth: 6
             implicitHeight: 6
-            radius: height / 2
+            radius: Math.min(height / 2, Appearance.rounding.full)
             color: root.dotColors[ReleaseUpdates.severity] ?? Appearance.colors.colOnLayer1
         }
     }

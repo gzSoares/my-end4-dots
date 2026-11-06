@@ -780,7 +780,7 @@ ApplicationWindow {
                                 Layout.alignment: Qt.AlignHCenter
                                 implicitWidth: 48
                                 implicitHeight: 48
-                                radius: 24
+                                radius: Appearance.rounding.fit(24)
                                 color: Appearance.colors.colLayer3
 
                                 MaterialSymbol {

@@ -215,7 +215,7 @@ Item { // Player instance
             implicitHeight: size
             downAction: () => root.player.togglePlaying();
 
-            buttonRadius: root.player?.isPlaying ? Appearance?.rounding.small : size / 2
+            buttonRadius: root.player?.isPlaying ? Appearance?.rounding.small : Math.min(size / 2, Appearance.rounding.full)
             colBackground: root.player?.isPlaying ? blendedColors.colPrimary : blendedColors.colSecondaryContainer
             colBackgroundHover: root.player?.isPlaying ? blendedColors.colPrimaryHover : blendedColors.colSecondaryContainerHover
             colRipple: root.player?.isPlaying ? blendedColors.colPrimaryActive : blendedColors.colSecondaryContainerActive

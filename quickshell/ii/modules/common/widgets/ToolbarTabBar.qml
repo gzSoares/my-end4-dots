@@ -184,7 +184,7 @@ Item {
         opacity: root.dragIndex >= 0 ? 0 : 1
         implicitWidth: contentItem.children[root.currentIndex]?.implicitWidth ?? 0
         implicitHeight: contentItem.children[root.currentIndex]?.implicitHeight ?? 0
-        radius: height / 2
+        radius: Math.min(height / 2, Appearance.rounding.full)
         // Animation
         //
         // A TabBar with no current tab reports -1, and it passes through that

@@ -240,7 +240,7 @@ Item {
                         indicator: Rectangle {
                             implicitWidth: 20
                             implicitHeight: 20
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             border.color: addDateEnabled.checked ? Appearance.colors.colPrimary : Appearance.m3colors.m3outline
                             border.width: 2
                             color: addDateEnabled.checked ? Appearance.colors.colPrimary : "transparent"
@@ -415,7 +415,7 @@ Item {
                         indicator: Rectangle {
                             implicitWidth: 20
                             implicitHeight: 20
-                            radius: 4
+                            radius: Appearance.rounding.fit(4)
                             border.color: editDateEnabled.checked ? Appearance.colors.colPrimary : Appearance.m3colors.m3outline
                             border.width: 2
                             color: editDateEnabled.checked ? Appearance.colors.colPrimary : "transparent"

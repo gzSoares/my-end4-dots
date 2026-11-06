@@ -358,6 +358,12 @@ Singleton {
                     // WhatsApp links need country and area code; numbers saved without them get these.
                     property string whatsappCountryCode: "55"
                     property string whatsappAreaCode: "19"
+                    // A message typed in the contact's message box is sent once the chat has loaded
+                    property bool whatsappAutoSend: true
+                    // The call button dials straight away over ADB instead of opening the dialer
+                    property bool callDirectly: true
+                    // Seconds WhatsApp Web is given to load the chat before the message is sent
+                    property int whatsappSendDelay: 6
                 }
                 // Size of the phone's app and mirror windows. The Hyprland rules open them at
                 // 373x808; this sets the size again once the monitor they landed on is known.
@@ -525,6 +531,12 @@ Singleton {
                     property int opacity: 15
                 }
                 property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
+                // Bumped each time the Decorations page writes a window decoration, so the
+                // shell's own radii (Appearance.rounding) reread Corner roundness
+                property real decorationRev: 0
+                // Roundness in px of every shell element (panels, cards, buttons,
+                // switches...) but the app windows; -1 follows Corner roundness
+                property real controlRoundness: -1
                 // What the Rounded Corners switch turns back on to; -1 is nothing
                 // remembered. See services/RoundedCorners.qml.
                 property JsonObject roundCornersRestore: JsonObject {
@@ -1361,6 +1373,13 @@ Singleton {
                 }
                 property JsonObject calendarTodo: JsonObject {
                     property bool enable: false
+                }
+                // Discord voice (Chat tab). The client id and secret are those of an app of
+                // your own in the Discord developer portal; see the Interface settings.
+                property JsonObject discord: JsonObject {
+                    property bool enable: false
+                    property string clientId: ""
+                    property string clientSecret: ""
                 }
                 property JsonObject ai: JsonObject {
                     property bool textFadeIn: false

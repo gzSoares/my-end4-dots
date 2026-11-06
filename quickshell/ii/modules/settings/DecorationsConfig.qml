@@ -288,7 +288,10 @@ ContentPage {
 
     // The remembered value is compared, not the live one, so a section whose
     // switch is off still says honestly whether its settings are stock.
+    readonly property real controlRoundnessValue: Config.options.appearance.controlRoundness >= 0
+        ? Config.options.appearance.controlRoundness : Appearance.shellRoundness
     readonly property bool shapeChanged: decoDiffers("rounding", roundingValue)
+        || Config.options.appearance.controlRoundness >= 0
         || decoDiffers("borderSize", borderSizeValue)
         || decoDiffers("gapsIn", gapsInValue)
         || decoDiffers("gapsOut", gapsOutValue)
@@ -325,6 +328,7 @@ ContentPage {
     }
 
     function resetShape() {
+        Config.options.appearance.controlRoundness = -1
         root.resetDecoKeys(["rounding", "borderSize", "gapsIn", "gapsOut"])
     }
     function resetTransparency() {
@@ -413,6 +417,7 @@ ContentPage {
     function setDecoration(pairs) {
         Quickshell.execDetached(["python3", root.decorationsPy, "set", root.generalConf,
                                  "--flag-dir", root.flagDir, ...pairs])
+        Config.options.appearance.decorationRev = Date.now()
     }
 
     Process {
@@ -650,7 +655,7 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
         headerExtra: [
             SectionResetButton {
                 changed: root.shapeChanged
-                hint: Translation.tr("Corner roundness, border thickness and gaps go back to how a fresh install has them")
+                hint: Translation.tr("Corner roundness, control roundness, border thickness and gaps go back to how a fresh install has them")
                 onClicked: root.resetShape()
             }
         ]
@@ -671,6 +676,23 @@ print(json.dumps({"gtk":sorted(gtk),"icons":sorted(icons),"cursors":sorted(curso
                 if (stepped === root.roundingValue) return;
                 root.roundingValue = stepped;
                 root.queueDecoration("rounding", stepped);
+            }
+        }
+
+        ConfigSlider {
+            text: Translation.tr("Control roundness")
+            valueText: Math.round(root.controlRoundnessValue) + " px"
+            buttonIcon: "widgets"
+            usePercentTooltip: false
+            enabled: root.roundCornersEnabled
+            opacity: root.roundCornersEnabled ? 1 : 0.5
+            from: 0
+            to: 30
+            value: root.controlRoundnessValue
+            onMoved: {
+                const stepped = Math.round(value);
+                if (stepped === Math.round(root.controlRoundnessValue)) return;
+                Config.options.appearance.controlRoundness = stepped;
             }
         }
 

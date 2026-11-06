@@ -801,6 +801,11 @@ Item {
                 }
             }
 
+            // ───────── CALL (placed or ringing on the phone) ─────────
+            PhoneCallCard {
+                Layout.fillWidth: true
+            }
+
             // ───────── ACTIONS ROW (icon-only M3 buttons) ─────────
             PhoneActionsRow {
                 id: actionsRow
@@ -875,72 +880,21 @@ Item {
                     }
                     spacing: 5
 
-                    Connections {
-                        target: root
-                        function onEntranceTriggerChanged() {
-                            if (root.entranceTrigger >= 0) {
-                                notifSyncBtn.opacity = 0; notifSyncBtnTransform.x = -20; notifSyncBtn.scale = 0.8
-                                notifBadgeBtn.opacity = 0; notifBadgeBtn.scale = 0.8
-                                notifClearBtn.opacity = 0; notifClearBtnTransform.x = 20; notifClearBtn.scale = 0.8
-
-                                Qt.callLater(function() {
-                                    notifToolbarAnim.stop()
-                                    notifToolbarAnim.start()
-                                })
-                            }
-                        }
-                    }
-
-                    ParallelAnimation {
-                        id: notifToolbarAnim
-
-                        // Sync button animation
-                        SequentialAnimation {
-                            PauseAnimation { duration: 420 }
-                            ParallelAnimation {
-                                NumberAnimation { target: notifSyncBtn; property: "opacity"; to: (notifSyncBtn.enabled ? 1.0 : 0.4); duration: 300; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: notifSyncBtnTransform; property: "x"; to: 0; duration: 380; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: notifSyncBtn; property: "scale"; to: 1.0; duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
-                            }
-                        }
-
-                        // Badge count animation
-                        SequentialAnimation {
-                            PauseAnimation { duration: 470 }
-                            ParallelAnimation {
-                                NumberAnimation { target: notifBadgeBtn; property: "opacity"; to: 1.0; duration: 300; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: notifBadgeBtn; property: "scale"; to: 1.0; duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.3 }
-                            }
-                        }
-
-                        // Clear button animation
-                        SequentialAnimation {
-                            PauseAnimation { duration: 520 }
-                            ParallelAnimation {
-                                NumberAnimation { target: notifClearBtn; property: "opacity"; to: (notifClearBtn.enabled ? 1.0 : 0.4); duration: 300; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: notifClearBtnTransform; property: "x"; to: 0; duration: 380; easing.type: Easing.OutCubic }
-                                NumberAnimation { target: notifClearBtn; property: "scale"; to: 1.0; duration: 380; easing.type: Easing.OutBack; easing.overshoot: 1.4 }
-                            }
-                        }
-                    }
-
                     RippleButtonWithIcon {
                         id: notifSyncBtn
                         Layout.preferredHeight: 36
                         horizontalPadding: Appearance.spacing.md
                         rippleEnabled: true
-                        buttonRadius: 18
-                        buttonRadiusPressed: 18
+                        buttonRadius: Appearance.rounding.fit(18)
+                        buttonRadiusPressed: Appearance.rounding.fit(18)
                         colBackground: Appearance.colors.colSecondaryContainer
                         colBackgroundHover: Appearance.colors.colSecondaryContainerHover
                         colBackgroundActive: Appearance.colors.colSecondaryContainerActive ?? Appearance.colors.colSecondaryContainerHover
                         colText: Appearance.colors.colOnSecondaryContainer
                         enabled: KdeConnectService.activeReachable
-                        opacity: 0
-                        scale: 0.8
+                        opacity: enabled ? 1 : 0.4
                         materialIcon: "sync"
                         mainText: ""
-                        transform: Translate { id: notifSyncBtnTransform; x: -20 }
                         onClicked: () => KdeConnectService.requestNotificationsRefresh()
                         StyledToolTip {
                             text: Translation.tr("Sync notifications")
@@ -952,15 +906,14 @@ Item {
                         Layout.preferredHeight: 36
                         horizontalPadding: 10
                         rippleEnabled: false
-                        scale: 0.8
-                        buttonRadius: 18
-                        buttonRadiusPressed: 18
+                        buttonRadius: Appearance.rounding.fit(18)
+                        buttonRadiusPressed: Appearance.rounding.fit(18)
                         colBackground: Appearance.colors.colSecondaryContainer
                         colBackgroundHover: Appearance.colors.colSecondaryContainerHover
                         colText: Appearance.colors.colOnSecondaryContainer
                         enabled: false
                         hoverEnabled: false
-                        opacity: 0
+                        opacity: 1
                         materialIcon: ""
                         mainText: KdeConnectService.activeReachable
                                     ? Translation.tr("%1 notif.").arg(
@@ -987,8 +940,8 @@ Item {
                         Layout.preferredHeight: 36
                         horizontalPadding: Appearance.spacing.md
                         rippleEnabled: true
-                        buttonRadius: 18
-                        buttonRadiusPressed: 18
+                        buttonRadius: Appearance.rounding.fit(18)
+                        buttonRadiusPressed: Appearance.rounding.fit(18)
                         colBackground: Appearance.colors.colSecondaryContainer
                         colBackgroundHover: Appearance.colors.colSecondaryContainerHover
                         colBackgroundActive: Appearance.colors.colSecondaryContainerActive ?? Appearance.colors.colSecondaryContainerHover
@@ -997,13 +950,11 @@ Item {
                                    && KdeConnectService.activeReachable
                                    && KdeConnectService.hasDevices
                                    && KdeConnectService.notificationCount > 0
-                        opacity: 0
-                        scale: 0.8
+                        opacity: enabled ? 1 : 0.4
                         materialIcon: KdeConnectService.notificationCount > 0
                                     ? "delete_sweep"
                                     : "do_not_disturb_on"
                         mainText: ""
-                        transform: Translate { id: notifClearBtnTransform; x: 20 }
                         onClicked: () => KdeConnectService.discardAllNotifications()
                         StyledToolTip {
                             text: KdeConnectService.notificationCount > 0

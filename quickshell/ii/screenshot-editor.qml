@@ -194,6 +194,7 @@ TranslucentAppWindow {
                 Layout.leftMargin: Appearance.spacing.md
                 Layout.rightMargin: Appearance.spacing.md
                 enableShadow: false
+                colBackground: "transparent"   // buttons float straight over the window's blur
                 spacing: 2
 
                 ToolbarSymbolButton {
@@ -257,7 +258,7 @@ TranslucentAppWindow {
                                 anchors.centerIn: parent
                                 width: 18
                                 height: 18
-                                radius: 9
+                                radius: Appearance.rounding.fit(9)
                                 color: swatch.modelData
                                 border.width: 1
                                 border.color: Appearance.colors.colOutlineVariant
@@ -340,7 +341,7 @@ TranslucentAppWindow {
                     }
                     implicitWidth: toastText.implicitWidth + 28
                     implicitHeight: 36
-                    radius: height / 2
+                    radius: Math.min(height / 2, Appearance.rounding.full)
                     color: Appearance.m3colors.m3surfaceContainer
                     opacity: 0
                     visible: opacity > 0

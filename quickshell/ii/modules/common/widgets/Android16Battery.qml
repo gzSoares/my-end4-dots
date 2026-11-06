@@ -77,7 +77,7 @@ Item {
             Rectangle {
                 width: parent.width * 2
                 height: parent.height
-                radius: height / 2
+                radius: Math.min(height / 2, Appearance.rounding.full)
                 color: root.colorEmptyTrack
                 anchors.right: parent.right
             }

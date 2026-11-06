@@ -76,7 +76,7 @@ RippleButton {
                                 Layout.topMargin: Appearance.spacing.xs
                                 width: 8
                                 height: 8
-                                radius: 4
+                                radius: Appearance.rounding.fit(4)
                                 color: modelData.color ?? Appearance.colors.colPrimary
                             }
 
