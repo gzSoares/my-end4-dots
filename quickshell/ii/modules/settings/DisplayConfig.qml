@@ -12,6 +12,7 @@ import qs.modules.settings.display
 ContentPage {
     id: displayConfigPage
     forceWidth: true
+    baseWidth: 628
 
     // Emitted after the apply chain (writeProc → reloadProc) has finished —
     // the parent settings.qml listens for this and recenters its window so
@@ -1405,7 +1406,7 @@ except Exception:
     }
 
     // ── Arrangement canvas ─────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "monitor"
         title: Translation.tr("Display Arrangement")
 
@@ -3733,7 +3734,7 @@ except Exception:
     // re-evaluates the schedule once a minute via a clock binding, so
     // changes here take effect on the next minute boundary at the
     // latest (or immediately when toggling Enable now).
-    ContentSection {
+    CardSection {
         objectName: "nightLightSection"
         icon: "nightlight"
         title: Translation.tr("Night Light")

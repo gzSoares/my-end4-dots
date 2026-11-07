@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# Opens images in the viewer, in the window already open if there is one.
+# Started from a file manager the PATH can be shorter than a terminal's.
+export PATH="$HOME/.local/bin:$PATH"
+config="$HOME/.config/quickshell/ii/image-viewer.qml"
+files=()
+for arg in "$@"; do
+    case "$arg" in
+        file://*) arg="$(python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.argv[1][7:]))' "$arg")" ;;
+    esac
+    [[ "$arg" == /* ]] || arg="$PWD/$arg"
+    files+=("$arg")
+done
+
+if (( ${#files[@]} )) && qs ipc -p "$config" call viewer open "$(printf '%s\n' "${files[@]}")" 2>/dev/null; then
+    exit 0
+fi
+export VIEWER_FILES="$(printf '%s\n' "${files[@]}")"
+exec qs -n -p "$config"

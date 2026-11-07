@@ -145,14 +145,6 @@ Scope {
                     }
 
                     ContextMenuSeparator {}
-
-                    // On its own at the end, because a theme is the one thing
-                    // here that changes everything above it at once.
-                    ContextMenuItem {
-                        iconName: "style"
-                        label: Translation.tr("Switch Theme")
-                        onClicked: menuWindow.openSettingsPage("ThemesConfig.qml")
-                    }
                 }
             }
 

@@ -8,7 +8,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import qs.modules.common.widgets
 
-ContentSection {
+CardSection {
     id: root
     icon: "keyboard"
     title: Translation.tr("Keyboard Layouts")

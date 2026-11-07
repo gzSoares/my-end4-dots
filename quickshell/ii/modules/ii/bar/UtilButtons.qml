@@ -1,4 +1,5 @@
 import qs
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import QtQuick
@@ -95,7 +96,9 @@ Item {
                     fill: 0
                     text: Pipewire.defaultAudioSource?.audio?.muted ? "mic_off" : "mic"
                     iconSize: Appearance.font.pixelSize.large
-                    color: Appearance.colors.colOnLayer2
+                    // Orange while an app records from any microphone. Listening
+                    // to the speakers, as a visualizer does, does not count.
+                    color: Privacy.micActive ? "#ff9800" : Appearance.colors.colOnLayer2
                 }
             }
         }

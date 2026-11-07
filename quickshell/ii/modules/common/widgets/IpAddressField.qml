@@ -17,14 +17,19 @@ import qs.modules.common.widgets
  * between boxes at the edges. A whole address pasted into any box is spread
  * over the boxes from that one.
  */
-ColumnLayout {
+RowLayout {
     id: root
     property string label: ""
+    property string icon: ""
     property string value: ""
     signal edited(string value)
+    // How many boxes hold the focus, so the field around them can show it.
+    property int focusedBoxes: 0
 
-    spacing: Appearance.spacing.xs
+    spacing: 10
     Layout.fillWidth: true
+    Layout.leftMargin: Appearance.spacing.sm
+    Layout.rightMargin: Appearance.spacing.sm
 
     // The text of the four boxes, "" when all are empty.
     function join() {
@@ -80,15 +85,33 @@ ColumnLayout {
     onValueChanged: if (root.value !== root.join()) root.load()
     Component.onCompleted: root.load()
 
-    StyledText {
-        visible: root.label !== ""
-        text: root.label
-        font.pixelSize: Appearance.font.pixelSize.smaller
-        color: Appearance.colors.colSubtext
+    OptionalMaterialSymbol {
+        icon: root.icon
+        iconSize: Appearance.font.pixelSize.larger
     }
 
-    RowLayout {
-        spacing: 6
+    StyledText {
+        visible: root.label !== ""
+        Layout.fillWidth: true
+        text: root.label
+        elide: Text.ElideRight
+        font.pixelSize: Appearance.font.pixelSize.small
+        color: Appearance.colors.colOnSecondaryContainer
+    }
+
+    // The four numbers read as one field, the size of the page's other controls.
+    Rectangle {
+        implicitWidth: boxRow.implicitWidth + 20
+        implicitHeight: 36
+        radius: Appearance.rounding.small
+        color: Appearance.colors.colLayer2
+        border.width: root.focusedBoxes > 0 ? 2 : 1
+        border.color: root.focusedBoxes > 0 ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
+
+        RowLayout {
+            id: boxRow
+            anchors.centerIn: parent
+            spacing: 2
 
         Repeater {
             id: boxes
@@ -98,12 +121,14 @@ ColumnLayout {
                 id: cell
                 required property int index
                 property alias field: box
-                spacing: 6
+                spacing: 2
 
-                MaterialTextField {
+                StyledTextInput {
                     id: box
-                    Layout.preferredWidth: 64
+                    Layout.preferredWidth: 32
+                    Layout.alignment: Qt.AlignVCenter
                     horizontalAlignment: TextInput.AlignHCenter
+                    clip: true
                     // Room for a pasted address; a single number is cut to
                     // three digits as soon as it is typed.
                     maximumLength: 15
@@ -111,6 +136,25 @@ ColumnLayout {
                     inputMethodHints: Qt.ImhFormattedNumbersOnly
                     selectByMouse: true
                     onTextEdited: root.boxEdited(cell.index)
+                    onActiveFocusChanged: root.focusedBoxes += activeFocus ? 1 : -1
+
+                    HoverHandler { cursorShape: Qt.IBeamCursor }
+
+                    // Built on the first right click, as MaterialTextField does.
+                    Loader {
+                        id: editMenuLoader
+                        active: false
+                        sourceComponent: TextFieldContextMenu {
+                            target: box
+                        }
+                    }
+                    TapHandler {
+                        acceptedButtons: Qt.RightButton
+                        onTapped: eventPoint => {
+                            editMenuLoader.active = true;
+                            editMenuLoader.item.openAt(eventPoint.position.x, eventPoint.position.y);
+                        }
+                    }
 
                     Keys.onPressed: event => {
                         if (event.text === "." || event.text === "," || event.key === Qt.Key_Period
@@ -136,10 +180,11 @@ ColumnLayout {
                 StyledText {
                     visible: cell.index < 3
                     text: "."
-                    font.pixelSize: Appearance.font.pixelSize.larger
+                    font.pixelSize: Appearance.font.pixelSize.small
                     color: Appearance.colors.colSubtext
                 }
             }
+        }
         }
     }
 }

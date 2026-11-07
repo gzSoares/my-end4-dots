@@ -6,7 +6,6 @@ import qs.modules.common as C
 
 NestableObject {
     id: root
-    onBiggestWindowChanged: console.log("ws ids:", JSON.stringify(workspaceIds), "classes:", JSON.stringify(biggestWindow.map(w => w?.class ?? null)))
 
     required property HyprlandMonitor monitor
     readonly property var liveMonitorData: HyprlandData.monitors.find(m => m.id === monitor?.id)

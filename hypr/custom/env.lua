@@ -29,6 +29,16 @@ hl.config({
 
 hl.env("XDG_SESSION_TYPE", "wayland")
 
+-- Keep Hyprland off the MX450 so it can power down: both monitors are on the
+-- Intel GPU. The symlink comes from a udev rule (card0/card1 can swap between
+-- boots). Only set while it exists: a wrong path would stop Hyprland starting.
+local igpu = "/dev/dri/intel-igpu"
+local igpu_file = io and io.open(igpu, "r")
+if igpu_file then
+    igpu_file:close()
+    hl.env("AQ_DRM_DEVICES", igpu)
+end
+
 -- Removed (hybrid Intel + MX450 laptop):
 --   LIBVA_DRIVER_NAME=nvidia and __GLX_VENDOR_LIBRARY_NAME=nvidia forced every
 --   app to render/decode video on the MX450 while the screen is driven by the

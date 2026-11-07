@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Opens a PDF in the reader, in the window already open if there is one.
+# Started from a file manager the PATH can be shorter than a terminal's.
+export PATH="$HOME/.local/bin:$PATH"
+config="$HOME/.config/quickshell/ii/pdf-reader.qml"
+file="${1:-}"
+case "$file" in
+    file://*) file="$(python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.argv[1][7:]))' "$file")" ;;
+esac
+[[ -z "$file" || "$file" == /* ]] || file="$PWD/$file"
+
+if [[ -n "$file" ]] && qs ipc -p "$config" call pdf open "$file" 2>/dev/null; then
+    exit 0
+fi
+export PDF_FILE="$file"
+exec qs -n -p "$config"

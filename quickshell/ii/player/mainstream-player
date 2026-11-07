@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Opens files in the player, in the window already open if there is one.
+# Started from a file manager the PATH can be shorter than a terminal's.
+export PATH="$HOME/.local/bin:$PATH"
+config="$HOME/.config/quickshell/ii/player.qml"
+files=()
+for arg in "$@"; do
+    # Desktop files may hand over file:// URLs; mpv opens other schemes itself.
+    case "$arg" in
+        file://*) arg="$(python3 -c 'import sys,urllib.parse;print(urllib.parse.unquote(sys.argv[1][7:]))' "$arg")" ;;
+    esac
+    [[ "$arg" == *://* || "$arg" == /* ]] || arg="$PWD/$arg"
+    files+=("$arg")
+done
+
+if (( ${#files[@]} )) && qs ipc -p "$config" call player open "$(printf '%s\n' "${files[@]}")" 2>/dev/null; then
+    exit 0
+fi
+export QML_IMPORT_PATH="$HOME/.local/lib/mainstream-player/qml"
+export PLAYER_FILES="$(printf '%s\n' "${files[@]}")"
+exec qs -n -p "$config"

@@ -8,8 +8,9 @@ import qs.modules.settings.services
 ContentPage {
     id: root
     forceWidth: true
+    baseWidth: 628
 
-    ContentSection {
+    CardSection {
         icon: "call_to_action"
         title: Translation.tr("Behavior")
 
@@ -285,7 +286,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "rounded_corner"
         title: Translation.tr("Shape")
 
@@ -372,7 +373,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "opacity"
         title: Translation.tr("Transparency")
 
@@ -412,7 +413,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "palette"
         title: Translation.tr("Colors")
 

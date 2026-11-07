@@ -41,9 +41,9 @@
       "to": "tertiary"
     },
     "controlRoundness": 18,
-    "decorationRev": 1793918101003,
+    "decorationRev": 1794013255024,
     "extraBackgroundTint": true,
-    "fakeScreenRounding": 0,
+    "fakeScreenRounding": 2,
     "fonts": {
       "expressive": "Space Grotesk",
       "iconNerd": "JetBrains Mono NF",
@@ -126,7 +126,7 @@
     },
     "thumbnailPath": "/home/geazi/.config/hypr/custom/scripts/mpvpaper_thumbnails/animated21.mp4.jpg",
     "videoFrameRate": 0,
-    "wallpaperPath": "/home/geazi/Pictures/Wallpapers/wallpaper16.jpg",
+    "wallpaperPath": "/home/geazi/Pictures/Wallpapers/wallpaper15.png",
     "wallpaperTransition": "zoom",
     "widgets": {
       "blur": {
@@ -280,7 +280,7 @@
     "clock": {
       "bold": false,
       "fontSize": -1,
-      "separator": "dot"
+      "separator": "dash"
     },
     "codexUsage": {
       "enable": true,
@@ -381,7 +381,11 @@
             {
               "enabled": false,
               "id": "activeWindow"
-            },
+            }
+          ]
+        },
+        {
+          "widgets": [
             {
               "enabled": false,
               "id": "activeWindowPill"
@@ -638,7 +642,7 @@
       "sourceLanguage": "auto",
       "targetLanguage": "auto"
     },
-    "ui": "auto"
+    "ui": "en_US"
   },
   "launcher": {
     "pinnedApps": [
@@ -665,7 +669,7 @@
     "blur": {
       "enable": true,
       "extraZoom": 1.1,
-      "radius": 100
+      "radius": 36
     },
     "centerClock": true,
     "launchOnStartup": false,
@@ -718,7 +722,7 @@
     "centerIcons": true,
     "columns": 6,
     "enable": true,
-    "keepSurfaceAlive": true,
+    "keepSurfaceAlive": false,
     "orderBottomUp": false,
     "orderRightLeft": false,
     "rows": 2,

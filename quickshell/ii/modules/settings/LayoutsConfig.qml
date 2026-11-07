@@ -11,6 +11,7 @@ import qs.modules.common.functions as CF
 ContentPage {
     id: root
     forceWidth: true
+    baseWidth: 628
 
     component CardCaption: RowLayout {
         id: caption
@@ -350,7 +351,7 @@ ContentPage {
         writeWorkspacesLua()
     }
 
-    ContentSection {
+    CardSection {
         icon: "view_quilt"
         title: Translation.tr("Layout")
 

@@ -7,7 +7,7 @@ import qs.modules.common
 import qs.modules.common.functions as CF
 import qs.modules.common.widgets
 
-ContentSection {
+CardSection {
     id: root
     icon: "rule"
     title: Translation.tr("Window rules")

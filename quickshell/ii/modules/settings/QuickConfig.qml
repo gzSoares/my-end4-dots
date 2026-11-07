@@ -17,8 +17,9 @@ ContentPage {
     // is Tonal Spot. They are spread to meet both edges, which also fits the
     // wider eight left when Auto picks Neutral, and the choices on the right
     // sit against the right edge, so every row ends on the same line. A
-    // narrower window shrinks it rather than cutting it off.
-    baseWidth: Math.max(600, Math.min(page.width - 40, 695))
+    // narrower window shrinks it rather than cutting it off. The width counts
+    // the card's own padding on both sides.
+    baseWidth: Math.max(628, Math.min(page.width - 40, 723))
     // Everything here fits the window at its usual size, so the longer pages'
     // extra room at the bottom would only let it scroll into empty space.
     bottomContentPadding: 20
@@ -160,7 +161,7 @@ ContentPage {
     }
 
     // Wallpaper selection
-    ContentSection {
+    CardSection {
         icon: "format_paint"
         title: Translation.tr("Wallpaper & Colors")
         Layout.fillWidth: true
@@ -417,7 +418,7 @@ ContentPage {
         ConfigRow {
             ConfigSwitch {
                 Layout.fillWidth: false
-                Layout.preferredWidth: (page.baseWidth - 4) / 2
+                Layout.preferredWidth: (page.baseWidth - 32) / 2
                 Layout.alignment: Qt.AlignBottom
                 buttonIcon: "ev_shadow"
                 text: Translation.tr("Transparency")
@@ -470,7 +471,7 @@ ContentPage {
     // Laid out as the Bar and Dock pages lay out the same choices, and saved
     // through the same shared rules, so a Hug dock keeps facing the bar
     // whichever page moves it.
-    ContentSection {
+    CardSection {
         icon: "screenshot_monitor"
         title: Translation.tr("Bar & Dock")
 

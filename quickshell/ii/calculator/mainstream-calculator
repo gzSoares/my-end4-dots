@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+# Opens the calculator, or brings nothing new up if one is already open.
+export PATH="$HOME/.local/bin:$PATH"
+exec qs -n -p "$HOME/.config/quickshell/ii/calculator.qml"

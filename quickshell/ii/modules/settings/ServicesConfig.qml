@@ -147,6 +147,7 @@ ContentPage {
     SettingsGroupHeader { text: Translation.tr("Network and data") }
 
     CardSection {
+        id: networkingSection
         icon: "cell_tower"
         title: Translation.tr("Networking")
 
@@ -161,12 +162,14 @@ ContentPage {
         }
 
         IpAddressField {
+            icon: "dns"
             label: Translation.tr("Primary DNS (e.g. 1.1.1.1)")
             value: Config.options.networking.dnsPrimary
             onEdited: v => Config.options.networking.dnsPrimary = v
         }
 
         IpAddressField {
+            icon: "dns"
             label: Translation.tr("Secondary DNS (e.g. 9.9.9.9)")
             value: Config.options.networking.dnsSecondary
             onEdited: v => Config.options.networking.dnsSecondary = v
@@ -192,31 +195,35 @@ ContentPage {
                 onStreamFinished: {
                     const line = text.trim();
                     if (line.startsWith("ok|")) {
-                        dnsStatusIsError = false;
-                        dnsStatus = Translation.tr("DNS applied to: %1").arg(line.slice(3));
+                        networkingSection.dnsStatusIsError = false;
+                        networkingSection.dnsStatus = Translation.tr("DNS applied to: %1").arg(line.slice(3));
                     } else {
-                        dnsStatusIsError = true;
-                        dnsStatus = Translation.tr("Could not apply DNS: no Wi-Fi or Ethernet connection was found");
+                        networkingSection.dnsStatusIsError = true;
+                        networkingSection.dnsStatus = Translation.tr("Could not apply DNS: no Wi-Fi or Ethernet connection was found");
                     }
                 }
             }
         }
 
         RippleButtonWithIcon {
-            Layout.fillWidth: true
+            Layout.fillWidth: false
+            Layout.alignment: Qt.AlignRight
+            Layout.rightMargin: Appearance.spacing.sm
             buttonRadius: Appearance.rounding.small
+            colBackground: Appearance.colors.colSecondaryContainer
+            colBackgroundHover: Appearance.colors.colSecondaryContainerHover
             materialIcon: "dns"
-            mainText: Translation.tr("Apply DNS to system")
+            mainText: Translation.tr("Apply custom DNS")
             onClicked: {
                 const primary = Config.options.networking.dnsPrimary.trim();
                 const secondary = Config.options.networking.dnsSecondary.trim();
                 const given = [primary, secondary].filter(x => x);
-                if (given.length === 0 || !given.every(isIpv4)) {
-                    dnsStatusIsError = true;
-                    dnsStatus = Translation.tr("Enter at least one complete DNS address (four numbers from 0 to 255)");
+                if (given.length === 0 || !given.every(networkingSection.isIpv4)) {
+                    networkingSection.dnsStatusIsError = true;
+                    networkingSection.dnsStatus = Translation.tr("Enter at least one complete DNS address (four numbers from 0 to 255)");
                     return;
                 }
-                dnsStatus = "";
+                networkingSection.dnsStatus = "";
                 dnsApply.command = ["bash", "-c", `
 dns="$1"; n=0; names=""
 active=$(nmcli -t -f UUID,TYPE con show --active | awk -F: '$2=="802-3-ethernet"||$2=="802-11-wireless"{print $1}')
@@ -239,11 +246,11 @@ if [ "$n" -gt 0 ]; then echo "ok|$names"; else echo none; fi
 
         StyledText {
             Layout.fillWidth: true
-            visible: dnsStatus !== ""
-            text: dnsStatus
+            visible: networkingSection.dnsStatus !== ""
+            text: networkingSection.dnsStatus
             wrapMode: Text.Wrap
             font.pixelSize: Appearance.font.pixelSize.small
-            color: dnsStatusIsError ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
+            color: networkingSection.dnsStatusIsError ? Appearance.m3colors.m3error : Appearance.colors.colSubtext
         }
     }
 
@@ -301,109 +308,6 @@ if [ "$n" -gt 0 ]; then echo "ok|$names"; else echo none; fi
             stepSize: 1
             onValueChanged: {
                 Config.options.musicRecognition.interval = value;
-            }
-        }
-    }
-
-    CardSection {
-        icon: "search"
-        title: Translation.tr("Search")
-        ConfigSwitch {
-            text: Translation.tr("Use Levenshtein distance-based algorithm instead of fuzzy")
-            checked: Config.options.search.sloppy
-            onCheckedChanged: {
-                Config.options.search.sloppy = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("Could be better if you make a ton of typos,\nbut results can be weird and might not work with acronyms\n(e.g. \"GIMP\" might not give you the paint program)")
-            }
-        }
-
-        ConfigSwitch {
-            text: Translation.tr("File and folder search")
-            checked: Config.options.search.fileSearch.enable
-            onCheckedChanged: {
-                Config.options.search.fileSearch.enable = checked;
-            }
-            StyledToolTip {
-                text: Translation.tr("Walks your home directory live via fd whenever you type in the launcher. Apps remain at the top of results; files and folders show below them with icons from your active theme.")
-            }
-        }
-
-        ContentSubsection {
-            title: Translation.tr("Prefixes")
-            ConfigRow {
-                uniform: true
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Action")
-                    text: Config.options.search.prefix.action
-                    wrapMode: TextEdit.Wrap
-                    onTextChanged: {
-                        Config.options.search.prefix.action = text;
-                    }
-                }
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Clipboard")
-                    text: Config.options.search.prefix.clipboard
-                    wrapMode: TextEdit.Wrap
-                    onTextChanged: {
-                        Config.options.search.prefix.clipboard = text;
-                    }
-                }
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Emojis")
-                    text: Config.options.search.prefix.emojis
-                    wrapMode: TextEdit.Wrap
-                    onTextChanged: {
-                        Config.options.search.prefix.emojis = text;
-                    }
-                }
-            }
-
-            ConfigRow {
-                uniform: true
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Math")
-                    text: Config.options.search.prefix.math
-                    wrapMode: TextEdit.Wrap
-                    onTextChanged: {
-                        Config.options.search.prefix.math = text;
-                    }
-                }
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Shell command")
-                    text: Config.options.search.prefix.shellCommand
-                    wrapMode: TextEdit.Wrap
-                    onTextChanged: {
-                        Config.options.search.prefix.shellCommand = text;
-                    }
-                }
-                MaterialTextArea {
-                    Layout.fillWidth: true
-                    placeholderText: Translation.tr("Web search")
-                    text: Config.options.search.prefix.webSearch
-                    wrapMode: TextEdit.Wrap
-                    onTextChanged: {
-                        Config.options.search.prefix.webSearch = text;
-                    }
-                }
-            }
-        }
-        ContentSubsection {
-            title: Translation.tr("Web search")
-            MaterialTextArea {
-                Layout.fillWidth: true
-                placeholderText: Translation.tr("Base URL")
-                text: Config.options.search.engineBaseUrl
-                wrapMode: TextEdit.Wrap
-                onTextChanged: {
-                    Config.options.search.engineBaseUrl = text;
-                }
             }
         }
     }

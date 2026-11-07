@@ -17,7 +17,9 @@ BarGroup {
     (TimerService.pomodoroSecondsLeft < TimerService.pomodoroLapDuration || pRunning)
     readonly property bool hasCountdown: cRunning || (TimerService.countdownSecondsLeft > 0 && TimerService.countdownSecondsLeft < TimerService.countdownDuration)
 
-    property bool shouldShow: hasStop || hasPomo || hasCountdown
+    readonly property bool recording: ScreenRecording.active
+
+    property bool shouldShow: hasStop || hasPomo || hasCountdown || recording
 
     visible: shouldShow
 
@@ -36,6 +38,27 @@ BarGroup {
         // up; pinning the minimum keeps the reveal from squashing it.
         Layout.minimumWidth: implicitWidth
         spacing: 15
+
+        // --- SCREEN RECORDING SECTION ---
+        RowLayout {
+            visible: root.recording
+            spacing: 5
+
+            MaterialSymbol {
+                text: "fiber_manual_record"
+                fill: 1
+                iconSize: Appearance.font.pixelSize.large
+                color: "#f44336"
+                Layout.alignment: Qt.AlignVCenter
+            }
+            StyledText {
+                text: ScreenRecording.elapsedText
+                color: Appearance.colors.colOnLayer1
+                font.pixelSize: Appearance.font.pixelSize.small
+                font.features: ({ "tnum": 1 })
+                Layout.alignment: Qt.AlignVCenter
+            }
+        }
 
         // --- POMODORO SECTION ---
         RowLayout {

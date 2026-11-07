@@ -7,7 +7,9 @@ hl.on("hyprland.start", function()
 
     -- Hyprland 0.55 scrolloverview load-race workaround — see the script
     -- header for the full story. Logs to ~/.local/state/scrolloverview-power-cycle.log.
-    hl.exec_cmd("$HOME/.config/hypr/custom/scripts/scrolloverview-power-cycle.sh")
+    -- Off as a trial: written for 0.55 and for the dock, which is disabled here.
+    -- If panels stop taking clicks after login, uncomment this line.
+    -- hl.exec_cmd("$HOME/.config/hypr/custom/scripts/scrolloverview-power-cycle.sh")
 
     -- Window-state restore, then the capturer that keeps the saved session
     -- current. Both self-gate on Config.options.session.restoreEnabled — no
@@ -25,9 +27,3 @@ hl.on("hyprland.start", function()
     -- the xdg entry masked, so the tray icon is switched off before it draws.
     hl.exec_cmd("$HOME/.config/hypr/custom/scripts/blueman-applet-quiet.sh")
 end)
-
--- Surface friendly desktop notifications when the workspace overview is
--- temporarily off (after a Hyprland update) or comes back. Reads
--- /var/lib/scrolloverview/status written by the system-side
--- scrolloverview-rebuild service.
-hl.on("hyprland.start", function() hl.exec_cmd("/usr/local/bin/scrolloverview-status-notify") end)

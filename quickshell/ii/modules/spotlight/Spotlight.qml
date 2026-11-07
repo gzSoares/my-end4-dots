@@ -955,7 +955,7 @@ PanelWindow {
             property vector4d button3Shape: morphRoot.buttonShapes[3]
             property vector4d blends: Qt.vector4d(morphRoot.buttonBlend(0), morphRoot.buttonBlend(1), morphRoot.buttonBlend(2), morphRoot.buttonBlend(3))
 
-            fragmentShader: "shaders/spotlight_mode_field.frag"
+            fragmentShader: "shaders/spotlight_mode_field.frag.qsb"
         }
 
         MultiEffect {
@@ -4987,7 +4987,6 @@ else:
                     "wifi": "WifiConfig.qml",
                     "bluetooth": "BluetoothConfig.qml",
                     "quick": "QuickConfig.qml",
-                    "accounts": "AccountsConfig.qml",
                     "services": "ServicesConfig.qml",
                     "manage": "ManageAppsConfig.qml",
                     "settings": "InterfaceConfig.qml"  // generic entry point
@@ -5107,7 +5106,6 @@ else:
                         "wifi": "WifiConfig.qml",
                         "bluetooth": "BluetoothConfig.qml",
                         "quick": "QuickConfig.qml",
-                        "accounts": "AccountsConfig.qml",
                         "services": "ServicesConfig.qml",
                         "manage": "ManageAppsConfig.qml",
                     };

@@ -18,10 +18,6 @@ hl.window_rule({ match = { title = "^Open Folder$" }, float = true })
 hl.window_rule({ match = { title = "^Save File$" }, float = true })
 hl.window_rule({ match = { title = "^Save As$" }, float = true })
 
--- Satty screenshot annotator
-hl.window_rule({ match = { class = "^(com\\.gabm\\.satty)$" }, float = true, center = true })
-hl.window_rule({ match = { class = "^(satty)$" }, float = true, center = true })
-
 -- Nautilus when its title still reads the bare app id (early-load state)
 hl.window_rule({ match = { class = "^(org\\.gnome\\.Nautilus)$", title = "^(org\\.gnome\\.Nautilus)$" }, float = true, center = true })
 
@@ -56,7 +52,6 @@ hl.layer_rule({
     ignore_alpha = 0.3,
 })
 
-hl.window_rule({ match = { class = "^(kitty|foot|Alacritty|org.kde.dolphin|org.kde.konsole)$" }, no_blur = false })
 
 -- Phone tab (scrcpy windows the left sidebar embeds or opens)
 hl.window_rule({match = {title = "^(ii-phone-unlock)$" },                    float = true})

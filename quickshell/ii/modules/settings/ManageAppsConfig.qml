@@ -5,6 +5,7 @@ import qs.modules.settings.manageApps
 
 ContentPage {
     forceWidth: true
+    baseWidth: 628
 
     DefaultAppsSection {}
 

@@ -10,6 +10,7 @@ import qs.modules.common.widgets
 
 ContentPage {
     forceWidth: true
+    baseWidth: 628
 
     property string powerProfile: "balanced"
     property string powerButtonAction: "suspend"
@@ -158,7 +159,7 @@ ContentPage {
     }
 
     // ── Power Mode ────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "bolt"
         title: Translation.tr("Power Mode")
 
@@ -179,7 +180,7 @@ ContentPage {
     }
 
     // ── General ───────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "settings_power"
         title: Translation.tr("General")
 
@@ -214,7 +215,7 @@ ContentPage {
     }
 
     // ── Session Menu ──────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "power_settings_new"
         title: Translation.tr("Session Menu")
 
@@ -235,7 +236,7 @@ ContentPage {
     }
 
     // ── Power Saving ──────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "battery_charging_full"
         title: Translation.tr("Power Saving")
 
@@ -387,7 +388,7 @@ ContentPage {
     }
 
     // ── Battery ───────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "battery_android_full"
         title: Translation.tr("Battery")
 
@@ -484,7 +485,7 @@ ContentPage {
     }
 
     // ── Sounds ────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "notification_sound"
         title: Translation.tr("Sounds")
 
@@ -515,7 +516,7 @@ ContentPage {
     // matching start hook re-spawns each entry and dispatches placement via
     // movetoworkspacesilent + setfloating once Hyprland emits openwindow.
     // Userspace shim until Hyprland implements xdg-session-management-v1.
-    ContentSection {
+    CardSection {
         icon: "restore_page"
         title: Translation.tr("Window Restore")
 

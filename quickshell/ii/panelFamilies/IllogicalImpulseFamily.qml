@@ -23,7 +23,6 @@ import qs.modules.ii.sidebarRight
 import qs.modules.ii.overlay
 import qs.modules.ii.verticalBar
 import qs.modules.ii.wallpaperSelector
-import qs.modules.spotlight
 import qs.modules.sysmonitor
 import qs.modules.audiomixer
 import qs.modules.containers
@@ -57,9 +56,22 @@ Scope {
     PanelLoader { component: SessionScreen {} }
     PanelLoader { component: SidebarLeft {} }
     PanelLoader { component: SidebarRight {} }
-    PanelLoader { component: Spotlight {} }
     PanelLoader { extraCondition: Config.options.bar.vertical; component: VerticalBar {} }
     PanelLoader { component: WallpaperSelector {} }
+
+    // Spotlight is ~8k lines. Referencing it as a type here would compile it
+    // with this file, before the bar can appear. Loading by URL once the panels
+    // are up takes it off that path. It must still load on its own (not on first
+    // open): its IPC targets, including todoReminder, live inside it.
+    LazyLoader {
+        id: spotlightLoader
+        source: Qt.resolvedUrl("../modules/spotlight/Spotlight.qml")
+    }
+    Timer {
+        interval: 1000
+        running: Config.ready
+        onTriggered: spotlightLoader.activeAsync = true
+    }
 
     SysMonitor {}
     AudioMixer {}

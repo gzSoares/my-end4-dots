@@ -233,6 +233,7 @@ ContentPage {
     }
 
     forceWidth: true
+    baseWidth: 628
     Component.onCompleted: {
         mouseProc.running = false;
         mouseProc.running = true;
@@ -358,7 +359,7 @@ ContentPage {
     }
 
     // ── General ───────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "mouse"
         title: Translation.tr("General")
 
@@ -432,7 +433,7 @@ ContentPage {
     }
 
     // ── Mouse ─────────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "mouse"
         title: Translation.tr("Mouse")
 
@@ -1096,7 +1097,7 @@ ContentPage {
     }
 
     // ── Touchpad ──────────────────────────────────────────────────────────────
-    ContentSection {
+    CardSection {
         icon: "touch_app"
         title: Translation.tr("Touchpad")
 

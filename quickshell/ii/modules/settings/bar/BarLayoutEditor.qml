@@ -28,7 +28,6 @@ Item {
         { id: "tray",          name: Translation.tr("System tray"),       icon: "shelf_auto_hide" },
         { id: "timers",        name: Translation.tr("Timers"),            icon: "timer" },
         { id: "weather",       name: Translation.tr("Weather"),           icon: "cloud" },
-        { id: "releaseUpdates", name: Translation.tr("Update available"), icon: "system_update_alt" },
         { id: "phone",          name: Translation.tr("Phone (battery, signal, ring)"), icon: "smartphone" },
     ]
 

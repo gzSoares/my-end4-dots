@@ -6,7 +6,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 
-ContentSection {
+CardSection {
     id: root
     icon: "language"
     title: Translation.tr("Input Sources")

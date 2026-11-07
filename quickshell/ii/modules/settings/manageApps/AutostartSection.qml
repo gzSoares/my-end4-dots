@@ -11,7 +11,7 @@ import qs.modules.common.widgets
 // What opens on its own when you log in, with a switch beside each one and a
 // way to add another. Apps you added come first; the rest arrive with the
 // system and can be switched off but not dropped.
-ContentSection {
+CardSection {
     id: root
     icon: "rocket_launch"
     title: Translation.tr("Auto Start Apps")

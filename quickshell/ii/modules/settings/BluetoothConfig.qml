@@ -13,8 +13,9 @@ Item {
     ContentPage {
         anchors.fill: parent
         forceWidth: true
+        baseWidth: 628
 
-        ContentSection {
+        CardSection {
             icon: "bluetooth"
             title: Translation.tr("Bluetooth")
 
@@ -96,7 +97,7 @@ Item {
         }
 
         // Connected devices
-        ContentSection {
+        CardSection {
             icon: "bluetooth_connected"
             title: Translation.tr("Connected Devices")
             visible: (Bluetooth.defaultAdapter?.enabled ?? false) && BluetoothStatus.connectedDevices.length > 0
@@ -113,7 +114,7 @@ Item {
         }
 
         // Paired devices
-        ContentSection {
+        CardSection {
             icon: "bluetooth"
             title: Translation.tr("Paired Devices")
             visible: (Bluetooth.defaultAdapter?.enabled ?? false) && BluetoothStatus.pairedButNotConnectedDevices.length > 0
@@ -130,7 +131,7 @@ Item {
         }
 
         // Available devices
-        ContentSection {
+        CardSection {
             icon: "devices"
             title: Translation.tr("Available Devices")
             visible: (Bluetooth.defaultAdapter?.enabled ?? false)

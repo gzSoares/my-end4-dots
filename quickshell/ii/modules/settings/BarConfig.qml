@@ -14,7 +14,7 @@ ContentPage {
     forceWidth: true
     sectionSpacing: 14
     /*
-    ContentSection {
+    CardSection {
         icon: "notifications"
         title: Translation.tr("Notifications")
         ConfigSwitch {
@@ -1042,7 +1042,7 @@ ContentPage {
     WeatherSection {}
 
     /*
-    ContentSection {
+    CardSection {
         icon: "tooltip"
         title: Translation.tr("Tooltips")
         ConfigSwitch {

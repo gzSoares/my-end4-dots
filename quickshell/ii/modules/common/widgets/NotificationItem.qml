@@ -210,7 +210,7 @@ Item { // Notification item area
                     visible: !root.onlyNotification
                     font.pixelSize: root.fontSize
                     color: Appearance.colors.colOnLayer3
-                    elide: Text.NoElide
+                    elide: Text.ElideNone
                     maximumLineCount: 10
                     wrapMode: Text.Wrap
                     text: root.notificationObject.summary || ""
@@ -224,7 +224,7 @@ Item { // Notification item area
                     }
                     font.pixelSize: root.fontSize
                     color: Appearance.colors.colSubtext
-                    elide: Text.NoElide
+                    elide: Text.ElideNone
                     wrapMode: Text.Wrap // Needed for proper eliding????
                     maximumLineCount: 10
                     textFormat: Text.StyledText
@@ -249,7 +249,7 @@ Item { // Notification item area
                     font.pixelSize: root.fontSize
                     color: Appearance.colors.colSubtext
                     wrapMode: Text.Wrap
-                    elide: Text.NoElide
+                    elide: Text.ElideNone
                     textFormat: Text.RichText
                     text: {
                         return `<style>img{max-width:${expandedContentColumn.width}px;}</style>` + 

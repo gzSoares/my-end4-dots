@@ -38,8 +38,6 @@ hl.on("hyprland.start", function ()
  hl.exec_cmd("sh -c 'command -v spice-vdagent >/dev/null && systemd-detect-virt -q && exec spice-vdagent'")
     hl.exec_cmd("hypridle")
 
-    -- Audio
-    hl.exec_cmd("easyeffects --hide-window --service-mode")
 
     -- Clipboard: history
     --hl.exec_cmd("wl-paste --watch cliphist store")

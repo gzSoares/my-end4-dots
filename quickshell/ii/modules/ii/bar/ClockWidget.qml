@@ -53,6 +53,17 @@ Item {
             color: Appearance.colors.colOnLayer1
             text: DateTime.longDate
         }
+
+        // Keep system awake is on.
+        MaterialSymbol {
+            visible: Idle.inhibit
+            Layout.alignment: Qt.AlignVCenter
+            Layout.leftMargin: Appearance.spacing.xs
+            text: "coffee"
+            iconSize: Appearance.font.pixelSize.large
+            fill: 1
+            color: Appearance.colors.colOnLayer1
+        }
     }
 
     MouseArea {

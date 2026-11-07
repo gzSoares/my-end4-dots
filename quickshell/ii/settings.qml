@@ -28,61 +28,75 @@ ApplicationWindow {
     property bool showNextTime: false
     property var pages: [
         {
-            group: 1,
+            group: Translation.tr("Start"),
             name: Translation.tr("Quick"),
             icon: "instant_mix",
+            description: Translation.tr("Wallpaper, colors and the most used options"),
             component: "modules/settings/QuickConfig.qml"
         },
         {
-            group: 1,
+            group: Translation.tr("Connections"),
             name: "Wi-Fi",
             icon: "wifi",
+            description: Translation.tr("Wireless networks and connection details"),
             component: "modules/settings/WifiConfig.qml"
         },
         {
-            group: 1,
+            group: Translation.tr("Connections"),
             name: Translation.tr("Bluetooth"),
             icon: "bluetooth",
+            description: Translation.tr("Pair and manage Bluetooth devices"),
             component: "modules/settings/BluetoothConfig.qml"
         },
         {
-            group: 2,
-            name: Translation.tr("Bar"),
-            icon: "toast",
-            iconRotation: 180,
-            component: "modules/settings/BarConfig.qml"
-        },
-        {
-            group: 2,
-            name: Translation.tr("Dock"),
-            // The bar's glyph the other way up, so the two entries are one
-            // shape distinguished only by which edge it sits on.
-            icon: "toast",
-            component: "modules/settings/DockConfig.qml"
-        },
-        {
-            group: 2,
-            name: Translation.tr("Interface"),
-            icon: "bottom_app_bar",
-            component: "modules/settings/InterfaceConfig.qml"
-        },
-        {
-            group: 2,
+            group: Translation.tr("Personalize"),
             name: Translation.tr("Background"),
             icon: "texture",
+            description: Translation.tr("Wallpaper behavior and desktop widgets"),
             component: "modules/settings/BackgroundConfig.qml"
         },
         {
-            group: 2,
+            group: Translation.tr("Personalize"),
             name: Translation.tr("Decorations"),
             icon: "palette",
+            description: Translation.tr("Window borders, blur, shadows and animations"),
             component: "modules/settings/DecorationsConfig.qml"
         },
         {
-            group: 3,
+            group: Translation.tr("Personalize"),
+            name: Translation.tr("Bar"),
+            icon: "toast",
+            iconRotation: 180,
+            description: Translation.tr("Layout, style and modules of the top bar"),
+            component: "modules/settings/BarConfig.qml"
+        },
+        {
+            group: Translation.tr("Personalize"),
+            name: Translation.tr("Dock"),
+            icon: "toast",
+            // The bar's glyph the other way up, so the two entries are one
+            // shape distinguished only by which edge it sits on.
+            description: Translation.tr("Position, style and pinned apps of the dock"),
+            component: "modules/settings/DockConfig.qml"
+        },
+        {
+            group: Translation.tr("Personalize"),
+            name: Translation.tr("Interface"),
+            icon: "bottom_app_bar",
+            description: Translation.tr("Sidebars, notifications, overview and lock screen"),
+            component: "modules/settings/InterfaceConfig.qml"
+        },
+        {
+            group: Translation.tr("Personalize"),
+            name: Translation.tr("Layouts"),
+            icon: "view_quilt",
+            description: Translation.tr("How windows are arranged on the screen"),
+            component: "modules/settings/LayoutsConfig.qml"
+        },
+        {
+            group: Translation.tr("Devices"),
             name: Translation.tr("Display"),
             icon: "monitor",
-            component: "modules/settings/DisplayConfig.qml",
             // The Display page is by far the heaviest entry in this settings
             // app — multiple monitors × per-monitor sections × ~400 widgets
             // each. Synchronous load froze the page-swap animation while
@@ -91,46 +105,167 @@ ApplicationWindow {
             // thread so the swap stays smooth. Only this page is opted-in;
             // other pages stay sync because their layouts don't tolerate
             // having a 0-width parent during the brief async-loading window.
-            asynchronous: true
+            asynchronous: true,
+            description: Translation.tr("Resolution, scale, arrangement and night light"),
+            component: "modules/settings/DisplayConfig.qml"
         },
         {
-            group: 3,
-            name: Translation.tr("Layouts"),
-            icon: "view_quilt",
-            component: "modules/settings/LayoutsConfig.qml"
-        },
-        {
-            group: 3,
+            group: Translation.tr("Devices"),
             name: Translation.tr("Keyboard"),
             icon: "keyboard",
+            description: Translation.tr("Layouts, input sources and shortcuts"),
             component: "modules/settings/KeyboardConfig.qml"
         },
         {
-            group: 3,
+            group: Translation.tr("Devices"),
             name: Translation.tr("Mouse"),
             icon: "mouse",
+            description: Translation.tr("Pointer, touchpad and gestures"),
             component: "modules/settings/MouseConfig.qml"
         },
         {
-            group: 3,
+            group: Translation.tr("Devices"),
             name: Translation.tr("Power"),
             icon: "bolt",
+            description: Translation.tr("Battery, sleep and power profiles"),
             component: "modules/settings/PowerConfig.qml"
         },
         {
-            group: 4,
+            group: Translation.tr("System"),
             name: Translation.tr("Services"),
             icon: "settings",
+            description: Translation.tr("Background services, weather and integrations"),
             component: "modules/settings/ServicesConfig.qml"
         },
         {
-            group: 4,
+            group: Translation.tr("System"),
             name: Translation.tr("Manage"),
             icon: "apps",
+            description: Translation.tr("Default apps and what starts with the session"),
             component: "modules/settings/ManageAppsConfig.qml"
         }
     ]
-    
+
+    // ─── Search ─────────────────────────────────────────────
+    readonly property real pageHeaderHeight: 72
+    property string searchQuery: ""
+    property int searchSelection: 0
+    property var searchIndex: []
+    // Waits for a page to be on screen before marking the option found on it.
+    property string pendingReveal: ""
+    readonly property var searchResults: root.findSettings(root.searchQuery)
+
+    function normalized(text) {
+        return (text ?? "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    }
+    // The labels are in the interface's language; these let a search typed in
+    // Portuguese find them as well. Keys are written as normalized() leaves them.
+    readonly property var searchSynonyms: ({
+        "transparencia": "transparen", "papel": "wallpaper", "parede": "wallpaper", "fundo": "background",
+        "cor": "color", "cores": "color", "aparencia": "appearance", "barra": "bar",
+        "janela": "window", "janelas": "window", "borda": "border", "bordas": "border", "sombra": "shadow",
+        "desfoque": "blur", "animacao": "animation", "animacoes": "animation", "arredondado": "round",
+        "tela": "display", "monitor": "display", "resolucao": "resolution", "escala": "scale",
+        "teclado": "keyboard", "atalho": "keybind", "atalhos": "keybind", "idioma": "language",
+        "energia": "power", "bateria": "battery", "suspender": "suspend", "bloqueio": "lock",
+        "notificacao": "notification", "notificacoes": "notification", "som": "sound", "audio": "audio",
+        "rede": "network", "redes": "network", 
+        "aplicativo": "app", "aplicativos": "app", "inicializacao": "autostart",
+        "gesto": "gesture", "gestos": "gesture", "relogio": "clock", "clima": "weather",
+        "barra lateral": "sidebar", "lateral": "sidebar", "ponteiro": "pointer", "rolagem": "scroll"
+    })
+    function searchForms(term) {
+        const forms = [term];
+        if (term.length < 3) return forms;
+        for (const word in root.searchSynonyms)
+            if (word.startsWith(term)) forms.push(root.searchSynonyms[word]);
+        return forms;
+    }
+    function findSettings(query) {
+        const terms = root.normalized(query).split(/\s+/).filter(term => term.length > 0);
+        if (terms.length === 0) return [];
+        const termForms = terms.map(term => root.searchForms(term));
+        const results = [];
+        const consider = (entry, label, context, bonus) => {
+            const name = root.normalized(label);
+            const all = name + " " + root.normalized(context);
+            if (!termForms.every(forms => forms.some(form => all.includes(form)))) return;
+            const first = termForms[0];
+            const score = bonus + (first.some(form => name.startsWith(form)) ? 2
+                : first.some(form => name.includes(form)) ? 1 : 0);
+            results.push(Object.assign({ score: score }, entry));
+        };
+        root.pages.forEach((page, index) => {
+            consider({ pageIndex: index, label: page.name, path: page.group, icon: page.icon, reveal: "" },
+                page.name, page.description, 2);
+        });
+        root.searchIndex.forEach(item => {
+            const index = root.pageIndex(item.page);
+            if (index === -1) return;
+            const page = root.pages[index];
+            const label = Translation.tr(item.label);
+            const section = item.section && item.section !== item.label ? Translation.tr(item.section) : "";
+            consider({ pageIndex: index, label: label, icon: page.icon, reveal: label,
+                       path: section ? page.name + " › " + section : page.name },
+                label + " " + item.label, page.name + " " + section, 0);
+        });
+        return results.sort((a, b) => b.score - a.score).slice(0, 40);
+    }
+    function openResult(result) {
+        if (!result) return;
+        root.pendingReveal = result.reveal;
+        if (result.pageIndex === root.currentPage) revealTimer.restart();
+        else root.currentPage = result.pageIndex;
+    }
+    function clearSearch() {
+        searchInput.text = "";
+        searchInput.focus = false;
+    }
+
+    Timer {
+        id: revealTimer
+        interval: 160
+        repeat: false
+        onTriggered: {
+            const label = root.pendingReveal;
+            root.pendingReveal = "";
+            if (label && pageLoader.item?.revealLabel) pageLoader.item.revealLabel(label);
+        }
+    }
+
+    Process {
+        id: searchIndexProc
+        running: true
+        command: ["python3", Quickshell.shellPath("scripts/settings/search-index.py"),
+            Quickshell.shellPath("modules/settings")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.searchIndex = JSON.parse(this.text);
+                } catch (e) {
+                    console.log("settings: could not read the search index:", e);
+                }
+            }
+        }
+    }
+
+    Shortcut {
+        sequences: ["Ctrl+F", "Ctrl+K"]
+        onActivated: searchInput.forceActiveFocus()
+    }
+
+    // A page opened from elsewhere can sit below the fold of the page list.
+    function scrollNavToCurrent() {
+        const row = navRepeater.itemAt(root.currentPage);
+        if (!row) return;
+        const top = row.y - 8;
+        const bottom = row.y + row.height + 8;
+        if (top < navRailFlickable.contentY) navRailFlickable.contentY = Math.max(0, top);
+        else if (bottom > navRailFlickable.contentY + navRailFlickable.height)
+            navRailFlickable.contentY = bottom - navRailFlickable.height;
+    }
+    onCurrentPageChanged: Qt.callLater(root.scrollNavToCurrent)
+
     function pageIndex(name) {
         return root.pages.findIndex(page => page.component.endsWith(name));
     }
@@ -140,7 +275,7 @@ ApplicationWindow {
     }
 
     // Read deep-linking from environment variables (set by dialogs)
-    // A page may be named by its component file (UpdateConfig.qml) instead of
+    // A page may be named by its component file (WifiConfig.qml) instead of
     // its position, so callers don't have to track this list's ordering.
     property int initialPage: {
         const envPage = Quickshell.env("QS_SETTINGS_PAGE");
@@ -158,15 +293,7 @@ ApplicationWindow {
     property int currentPage: initialPage
 
     visible: true
-    // A successful run's record is kept only until it has been seen and the
-    // window closed. The Update page marks it seen once it has shown the
-    // result; a run still going, or one that failed, has no mark and stays.
-    onClosing: {
-        Quickshell.execDetached(["bash", "-c",
-            '[ -f "$0/update.seen" ] && rm -f "$0/update.log" "$0/update.exit" "$0/update.seen"',
-            Directories.updateStateDir]);
-        Qt.quit();
-    }
+    onClosing: Qt.quit()
     title: Translation.tr("Mainstream Settings")
 
     // Re-center on the active screen after a monitor scale apply.
@@ -278,55 +405,26 @@ ApplicationWindow {
         ThemeLibrary.load()
         Config.readWriteDelay = 0 // Settings app always only sets one var at a time so delay isn't needed
         recenterTimer.restart()
-        // Files opens the Sharing page naming the folder that should be
-        // shared once sharing is set up.
-        const sharingFolder = Quickshell.env("QS_SHARING_FOLDER")
-        if (sharingFolder)
-            FileSharing.requestFolder(sharingFolder)
     }
 
     // A second launch hands its page to this window rather than opening
-    // another: qs ipc --pid <pid> call settings showPage UpdateConfig.qml
+    // another: qs ipc --pid <pid> call settings showPage WifiConfig.qml
     IpcHandler {
         target: "settings"
         function showPage(name: string): void {
             root.showPage(name);
         }
-        // What QS_SHARING_FOLDER does for a new window, for one already open:
-        // qs ipc -p <this file> call settings shareFolder <absolute path>
-        // It exits nonzero when no Settings window is running. The window is
-        // brought forward here, since the caller has no address for it. It
-        // stays void: Files takes any output as an older Settings without
-        // this function and opens a new window instead.
-        function shareFolder(path: string): void {
-            FileSharing.requestFolder(path);
-            root.showPage("SharingConfig.qml");
-            const titleRegex = (root.title || "").replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-            if (titleRegex)
-                Quickshell.execDetached(["hyprctl", "dispatch",
-                    `hl.dsp.focus({ window = [[title:^${titleRegex}$]] })`]);
+        // Fills the search box, as if typed: qs ipc -p <this file> call settings search wifi
+        function search(query: string): void {
+            searchInput.text = query;
+        }
+        // Goes to the result the search box has selected.
+        function openSearchResult(): void {
+            root.openResult(root.searchResults[root.searchSelection]);
         }
     }
 
-    // An update under way is what the person opening Settings most likely
-    // wants to see, so it is shown unless a page was asked for by name.
-    Process {
-        running: !Quickshell.env("QS_SETTINGS_PAGE")
-        // The pid has to name a live process. A run that was killed, or a
-        // machine that lost power, leaves the file behind for good, and
-        // existence alone would then force this page open on every launch
-        // for the rest of the machine's life.
-        command: ["bash", "-c",
-            'bash "$0" "$1" >/dev/null 2>&1 && [ ! -f "$2" ]',
-            Quickshell.shellPath("scripts/update/update-live.sh"),
-            Directories.updateStateDir + "/update.pid",
-            Directories.updateStateDir + "/update.exit"]
-        onExited: (exitCode, exitStatus) => {
-            if (exitCode === 0) root.showPage("UpdateConfig.qml")
-        }
-    }
-
-    minimumWidth: 750
+    minimumWidth: 900
     minimumHeight: 500
     width: 1100
     height: 750
@@ -359,103 +457,226 @@ ApplicationWindow {
             }
         }
 
-        Item { // Titlebar
-            visible: Config.options?.windows.showTitlebar
-            Layout.fillWidth: true
-            Layout.fillHeight: false
-            implicitHeight: Math.max(titleText.implicitHeight, windowControlsRow.implicitHeight)
-            StyledText {
-                id: titleText
-                anchors {
-                    left: Config.options.windows.centerTitle ? undefined : parent.left
-                    horizontalCenter: Config.options.windows.centerTitle ? parent.horizontalCenter : undefined
-                    verticalCenter: parent.verticalCenter
-                    leftMargin: Appearance.spacing.md
-                }
-                color: Appearance.colors.colOnLayer0
-                text: Translation.tr("Settings")
-                font {
-                    family: Appearance.font.family.title
-                    pixelSize: Appearance.font.pixelSize.title
-                    variableAxes: Appearance.font.variableAxes.title
-                }
-            }
-            RowLayout { // Window controls row
-                id: windowControlsRow
-                anchors.verticalCenter: parent.verticalCenter
-                anchors.right: parent.right
-                // Close button suppressed — use Super+Q (or the window
-                // manager's own close gesture) to dismiss the window.
-                RippleButton {
-                    visible: false
-                    buttonRadius: Appearance.rounding.full
-                    implicitWidth: 35
-                    implicitHeight: 35
-                    onClicked: root.close()
-                    contentItem: MaterialSymbol {
-                        anchors.centerIn: parent
-                        horizontalAlignment: Text.AlignHCenter
-                        text: "close"
-                        iconSize: 20
-                    }
-                }
-            }
-        }
-
         RowLayout { // Window content with navigation rail and content pane
             Layout.fillWidth: true
             Layout.fillHeight: true
             spacing: contentPadding
-            Item {
+            ColumnLayout {
                 id: navRailWrapper
                 Layout.fillHeight: true
-                Layout.margins: 5
-                implicitWidth: 150
-                Flickable {
+                Layout.fillWidth: false
+                Layout.preferredWidth: 228
+                Layout.margins: 4
+                spacing: 10
+
+                StyledText {
+                    visible: Config.options?.windows.showTitlebar ?? true
+                    Layout.leftMargin: 10
+                    Layout.topMargin: 6
+                    color: Appearance.colors.colOnLayer0
+                    text: Translation.tr("Settings")
+                    font {
+                        family: Appearance.font.family.title
+                        pixelSize: Appearance.font.pixelSize.title
+                        variableAxes: Appearance.font.variableAxes.title
+                    }
+                }
+
+                Rectangle { // Search box
+                    Layout.fillWidth: true
+                    implicitHeight: 42
+                    radius: Appearance.rounding.full
+                    color: Appearance.colors.colLayer1
+                    border.width: searchInput.activeFocus ? 2 : 1
+                    border.color: searchInput.activeFocus ? Appearance.colors.colPrimary : Appearance.colors.colLayer0Border
+
+                    RowLayout {
+                        anchors {
+                            fill: parent
+                            leftMargin: 12
+                            rightMargin: 6
+                        }
+                        spacing: 8
+
+                        MaterialSymbol {
+                            text: "search"
+                            iconSize: 20
+                            color: Appearance.colors.colSubtext
+                        }
+                        Item {
+                            Layout.fillWidth: true
+                            Layout.fillHeight: true
+
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: searchInput.text.length === 0
+                                text: Translation.tr("Search settings")
+                                color: Appearance.colors.colSubtext
+                                font.pixelSize: Appearance.font.pixelSize.small
+                            }
+                            StyledTextInput {
+                                id: searchInput
+                                anchors {
+                                    left: parent.left
+                                    right: parent.right
+                                    verticalCenter: parent.verticalCenter
+                                }
+                                clip: true
+                                onTextChanged: {
+                                    root.searchQuery = text;
+                                    root.searchSelection = 0;
+                                }
+                                Keys.onEscapePressed: root.clearSearch()
+                                Keys.onReturnPressed: root.openResult(root.searchResults[root.searchSelection])
+                                Keys.onEnterPressed: root.openResult(root.searchResults[root.searchSelection])
+                                Keys.onDownPressed: root.searchSelection = Math.min(root.searchSelection + 1, root.searchResults.length - 1)
+                                Keys.onUpPressed: root.searchSelection = Math.max(root.searchSelection - 1, 0)
+                            }
+                        }
+                        RippleButton {
+                            visible: searchInput.text.length > 0
+                            implicitWidth: 30
+                            implicitHeight: 30
+                            buttonRadius: Appearance.rounding.full
+                            onClicked: root.clearSearch()
+                            contentItem: MaterialSymbol {
+                                anchors.centerIn: parent
+                                horizontalAlignment: Text.AlignHCenter
+                                text: "close"
+                                iconSize: 18
+                                color: Appearance.colors.colSubtext
+                            }
+                        }
+                    }
+                }
+
+                Flickable { // Page list
                     id: navRailFlickable
-                    anchors.fill: parent
+                    visible: root.searchQuery.length === 0
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
                     clip: true
                     contentWidth: width
                     contentHeight: navRail.implicitHeight
                     boundsBehavior: Flickable.StopAtBounds
                     ScrollBar.vertical: ScrollBar { policy: ScrollBar.AlwaysOff }
 
-                ColumnLayout {
-                    id: navRail
-                    width: navRailFlickable.width
-                    spacing: 0
+                    ColumnLayout {
+                        id: navRail
+                        width: navRailFlickable.width
+                        spacing: 2
 
-                    Repeater {
-                        model: root.pages
-                        delegate: ColumnLayout {
-                            required property int index
-                            required property var modelData
-                            Layout.fillWidth: true
-                            spacing: 0
+                        onImplicitHeightChanged: root.scrollNavToCurrent()
 
-                            // Divider whenever the group changes — driven off each
-                            // page's `group`, so pages can be added, removed, or
-                            // reordered without touching hardcoded indices.
-                            Rectangle {
-                                visible: index > 0 && root.pages[index - 1].group !== modelData.group
+                        Repeater {
+                            id: navRepeater
+                            model: root.pages
+                            delegate: ColumnLayout {
+                                required property int index
+                                required property var modelData
                                 Layout.fillWidth: true
-                                Layout.margins: Appearance.spacing.md
-                                implicitHeight: 1
-                                opacity: 0.3
-                                color: Appearance.m3colors.m3outlineVariant
-                            }
+                                spacing: 2
 
-                            SettingsNavButton {
-                                toggled: root.currentPage === index
-                                onPressed: root.currentPage = index
-                                buttonIcon: modelData.icon
-                                buttonIconRotation: modelData.iconRotation ?? 0
-                                buttonText: modelData.name
+                                // A heading whenever the group changes — driven off each
+                                // page's `group`, so pages can be added, removed, or
+                                // reordered without touching hardcoded indices.
+                                StyledText {
+                                    visible: index > 0 && root.pages[index - 1].group !== modelData.group
+                                    Layout.leftMargin: 12
+                                    Layout.topMargin: 12
+                                    Layout.bottomMargin: 2
+                                    text: modelData.group.toUpperCase()
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    font.weight: Font.Medium
+                                    font.letterSpacing: 1.1
+                                    color: Appearance.colors.colSubtext
+                                }
+
+                                SettingsNavButton {
+                                    toggled: root.currentPage === index
+                                    onPressed: root.currentPage = index
+                                    buttonIcon: modelData.icon
+                                    buttonIconRotation: modelData.iconRotation ?? 0
+                                    buttonText: modelData.name
+                                }
                             }
                         }
                     }
-                } // ColumnLayout navRail
-                } // Flickable
+                }
+
+                StyledListView { // Search results, in the list's place
+                    id: searchResultsView
+                    visible: root.searchQuery.length > 0
+                    Layout.fillWidth: true
+                    Layout.fillHeight: true
+                    clip: true
+                    spacing: 2
+                    model: root.searchResults
+                    currentIndex: root.searchSelection
+                    onCurrentIndexChanged: positionViewAtIndex(currentIndex, ListView.Contain)
+
+                    delegate: RippleButton {
+                        id: resultButton
+                        required property int index
+                        required property var modelData
+                        width: searchResultsView.width
+                        implicitHeight: resultRow.implicitHeight + 16
+                        buttonRadius: Appearance.rounding.small
+                        colBackground: index === root.searchSelection ? Appearance.colors.colSecondaryContainer : "transparent"
+                        colBackgroundHover: Appearance.colors.colLayer1Hover
+                        onClicked: {
+                            root.searchSelection = index;
+                            root.openResult(modelData);
+                        }
+                        contentItem: RowLayout {
+                            id: resultRow
+                            spacing: 10
+                            anchors {
+                                left: parent.left
+                                right: parent.right
+                                verticalCenter: parent.verticalCenter
+                                leftMargin: 10
+                                rightMargin: 10
+                            }
+                            MaterialSymbol {
+                                text: resultButton.modelData.icon
+                                iconSize: 20
+                                color: Appearance.colors.colOnLayer1
+                            }
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 0
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: resultButton.modelData.label
+                                    elide: Text.ElideRight
+                                    font.pixelSize: Appearance.font.pixelSize.small
+                                    color: Appearance.colors.colOnLayer1
+                                }
+                                StyledText {
+                                    Layout.fillWidth: true
+                                    text: resultButton.modelData.path
+                                    elide: Text.ElideRight
+                                    font.pixelSize: Appearance.font.pixelSize.smaller
+                                    color: Appearance.colors.colSubtext
+                                }
+                            }
+                        }
+                    }
+
+                    StyledText {
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            top: parent.top
+                            margins: 12
+                        }
+                        visible: root.searchResults.length === 0
+                        wrapMode: Text.Wrap
+                        text: Translation.tr("No settings found")
+                        color: Appearance.colors.colSubtext
+                    }
+                }
             }
             Rectangle { // Content container
                 Layout.fillWidth: true
@@ -463,9 +684,69 @@ ApplicationWindow {
                 color: Appearance.m3colors.m3surfaceContainerLow
                 radius: Appearance.rounding.windowRounding - root.contentPadding
 
+                Item { // Where you are
+                    id: pageHeader
+                    anchors {
+                        top: parent.top
+                        left: parent.left
+                        right: parent.right
+                    }
+                    height: root.pageHeaderHeight
+
+                    RowLayout {
+                        anchors {
+                            fill: parent
+                            leftMargin: 24
+                            rightMargin: 24
+                        }
+                        spacing: 14
+
+                        MaterialSymbol {
+                            text: root.pages[root.currentPage].icon
+                            rotation: root.pages[root.currentPage].iconRotation ?? 0
+                            iconSize: 30
+                            fill: 1
+                            color: Appearance.colors.colPrimary
+                        }
+                        ColumnLayout {
+                            Layout.fillWidth: true
+                            spacing: 0
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: root.pages[root.currentPage].name
+                                elide: Text.ElideRight
+                                color: Appearance.colors.colOnLayer0
+                                font {
+                                    family: Appearance.font.family.title
+                                    pixelSize: Appearance.font.pixelSize.huge
+                                    variableAxes: Appearance.font.variableAxes.title
+                                }
+                            }
+                            StyledText {
+                                Layout.fillWidth: true
+                                text: root.pages[root.currentPage].description
+                                elide: Text.ElideRight
+                                color: Appearance.colors.colSubtext
+                                font.pixelSize: Appearance.font.pixelSize.smallie
+                            }
+                        }
+                    }
+
+                    Rectangle {
+                        anchors {
+                            left: parent.left
+                            right: parent.right
+                            bottom: parent.bottom
+                        }
+                        height: 1
+                        color: Appearance.colors.colLayer0Border
+                    }
+                }
+
                 Loader {
                     id: pageLoader
                     anchors.fill: parent
+                    anchors.topMargin: root.pageHeaderHeight
                     opacity: 1.0
 
                     active: Config.ready
@@ -479,6 +760,7 @@ ApplicationWindow {
                         && (root.pages[root.currentPage]?.asynchronous ?? false)
 
                     onLoaded: {
+                        if (root.pendingReveal) revealTimer.restart();
                         if (!root.pendingSettingsSection || !item?.scrollToSection) return;
                         const name = root.pendingSettingsSection;
                         const page = item;
@@ -501,12 +783,6 @@ ApplicationWindow {
                     Connections {
                         target: Appearance
                         function onThemeRevisionChanged() {
-                            // The Update page is left standing: its colors
-                            // follow Appearance on their own, and rebuilding it
-                            // replays the whole run record and asks for the
-                            // pending list again, on every wallpaper change.
-                            if (root.pages[root.currentPage].component.endsWith("UpdateConfig.qml"))
-                                return;
                             pageLoader.reloadCurrentPage();
                         }
                     }
@@ -540,7 +816,7 @@ ApplicationWindow {
                             PropertyAction {
                                 target: pageLoader
                                 property: "anchors.topMargin"
-                                value: 20
+                                value: root.pageHeaderHeight + 20
                             }
                         }
                         ParallelAnimation {
@@ -556,7 +832,7 @@ ApplicationWindow {
                             NumberAnimation {
                                 target: pageLoader
                                 properties: "anchors.topMargin"
-                                to: 0
+                                to: root.pageHeaderHeight
                                 duration: Appearance.motion.fast
                                 easing.type: Appearance.animation.elementMoveEnter.type
                                 easing.bezierCurve: Appearance.animationCurves.emphasizedLastHalf
@@ -581,7 +857,7 @@ ApplicationWindow {
         property real buttonIconRotation: 0
         property string buttonText
 
-        readonly property real baseSize: 56
+        readonly property real baseSize: 42
         readonly property real visualWidth: baseSize + 20 + navBtnText.implicitWidth
 
         Layout.fillWidth: true
@@ -602,8 +878,8 @@ ApplicationWindow {
                 anchors.top: parent.top
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
-                implicitWidth: navBtn.visualWidth
-                radius: Appearance.rounding.full
+                width: navBtn.width
+                radius: Appearance.rounding.small
                 color: navBtn.toggled ?
                     (navBtn.down ? Appearance.colors.colSecondaryContainerActive : navBtn.hovered ? Appearance.colors.colSecondaryContainerHover : Appearance.colors.colSecondaryContainer) :
                     (navBtn.down ? Appearance.colors.colLayer1Active : navBtn.hovered ? Appearance.colors.colLayer1Hover : CF.ColorUtils.transparentize(Appearance.colors.colLayer1Hover, 1))
@@ -623,7 +899,7 @@ ApplicationWindow {
                 }
                 MaterialSymbol {
                     anchors.centerIn: parent
-                    iconSize: 24
+                    iconSize: 22
                     fill: navBtn.toggled ? 1 : 0
                     font.weight: (navBtn.toggled || navBtn.hovered) ? Font.DemiBold : Font.Normal
                     text: navBtn.buttonIcon
@@ -644,7 +920,8 @@ ApplicationWindow {
                 }
                 text: navBtn.buttonText
                 font.pixelSize: Appearance.font.pixelSize.small
-                color: Appearance.colors.colOnLayer1
+                font.weight: navBtn.toggled ? Font.Medium : Font.Normal
+                color: navBtn.toggled ? Appearance.m3colors.m3onSecondaryContainer : Appearance.colors.colOnLayer1
             }
         }
     }

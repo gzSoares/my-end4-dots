@@ -10,12 +10,13 @@ import Quickshell.Io
 ContentPage {
     id: backgroundRoot
     forceWidth: true
+    baseWidth: 628
 
     // The rotation itself lives in the main shell, so asking for one now goes
     // over IPC rather than calling into this process's passive copy.
     Process { id: slideshowNextProc }
 
-    ContentSection {
+    CardSection {
         icon: "transition_fade"
         title: Translation.tr("Wallpaper transition")
 
@@ -57,7 +58,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "gallery_thumbnail"
         title: Translation.tr("Slideshow")
 
@@ -138,7 +139,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "sync_alt"
         title: Translation.tr("Wallpaper panning")
 
@@ -183,7 +184,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "blur_on"
         title: Translation.tr("Widget appearance")
 
@@ -220,7 +221,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         id: settingsClock
         icon: "clock_loader_40"
         title: Translation.tr("Widget: Clock")
@@ -779,7 +780,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "weather_mix"
         title: Translation.tr("Widget: Weather")
 
@@ -825,7 +826,7 @@ ContentPage {
         }
     }
 
-    ContentSection {
+    CardSection {
         icon: "widgets"
         title: Translation.tr("More widgets")
 

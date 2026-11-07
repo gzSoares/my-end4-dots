@@ -11,7 +11,7 @@ import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.modules.settings.keybinds
 
-ContentSection {
+CardSection {
     id: root
     icon: "keyboard"
     title: Translation.tr("Keybinds")

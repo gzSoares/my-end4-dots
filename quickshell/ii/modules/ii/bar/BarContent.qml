@@ -20,7 +20,7 @@ Item { // Bar content region
 
     // Modules that render without a surrounding pill (they carry their own
     // background or fill the available width).
-    readonly property var chromelessModules: ["sidebarButton", "activeWindow", "timers", "releaseUpdates"]
+    readonly property var chromelessModules: ["sidebarButton", "activeWindow", "timers"]
 
     // Cached module visibility/active state - updated only when dependencies change
     property var _moduleVisibleCache: ({})
@@ -35,8 +35,6 @@ Item { // Bar content region
                Config.options.bar.verbose + "|" +
                Battery.available + "|" +
                (MprisController.trackedPlayer?.isPlaying === true) + "|" +
-               ReleaseUpdates.updateAvailable + "|" +
-               ReleaseUpdates.wantTray + "|" +
                KdeConnectService.activeDeviceId;
     }
 
@@ -45,7 +43,7 @@ Item { // Bar content region
         if (deps === _lastVisibilityDeps) return;
         _lastVisibilityDeps = deps;
 
-        const names = ["sidebarButton", "activeWindow", "activeWindowPill", "resources", "media", "workspaces", "clock", "utilButtons", "battery", "indicators", "volume", "tray", "timers", "weather", "releaseUpdates", "phone"];
+        const names = ["sidebarButton", "activeWindow", "activeWindowPill", "resources", "media", "workspaces", "clock", "utilButtons", "battery", "indicators", "volume", "tray", "timers", "weather", "phone"];
         const activeCache = {};
         const visibleCache = {};
 
@@ -70,7 +68,6 @@ Item { // Bar content region
         case "volume": return root.useShortenedForm === 0;
         case "weather": return root.useShortenedForm === 0;
         case "tray": return root.useShortenedForm === 0;
-        case "releaseUpdates": return ReleaseUpdates.updateAvailable && ReleaseUpdates.wantTray;
         case "phone": return root.useShortenedForm < 2 && KdeConnectService.activeDeviceId !== "";
         default: return true;
         }
@@ -92,7 +89,6 @@ Item { // Bar content region
         case "tray": return comp_tray;
         case "timers": return comp_timers;
         case "weather": return comp_weather;
-        case "releaseUpdates": return comp_releaseUpdates;
         case "phone": return comp_phone;
         default: return null;
         }
@@ -202,8 +198,10 @@ Item { // Bar content region
     }
     // Whether anything showing in this group needs its section's spare width.
     function groupTakesSpace(g) {
-        return root.groupWidgets(g).some(w => root.entryActive(w) && root.moduleVisible(w.id)
-            && root.moduleTakesSpace(w.id));
+        // moduleTakesSpace first: it short-circuits before moduleVisible, whose
+        // inputs depend on layout and made the packer's `visible` a binding loop.
+        return root.groupWidgets(g).some(w => root.moduleTakesSpace(w.id)
+            && root.entryActive(w) && root.moduleVisible(w.id));
     }
     // Whether a side section needs its packer: a row wider than its content
     // does not push items against its edge — columns with no stretch share the
@@ -476,11 +474,6 @@ Item { // Bar content region
         PhoneBarIndicator {
             Layout.alignment: Qt.AlignVCenter
         }
-    }
-
-    Component {
-        id: comp_releaseUpdates
-        ReleaseUpdatesIndicator {}
     }
 
     Component {

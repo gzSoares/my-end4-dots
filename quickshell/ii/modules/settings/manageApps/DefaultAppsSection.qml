@@ -10,7 +10,7 @@ import qs.modules.common.widgets
 // One row per job, each naming the app that does it. Picking a different app
 // writes the file types that job covers and, where a key launches it, the app
 // that key opens.
-ContentSection {
+CardSection {
     id: root
     icon: "apps"
     title: Translation.tr("Default Apps")

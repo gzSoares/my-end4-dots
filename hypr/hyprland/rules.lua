@@ -28,8 +28,6 @@ hl.window_rule({match = {title = "^(Choose Files)(.*)$" },                   cen
 hl.window_rule({match = {class = "^(steam_app_.*)$" },                       render_unfocused = true})
 
 -- Floating apps with size/center (consolidated per class)
-hl.window_rule({match = {class = "^(blueberry\\.py)$" },                                float = true})
-hl.window_rule({match = {class = "^(guifetch)$" },                                      float = true}) -- FlafyDev/guifetch
 hl.window_rule({match = {class = "^(pavucontrol|org.pulseaudio.pavucontrol)$" },        float = true, size = {"(monitor_w*0.45)", "(monitor_h*0.45)"}, center = true})
 hl.window_rule({match = {class = "^(nm-connection-editor)$" },                          float = true, size = {"(monitor_w*0.45)", "(monitor_h*0.45)"}, center = true})
 hl.window_rule({match = {class = ".*plasmawindowed.*" },                                float = true})
@@ -38,17 +36,13 @@ hl.window_rule({match = {class = ".*bluedevilwizard" },                         
 hl.window_rule({match = {title = ".*Welcome" },                                         float = true})
 hl.window_rule({match = {title = "^(Mainstream Settings)$" },                           float = true})
 hl.window_rule({match = {class = "org.freedesktop.impl.portal.desktop.kde" },           float = true, size = {"(monitor_w*0.60)", "(monitor_h*0.65)"} })
-hl.window_rule({match = {class = "^(Zotero)$" },                                        float = true, size = {"(monitor_w*0.45)", "(monitor_h*0.45)"} })
-hl.window_rule({match = {class = "^(io.github.diegopvlk.Cine)$" },                      float = true, size = {"(monitor_w*0.45)", "(monitor_h*0.45)"}, center = true})
 hl.window_rule({match = {class = "^(org.kde.gwenview)$" },                              float = true, size = {"(monitor_w*0.25)", "(monitor_h*0.50)"}, center = true})
 hl.window_rule({match = {class = "^(scrcpy)$" },                                        float = true, size = {"(monitor_w*0.18)", "(monitor_h*0.45)"}, move = {"(monitor_w*0.81)", "(monitor_h*0.54)"} })
 hl.window_rule({match = {class = "^(mpv)$" },                                           float = true, size = {"(monitor_w*0.25)", "(monitor_h*0.50)"}, center = true})
 hl.window_rule({match = {class = "^(org.gnome.Calculator)$" },                          float = true, size = {"(monitor_w*0.18)", "(monitor_h*0.32)"}, move = {"(monitor_w*0.81)", "(monitor_h*0.54)"}, pin = true})
 hl.window_rule({match = {class = "^(org.quickshell)$" },                                float = true})
-hl.window_rule({match = {class = "^(.*)(com.interversehq.qView)$" },                    float = true, size = {"(monitor_w*0.45)", "(monitor_h*0.45)"}, center = true})
 hl.window_rule({match = {class = "^(.*)(com.geazi.GeradorAgenda)$" },                   float = true, size = {"(monitor_w*0.30)", "(monitor_h*0.50)"}, center = true})
 hl.window_rule({match = {class = "^(.*)(Tk)$" },                                        float = true, size = {"(monitor_w*0.30)", "(monitor_h*0.50)"}, center = true})
-hl.window_rule({match = {class = "^(.*)(org.kde.haruna)$" },                            float = true, size = {"(monitor_w*0.45)", "(monitor_h*0.45)"}, center = true})
 hl.window_rule({match = {class = "^(.*)(org.freedesktop.impl.portal.desktop.kde)$" },   float = true, center = true})
 hl.window_rule({ match = { class = "^(waydroid)$" }, float = true })
 -- Força o Waydroid a abrir como uma janela flutuante e ignora pedidos de foco de outras janelas
@@ -56,7 +50,6 @@ hl.window_rule({ match = { class = "^(waydroid)$" }, float = true, focus_on_acti
 
 -- Move
 -- kde-material-you-colors spawns a window when changing dark/light theme. This is to make sure it doesn't interfere at all.
-hl.window_rule({match = {class = "^(plasma-changeicons)$" }, float = true, no_initial_focus = true, move = {999999, 999999}})
 -- stupid dolphin copy
 hl.window_rule({match = {title = "^(Copying — Dolphin)$" }, move = {40, 80}})
 
